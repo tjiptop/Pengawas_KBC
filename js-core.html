@@ -1,0 +1,464 @@
+<script>
+    /**
+     * CORE MODULE
+     * App orchestration, Security, and Utilities
+     * Extracted from js-shared.html
+     */
+
+    const App = {
+        state: { user: null, isOnline: navigator.onLine, theme: 'light' },
+        instance: null, // AppManager or AppEnumerator
+
+        initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+
+            this.state.theme = theme;
+            document.documentElement.setAttribute('data-theme', theme);
+            this.createThemeToggle();
+        },
+
+        createThemeToggle() {
+            const toggle = document.createElement('button');
+            toggle.className = 'theme-toggle';
+            toggle.innerHTML = this.state.theme === 'dark' ? '☀️' : '🌙';
+            toggle.title = 'Toggle Dark Mode';
+            toggle.onclick = () => this.toggleTheme();
+            document.body.appendChild(toggle);
+        },
+
+        toggleTheme() {
+            const newTheme = this.state.theme === 'light' ? 'dark' : 'light';
+            this.state.theme = newTheme;
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+
+            const toggle = document.querySelector('.theme-toggle');
+            if (toggle) {
+                toggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
+            }
+        },
+
+        init() {
+            Utils.loading(true, "Initializing...");
+            try {
+                this.initTheme();
+                this.bindEvents();
+                this.checkSession();
+            } catch (e) {
+                console.error(e);
+                Utils.alert("Startup Error: " + e.message);
+                Utils.loading(false);
+            }
+        },
+
+        bindEvents() {
+            window.addEventListener('online', () => this.setOnline(true));
+            window.addEventListener('offline', () => this.setOnline(false));
+
+            // Close dropdown menus when clicking outside
+            document.addEventListener('click', (e) => {
+                const dropdowns = document.querySelectorAll('.menu-dropdown-content');
+                dropdowns.forEach(dropdown => {
+                    if (!dropdown.parentElement.contains(e.target)) {
+                        dropdown.classList.remove('show');
+                    }
+                });
+            });
+
+            // Prevent accidental page reload when offline
+            window.addEventListener('beforeunload', (e) => {
+                if (!App.state.isOnline) {
+                    // Block navigation/reload when offline to prevent losing state
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
+        },
+
+        setOnline(status) {
+            this.state.isOnline = status;
+            const banner = document.getElementById('offline-banner');
+            if (banner) banner.style.display = status ? 'none' : 'block';
+            if (this.instance && this.instance.onOnline) this.instance.onOnline();
+        },
+
+        checkSession() {
+            try {
+                // Check if this is a token-based survey access
+                if (typeof window.SURVEY_TOKEN !== 'undefined' && window.SURVEY_TOKEN) {
+                    this.loadTokenSurvey(window.SURVEY_TOKEN);
+                    return;
+                }
+
+                const u = localStorage.getItem('sa_user');
+                if (u) {
+                    const user = JSON.parse(u);
+                    this.state.user = user;
+                    this.loadRole(user);
+                } else {
+                    this.renderLogin();
+                }
+            } catch (e) {
+                console.error(e);
+                this.logout();
+            }
+        },
+
+        loadRole(user) {
+            try {
+                if (user.role === 'national' || user.role === 'province') {
+                    this.instance = AppManager;
+                }
+                else if (['district', 'madrasah', 'enum', 'fasda'].includes(user.role)) {
+                    this.instance = AppEnumerator;
+                }
+                else {
+                    throw new Error('Unknown role: ' + user.role);
+                }
+
+                this.instance.init(user);
+            } catch (e) {
+                console.error("Role Load Error", e);
+                Utils.alert("Failed to load component: " + e.message);
+                Utils.loading(false);
+                this.logout();
+            }
+        },
+
+        getParsedForm(formId) {
+            if (this.state.parsedForms && this.state.parsedForms[formId]) {
+                return this.state.parsedForms[formId];
+            }
+
+            const yaml = this.state.forms[formId];
+            if (!yaml) {
+                console.warn(`Form ${formId} not found`);
+                return { title: formId, questions: [], group: 'Other' };
+            }
+
+            try {
+                const parsed = jsyaml.load(yaml);
+                if (!this.state.parsedForms) {
+                    this.state.parsedForms = {};
+                }
+                this.state.parsedForms[formId] = parsed;
+                return parsed;
+            } catch (e) {
+                console.error(`Error parsing form ${formId}:`, e);
+                return { title: formId, questions: [], group: 'Other' };
+            }
+        },
+
+        clearFormCache() {
+            if (this.state.parsedForms) {
+                this.state.parsedForms = {};
+            }
+        },
+
+        logout() {
+            Utils.confirm('Are you sure you want to logout?', () => {
+                localStorage.removeItem('sa_user');
+                this.state.user = null;
+                this.instance = null;
+                this.renderLogin();
+            });
+        },
+
+        router(route, params) {
+            if (this.instance) this.instance.router(route, params);
+        },
+
+        renderLogin() {
+            document.getElementById('app').innerHTML = `<div id="offline-banner" class="offline-banner" style="display:${this.state.isOnline ? 'none' : 'block'}">OFFLINE MODE</div>` + SharedViews.Login();
+            Utils.loading(false);
+        }
+    };
+
+    /**
+     * SECURITY MODULE
+     * Input sanitization and validation
+     */
+    const Security = {
+        sanitizeHtml(str) {
+            if (str === null || str === undefined) return '';
+            if (typeof str !== 'string') str = String(str);
+
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        },
+
+        sanitizeFormulaInjection(str) {
+            if (!str) return '';
+            str = String(str);
+
+            const formulaChars = CONFIG.SECURITY.FORMULA_CHARS;
+            const trimmed = str.trim();
+
+            if (formulaChars.some(char => trimmed.startsWith(char))) {
+                return "'" + str;
+            }
+            return str;
+        },
+
+        sanitizeUrl(url) {
+            if (!url) return '';
+            url = String(url).trim();
+
+            const dangerous = /^(javascript|data|vbscript|file):/i;
+            if (dangerous.test(url)) {
+                return 'about:blank';
+            }
+
+            const safe = /^(https?|mailto):/i;
+            if (!safe.test(url) && !url.startsWith('/') && !url.startsWith('#')) {
+                if (url.includes(':')) {
+                    return 'about:blank';
+                }
+            }
+
+            return url;
+        },
+
+        sanitizeFilename(filename) {
+            if (!filename) return 'unnamed';
+
+            return String(filename)
+                .replace(/[^a-zA-Z0-9._-]/g, '_')
+                .replace(/\.{2,}/g, '.')
+                .substring(0, 255);
+        },
+
+        sanitizeObject(obj, options = {}) {
+            const {
+                skipKeys = [],
+                formulaProtection = true,
+                htmlProtection = true
+            } = options;
+
+            if (obj === null || obj === undefined) return obj;
+
+            if (typeof obj !== 'object') {
+                if (typeof obj === 'string') {
+                    let sanitized = obj;
+                    if (htmlProtection) sanitized = this.sanitizeHtml(sanitized);
+                    if (formulaProtection) sanitized = this.sanitizeFormulaInjection(sanitized);
+                    return sanitized;
+                }
+                return obj;
+            }
+
+            if (Array.isArray(obj)) {
+                return obj.map(item => this.sanitizeObject(item, options));
+            }
+
+            const sanitized = {};
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    if (skipKeys.includes(key)) {
+                        sanitized[key] = obj[key];
+                    } else {
+                        sanitized[key] = this.sanitizeObject(obj[key], options);
+                    }
+                }
+            }
+
+            return sanitized;
+        },
+
+        encodeForDisplay(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+
+        stripHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.innerHTML = str;
+            return div.textContent || div.innerText || '';
+        },
+
+        isBase64Data(str) {
+            if (typeof str !== 'string') return false;
+            return str.startsWith('data:');
+        },
+
+        getBase64FieldsFromDef(formDef) {
+            if (!formDef || !formDef.questions) return [];
+
+            const base64Types = ['image', 'audio', 'file', 'multi_image'];
+            return formDef.questions
+                .filter(q => base64Types.includes(q.type))
+                .map(q => q.name);
+        }
+    };
+
+    Object.freeze(Security);
+
+    /**
+     * UTILS MODULE
+     * Utility functions for UI and data processing
+     */
+    const Utils = {
+        loadingTimer: null,
+
+        loading: (s, t) => {
+            const e = document.getElementById('loading');
+            if (e) {
+                e.style.display = s ? 'flex' : 'none';
+                const textEl = e.querySelector('p');
+                if (t && textEl) textEl.innerText = t;
+
+                if (s) {
+                    if (Utils.loadingTimer) clearTimeout(Utils.loadingTimer);
+                    Utils.loadingTimer = setTimeout(() => {
+                        Utils.showTimeoutModal();
+                    }, CONFIG.TIMEOUT.LOADING_WARNING);
+                } else {
+                    if (Utils.loadingTimer) clearTimeout(Utils.loadingTimer);
+                    Utils.loadingTimer = null;
+                }
+            }
+        },
+
+        showTimeoutModal: () => {
+            if (document.getElementById('timeout-modal')) return;
+            const div = document.createElement('div');
+            div.id = 'timeout-modal';
+            div.className = 'modal-overlay';
+            div.innerHTML = `
+                <div class="modal-content">
+                    <h3 style="color:#d9534f">Loading Timeout</h3>
+                    <p>The application is taking longer than expected to load (60s).</p>
+                    <p style="font-size:0.9em;color:#666">This might be due to a connection issue or a stuck process.</p>
+                    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center">
+                        <button class="btn" style="background:#f0f2f5;color:#333;width:auto" onclick="document.getElementById('timeout-modal').remove()">Keep Waiting</button>
+                        <button class="btn" style="background:#d9534f;width:auto" onclick="localStorage.clear();location.reload()">Clear Cache & Reload</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(div);
+        },
+
+        alert: (msg, title = 'Notification') => {
+            return new Promise(resolve => {
+                const div = document.createElement('div');
+                div.className = 'modal-overlay';
+                div.style.zIndex = '10001';
+                div.innerHTML = `
+                    <div class="modal-content">
+                        <h3>${title}</h3>
+                        <p>${msg}</p>
+                        <div style="margin-top:20px">
+                            <button class="btn" onclick="this.closest('.modal-overlay').remove();">OK</button>
+                        </div>
+                    </div>
+                `;
+                div.querySelector('button').onclick = () => { div.remove(); resolve(); };
+                document.body.appendChild(div);
+            });
+        },
+
+        confirm: (msg, callback) => {
+            const div = document.createElement('div');
+            div.className = 'modal-overlay';
+            div.style.zIndex = '10001';
+            div.innerHTML = `
+                <div class="modal-content">
+                    <h3>Confirmation</h3>
+                    <p>${msg}</p>
+                    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;align-items:center">
+                        <button class="btn btn-secondary" style="width:100px;height:40px;margin:0;padding:0;border:1px solid #ced4da;box-sizing:border-box;display:flex;align-items:center;justify-content:center;line-height:normal" id="btn-cancel">Cancel</button>
+                        <button class="btn" style="width:100px;height:40px;margin:0;padding:0;border:1px solid #007bff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;line-height:normal;background:#007bff;color:#fff" id="btn-ok">OK</button>
+                    </div>
+                </div>
+            `;
+            div.querySelector('#btn-cancel').onclick = () => { div.remove(); };
+            div.querySelector('#btn-ok').onclick = () => { div.remove(); if (callback) callback(); };
+            document.body.appendChild(div);
+        },
+
+        formatDate: (iso, multiline = false) => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            const pad = n => n < 10 ? '0' + n : n;
+            const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear().toString().substr(2)}`;
+            const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+            return multiline ? `${dateStr}<br>${timeStr}` : `${dateStr} ${timeStr.substr(0, 5)}`;
+        },
+
+        processFileUploads: async (data) => {
+            const newData = { ...data };
+            return newData;
+        },
+
+        copyToClipboard(text, buttonElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = buttonElement.innerHTML;
+                buttonElement.innerHTML = '✓ Copied!';
+                buttonElement.style.background = '#28a745';
+                setTimeout(() => {
+                    buttonElement.innerHTML = originalText;
+                    buttonElement.style.background = '';
+                }, 2000);
+            }).catch(e => {
+                Utils.alert("Failed to copy: " + e.message);
+            });
+        },
+
+        getRoleEquivalent(role) {
+            const roleMap = {
+                'enum': 'district',
+                'fasda': 'madrasah',
+                'district': 'district',
+                'madrasah': 'madrasah',
+                'province': 'province',
+                'national': 'national'
+            };
+            return roleMap[role] || role;
+        },
+
+        isRoleAllowed(allowedRoles, userRole) {
+            if (!allowedRoles || allowedRoles.length === 0) return true;
+
+            const equivalent = this.getRoleEquivalent(userRole);
+            return allowedRoles.includes(equivalent);
+        }
+    };
+
+    // Global error handler
+    window.addEventListener('error', (e) => {
+        console.error('Global Error:', e);
+    });
+
+    // ✨ BOOTSTRAP APP
+    const bootApp = () => {
+        console.log("Booting App...");
+        try {
+            if (typeof App === 'undefined') {
+                throw new Error("App object is undefined. Critical initialization error.");
+            }
+            App.init();
+        } catch (e) {
+            console.error("Boot Error", e);
+            const loading = document.getElementById('loading');
+            if (loading) loading.innerHTML = `<div style="padding:20px;color:red;text-align:center"><h3>Boot Error</h3><p>${e.message}</p></div>`;
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootApp);
+    } else {
+        bootApp();
+    }
+
+</script>

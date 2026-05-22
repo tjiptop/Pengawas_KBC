@@ -1,0 +1,327 @@
+<script>
+    /**
+     * CONFIGURATION MANAGEMENT
+     * Centralized configuration for Madrasah Survey App
+     * All constants, limits, and settings in one place
+     * 
+     * IMPORTANT: This CONFIG object is CLIENT-SIDE ONLY!
+     * Available in: index.html, js-shared.html, js-enumerator.html, js-manager.html
+     * NOT available in: Code.js, Init.js, Forms.js (server-side Apps Script)
+     * 
+     * For server-side constants, define them directly in Code.js
+     */
+
+    const CONFIG = {
+        /**
+         * APPLICATION INFO
+         */
+        APP: {
+            NAME: 'Madrasah Survey App',
+            VERSION: '2.0.17',
+            AUTHOR: 'Survey Team',
+            SPREADSHEET_ID: '' // Leave empty to use active script binding
+        },
+
+        /**
+         * TIMEOUTS & PERFORMANCE
+         */
+        TIMEOUT: {
+            LOADING_WARNING: 60000,      // 60 seconds - Show timeout modal
+            GPS_HIGH_ACCURACY: 5000,     // 5 seconds - GPS with high accuracy
+            GPS_LOW_ACCURACY: 20000,     // 20 seconds - GPS fallback
+            API_CALL: 30000,             // 30 seconds - API timeout
+            RETRY_DELAY: 2000            // 2 seconds - Retry delay
+        },
+
+        /**
+         * FILE UPLOAD SETTINGS
+         */
+        FILE: {
+            // Image compression
+            IMAGE_MAX_DIMENSION: 1200,   // Max width/height in pixels
+            IMAGE_QUALITY: 0.6,          // JPEG quality (0.0 - 1.0)
+            IMAGE_MAX_SIZE_MB: 5,        // Max file size before compression
+
+            // Audio settings
+            AUDIO_MAX_SIZE_MB: 50,       // Max audio file size (increased for 2 hour recordings)
+            AUDIO_MAX_DURATION_SEC: 7200, // 2 hours max (7200 seconds)
+            AUDIO_BITRATE: 32000,        // 32 kbps (good for voice, ~14 MB per hour)
+            AUDIO_SAMPLE_RATE: 22050,    // 22 kHz (sufficient for voice)
+
+            // Document settings
+            DOCUMENT_MAX_SIZE_MB: 10,    // Max document file size
+
+            // Formats
+            IMAGE_FORMATS: ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'],
+            AUDIO_FORMATS: ['audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/m4a'],
+            DOCUMENT_FORMATS: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+        },
+
+        /**
+         * DRIVE SETTINGS
+         */
+        DRIVE: {
+            ROOT_FOLDER: 'Survey_Files',
+            THUMBNAIL_SIZE: 'w2000',      // Drive thumbnail size
+            SHARING: {
+                ACCESS: 'ANYONE_WITH_LINK',
+                PERMISSION: 'VIEW'
+            }
+        },
+
+        /**
+         * UI/UX SETTINGS
+         */
+        UI: {
+            // Multi-image defaults
+            MULTI_IMAGE_DEFAULT_MAX: 5,
+            MULTI_FILE_DEFAULT_MAX: 5,
+
+            // Date/Time formats
+            DATE_FORMAT: 'DD/MM/YY',
+            TIME_FORMAT: 'HH:mm:ss',
+            DATETIME_FORMAT: 'DD/MM/YY HH:mm',
+
+            // Loading messages
+            LOADING_MESSAGES: {
+                DEFAULT: 'Loading...',
+                INITIALIZING: 'Initializing...',
+                PROCESSING: 'Processing...',
+                UPLOADING: 'Uploading files...',
+                SUBMITTING: 'Submitting...',
+                SYNCING: 'Syncing...'
+            },
+
+            // Colors
+            COLORS: {
+                PRIMARY: '#1a73e8',
+                SECONDARY: '#5f6368',
+                SUCCESS: '#28a745',
+                DANGER: '#d9534f',
+                WARNING: '#ffc107',
+                INFO: '#17a2b8'
+            }
+        },
+
+        /**
+         * SECURITY SETTINGS
+         */
+        SECURITY: {
+            // Formula injection characters to block
+            FORMULA_CHARS: ['=', '+', '-', '@', '\t', '\r', '\n'],
+
+            // Dangerous URL protocols
+            DANGEROUS_PROTOCOLS: /^(javascript|data|vbscript|file):/i,
+
+            // Safe URL protocols
+            SAFE_PROTOCOLS: /^(https?|mailto):/i,
+
+            // Filename sanitization
+            MAX_FILENAME_LENGTH: 255,
+            ALLOWED_FILENAME_CHARS: /[^a-zA-Z0-9._-]/g
+        },
+
+        /**
+         * PASSWORD RESET SETTINGS
+         */
+        PASSWORD_RESET: {
+            // Token expiry options (in hours)
+            EXPIRY_OPTIONS: [1, 6, 12, 24, 48],
+            DEFAULT_EXPIRY: 24,
+
+            // Token format
+            TOKEN_RANDOM_LENGTH: 16
+        },
+
+        /**
+         * FORM ENGINE SETTINGS
+         */
+        FORM: {
+            // Max items to show at once
+            MAX_VISIBLE_ITEMS: 100,
+
+            // Field types that contain Base64 data
+            BASE64_FIELD_TYPES: ['image', 'audio', 'file', 'multi_image'],
+
+            // Field types to skip sanitization
+            SKIP_SANITIZATION_TYPES: ['image', 'audio', 'file', 'multi_image'],
+
+            // Default values
+            DEFAULTS: {
+                SUBMISSION_LIMIT: -1,  // -1 = unlimited
+                REQUIRED: false,
+                READONLY: false
+            }
+        },
+
+        /**
+         * SYNC SETTINGS
+         */
+        SYNC: {
+            // Auto-sync settings
+            AUTO_SYNC_ON_ONLINE: true,
+
+            // Retry settings
+            MAX_RETRIES: 3,
+            RETRY_DELAY: 2000,  // milliseconds
+
+            // Batch settings
+            BATCH_SIZE: 10  // Number of submissions to sync at once
+        },
+
+        /**
+         * SHEET NAMES & SCHEMA
+         */
+        SHEETS: {
+            USERS: 'Users',
+            MADRASAHS: 'Madrasahs',
+            FORMS: 'Forms',
+            SUBMISSIONS: 'Submissions',
+            PASSWORD_RESETS: 'PasswordResets'
+        },
+
+        /**
+         * FEATURE FLAGS
+         */
+        FEATURES: {
+            ENABLE_OFFLINE_MODE: true,
+            ENABLE_GPS: true,
+            ENABLE_AUDIO_RECORDING: true,
+            ENABLE_FILE_UPLOAD: true,
+            ENABLE_MULTI_IMAGE: true,
+            ENABLE_PASSWORD_RESET: true,
+            ENABLE_AUTO_BACKUP: false,      // Future feature
+            ENABLE_ANALYTICS: false,         // Future feature
+            ENABLE_DATA_EXPORT: false        // Future feature
+        },
+
+        /**
+         * VALIDATION RULES
+         */
+        VALIDATION: {
+            // Username/ID patterns
+            USERNAME_MIN_LENGTH: 3,
+            USERNAME_MAX_LENGTH: 50,
+
+            // Password rules
+            PASSWORD_MIN_LENGTH: 4,  // Simple for internal use
+            PASSWORD_MAX_LENGTH: 100,
+
+            // Madrasah ID format
+            MADRASAH_ID_PATTERN: /^[0-9]+$/,
+
+            // Email pattern
+            EMAIL_PATTERN: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+
+            // Phone pattern (Indonesia)
+            PHONE_PATTERN: /^(\+62|62|0)[0-9]{9,12}$/
+        },
+
+        /**
+         * API ENDPOINTS
+         */
+        API: {
+            // Google Apps Script functions
+            FUNCTIONS: {
+                LOGIN: 'apiLogin',
+                FETCH_DATA: 'apiFetchData',
+                SUBMIT_SURVEY: 'apiSubmitSurvey',
+                UPDATE_SUBMISSION: 'apiUpdateSubmission',
+                DELETE_SUBMISSION: 'apiDeleteSubmission',
+                UPLOAD_FILE: 'apiUploadFile',
+                CHANGE_PASSWORD: 'apiChangePassword',
+                GENERATE_RESET_TOKEN: 'apiGeneratePasswordResetToken',
+                VALIDATE_RESET_TOKEN: 'apiValidateResetToken',
+                EXECUTE_PASSWORD_RESET: 'apiExecutePasswordReset'
+            }
+        },
+
+        /**
+         * CACHE SETTINGS
+         */
+        CACHE: {
+            // LocalStorage keys
+            KEYS: {
+                USER: 'sa_user',
+                MADRASAHS: 'sa_madrasahs',
+                SUBMISSIONS: 'sa_submissions',
+                FORMS: 'sa_forms',
+                OUTBOX: 'sa_outbox'
+            },
+
+            // Cache expiry (future feature)
+            EXPIRY_MS: 24 * 60 * 60 * 1000  // 24 hours
+        },
+
+        /**
+         * DEBUG & LOGGING
+         */
+        DEBUG: {
+            ENABLED: false,  // Set to true for development
+            LOG_LEVEL: 'warn',  // 'error', 'warn', 'info', 'debug'
+            LOG_API_CALLS: false,
+            LOG_SANITIZATION: false
+        },
+
+        /**
+         * DEVELOPMENT vs PRODUCTION
+         */
+        ENV: {
+            MODE: 'production',  // 'development' or 'production'
+            IS_DEV: false,
+            IS_PROD: true
+        }
+    };
+
+    /**
+     * HELPER FUNCTIONS
+     */
+    CONFIG.getSpreadsheetId = function () {
+        return this.APP.SPREADSHEET_ID || null;
+    };
+
+    CONFIG.isFeatureEnabled = function (featureName) {
+        return this.FEATURES[featureName] === true;
+    };
+
+    CONFIG.getTimeout = function (type) {
+        return this.TIMEOUT[type] || this.TIMEOUT.API_CALL;
+    };
+
+    CONFIG.getCacheKey = function (key) {
+        return this.CACHE.KEYS[key] || key;
+    };
+
+    CONFIG.log = function (level, ...args) {
+        if (!this.DEBUG.ENABLED) return;
+
+        const levels = ['error', 'warn', 'info', 'debug'];
+        const currentLevel = levels.indexOf(this.DEBUG.LOG_LEVEL);
+        const messageLevel = levels.indexOf(level);
+
+        if (messageLevel <= currentLevel) {
+            console[level]('[CONFIG]', ...args);
+        }
+    };
+
+    // Freeze config to prevent accidental modifications
+    Object.freeze(CONFIG.APP);
+    Object.freeze(CONFIG.TIMEOUT);
+    Object.freeze(CONFIG.FILE);
+    Object.freeze(CONFIG.DRIVE);
+    Object.freeze(CONFIG.UI);
+    Object.freeze(CONFIG.SECURITY);
+    Object.freeze(CONFIG.PASSWORD_RESET);
+    Object.freeze(CONFIG.FORM);
+    Object.freeze(CONFIG.SYNC);
+    Object.freeze(CONFIG.SHEETS);
+    Object.freeze(CONFIG.FEATURES);
+    Object.freeze(CONFIG.VALIDATION);
+    Object.freeze(CONFIG.API);
+    Object.freeze(CONFIG.CACHE);
+    Object.freeze(CONFIG.DEBUG);
+    Object.freeze(CONFIG.ENV);
+
+    // Freeze main config object
+    Object.freeze(CONFIG);
+</script>

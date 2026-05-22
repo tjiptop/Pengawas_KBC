@@ -1,0 +1,232 @@
+<script>
+    /**
+     * AUTHENTICATION MODULE
+     * Login, logout, password management, and reset functions
+     * Extracted from js-shared.html
+     */
+
+    // Extend App with authentication functions
+    Object.assign(App, {
+        login(u, p) {
+            if (!this.state.isOnline) return Utils.alert("Online required");
+            Utils.loading(true);
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    this.state.user = r.user;
+                    localStorage.setItem('sa_user', JSON.stringify(r.user));
+                    this.loadRole(r.user);
+                } else {
+                    Utils.alert(r.message, "Login Failed");
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                console.error("Login Server Error:", e);
+                Utils.alert("Login Error: " + e.message, "Error");
+            }).apiLogin(u, p);
+        },
+
+        showChangePassword() {
+            const div = document.createElement('div');
+            div.className = 'modal-overlay';
+            div.innerHTML = SharedViews.ChangePassword();
+            div.querySelector('.btn-close').onclick = () => div.remove();
+            document.body.appendChild(div);
+        },
+
+        changePassword(oldP, newP) {
+            if (!this.state.isOnline) return Utils.alert("Online required");
+            Utils.loading(true);
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    Utils.alert("Password changed successfully");
+                    document.querySelector('.modal-overlay').remove();
+                } else {
+                    Utils.alert(r.message);
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiChangePassword(this.state.user.username, oldP, newP);
+        },
+
+        showPasswordResetModal(madrasah_id, madrasah_name) {
+            if (!this.state.isOnline) return Utils.alert("Online required");
+            const div = document.createElement('div');
+            div.className = 'modal-overlay';
+            div.innerHTML = SharedViews.PasswordResetModal(madrasah_id, madrasah_name);
+            div.querySelector('.btn-close').onclick = () => div.remove();
+            document.body.appendChild(div);
+        },
+
+        generatePasswordResetToken(madrasah_id, madrasah_name, expiryHours) {
+            if (!this.state.isOnline) return Utils.alert("Online required");
+            Utils.loading(true, "Generating reset link...");
+
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    const urlDisplay = document.getElementById('reset-url-display');
+                    const actionsDiv = document.getElementById('reset-url-actions');
+
+                    if (urlDisplay && actionsDiv) {
+                        urlDisplay.value = r.url;
+                        urlDisplay.style.display = 'block';
+                        actionsDiv.style.display = 'flex';
+
+                        actionsDiv.dataset.url = r.url;
+                        actionsDiv.dataset.madrasahName = madrasah_name;
+                        actionsDiv.dataset.madrasahId = madrasah_id;
+                        actionsDiv.dataset.expiryHours = expiryHours;
+
+                        this.startResetCountdown(r.expires_at);
+                    }
+
+                    Utils.alert("Reset link generated successfully", "Success");
+                } else {
+                    Utils.alert(r.message, "Error");
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiGeneratePasswordResetToken(madrasah_id, expiryHours, this.state.user.username);
+        },
+
+        startResetCountdown(expiresAt) {
+            const countdownEl = document.getElementById('reset-countdown');
+            if (!countdownEl) return;
+
+            const updateCountdown = () => {
+                const now = new Date();
+                const expiry = new Date(expiresAt);
+                const diff = expiry - now;
+
+                if (diff <= 0) {
+                    countdownEl.innerHTML = '<span style="color:#d9534f">⚠️ Link expired</span>';
+                    return;
+                }
+
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                countdownEl.innerHTML = `⏱️ Expires in: <strong>${hours}h ${minutes}m ${seconds}s</strong>`;
+                setTimeout(updateCountdown, 1000);
+            };
+
+            updateCountdown();
+        },
+
+        shareViaWhatsApp(url, madrasah_name, madrasah_id, expiryHours) {
+            const message = `Assalamu'alaikum,
+
+Kami telah membuat link reset password untuk akun madrasah ${madrasah_name} (ID: ${madrasah_id}).
+
+Link: ${url}
+
+⚠️ Link ini akan kadaluarsa dalam ${expiryHours} jam.
+
+Silakan buka link di atas dan buat password baru untuk akun Anda.
+
+Terima kasih.`;
+
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+            window.open(whatsappUrl, '_blank');
+        },
+
+        shareViaTelegram(url, madrasah_name, madrasah_id, expiryHours) {
+            const message = `Assalamu'alaikum,
+
+Kami telah membuat link reset password untuk akun madrasah ${madrasah_name} (ID: ${madrasah_id}).
+
+Link: ${url}
+
+⚠️ Link ini akan kadaluarsa dalam ${expiryHours} jam.
+
+Silakan buka link di atas dan buat password baru untuk akun Anda.
+
+Terima kasih.`;
+
+            const encodedMessage = encodeURIComponent(message);
+            const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodedMessage}`;
+            window.open(telegramUrl, '_blank');
+        }
+    });
+
+    /**
+     * SHARED VIEWS
+     * Reusable UI templates for auth flows
+     */
+    const SharedViews = {
+        Login: () => `<div class="center-screen"><div class="card" style="width:100%;max-width:400px"><h2><h2 style="text-align:center">KBC - INOVASI</h2><h2 style="text-align:center">Login</h2><form onsubmit="event.preventDefault();App.login(this.u.value,this.p.value)"><div class="form-group"><label>User</label><input name="u" class="form-control" required></div><div class="form-group"><label>Pass</label><input type="password" name="p" class="form-control" required></div><button class="btn">Login</button></form></div></div>`,
+
+        ChangePassword: () => `
+            <div class="modal-content">
+                <h3>Change Password</h3>
+                <form onsubmit="event.preventDefault(); if(this.n.value!==this.c.value){alert('Passwords mismatch');return;} App.changePassword(this.o.value, this.n.value)">
+                    <div class="form-group"><label>Old Password</label><input type="password" name="o" class="form-control" required></div>
+                    <div class="form-group"><label>New Password</label><input type="password" name="n" class="form-control" required></div>
+                    <div class="form-group"><label>Confirm New</label><input type="password" name="c" class="form-control" required></div>
+                    <div style="margin-top:20px;display:flex;gap:10px">
+                        <button type="button" class="btn btn-secondary btn-close">Cancel</button>
+                        <button class="btn">Change</button>
+                    </div>
+                </form>
+            </div>
+        `,
+
+        PasswordResetModal: (madrasah_id, madrasah_name) => `
+            <div class="modal-content" style="max-width:600px">
+                <h3>🔐 Reset Password</h3>
+                <div style="background:var(--color-bg);padding:15px;border-radius:4px;margin-bottom:20px;border:1px solid var(--color-border)">
+                    <div style="margin-bottom:8px"><strong>Madrasah:</strong> ${madrasah_name}</div>
+                    <div><strong>Username/ID:</strong> ${madrasah_id}</div>
+                </div>
+                
+                <p style="font-size:0.95em;margin-bottom:20px;opacity:0.7">
+                    ℹ️ Link ini akan meminta madrasah untuk membuat password baru mereka sendiri
+                </p>
+                
+                <form onsubmit="event.preventDefault(); App.generatePasswordResetToken('${madrasah_id}', '${madrasah_name}', parseInt(this.expiry.value))">
+                    <div class="form-group">
+                        <label>Waktu Kadaluarsa</label>
+                        <select name="expiry" class="form-control" required>
+                            <option value="1">1 Jam</option>
+                            <option value="6">6 Jam</option>
+                            <option value="12">12 Jam</option>
+                            <option value="24" selected>24 Jam</option>
+                            <option value="48">48 Jam</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn" style="width:100%;margin-top:10px">Generate Reset Link</button>
+                </form>
+                
+                <textarea id="reset-url-display" class="form-control" readonly style="display:none;margin-top:20px;min-height:80px;font-size:0.85em;resize:vertical"></textarea>
+                
+                <div id="reset-url-actions" style="display:none;margin-top:15px;gap:8px;justify-content:center;align-items:center">
+                    <button type="button" class="btn btn-secondary" style="flex:1;min-width:120px" 
+                        onclick="App.copyToClipboard(document.getElementById('reset-url-display').value, this)">
+                        📋 Copy Link
+                    </button>
+                    <button type="button" class="btn" style="width:40px;height:40px;padding:0;background:#25D366;border-color:#25D366;border-radius:8px;font-size:1.4em" 
+                        onclick="const d=this.parentElement.dataset; App.shareViaWhatsApp(d.url, d.madrasahName, d.madrasahId, d.expiryHours)" title="Share via WhatsApp">
+                        💬
+                    </button>
+                    <button type="button" class="btn" style="width:40px;height:40px;padding:0;background:#0088cc;border-color:#0088cc;border-radius:8px;font-size:1.4em" 
+                        onclick="const d=this.parentElement.dataset; App.shareViaTelegram(d.url, d.madrasahName, d.madrasahId, d.expiryHours)" title="Share via Telegram">
+                        ✈️
+                    </button>
+                </div>
+                
+                <div id="reset-countdown" style="margin-top:15px;text-align:center;font-size:0.9em;opacity:0.7"></div>
+                
+                <div style="margin-top:20px;text-align:right">
+                    <button type="button" class="btn btn-secondary btn-close" style="width:100px;height:40px;margin:0;padding:0;border:1px solid #ced4da;box-sizing:border-box;display:flex;align-items:center;justify-content:center;line-height:normal">Close</button>
+                </div>
+            </div>
+        `
+    };
+</script>

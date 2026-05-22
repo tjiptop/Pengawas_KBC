@@ -1,0 +1,643 @@
+<script>
+    /**
+     * FORM ENGINE - FIELD HANDLERS MODULE
+     * Interactive field handlers for special input types
+     * Extracted from js-shared.html
+     */
+
+    Object.assign(FormEngine, {
+
+        img(n, inp) {
+            if (inp.files && inp.files[0]) {
+                const f = inp.files[0];
+                const q = this.def.questions.find(x => x.name == n);
+                // Standard Max Size (YAML first, then Config, then 5MB default)
+                const limit = (q.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+                if (f.size > limit) { Utils.alert(`File too large (Max ${q.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5}MB)`); inp.value = ''; return; }
+
+                Utils.loading(true, "Processing...");
+                const r = new FileReader();
+                r.onload = e => {
+                    const i = new Image();
+                    i.onload = () => {
+                        const c = document.createElement('canvas');
+                        // Use CONFIG for image compression
+                        const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                        let w = i.width, h = i.height;
+                        if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX } } else { if (h > MAX) { w *= MAX / h; h = MAX } }
+                        c.width = Math.floor(w); c.height = Math.floor(h);
+                        const ctx = c.getContext('2d');
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.fillRect(0, 0, w, h);
+                        ctx.drawImage(i, 0, 0, w, h);
+                        const b64 = c.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+                        this.data[n] = b64;
+                        this.hasUnsavedChanges = true;
+                        document.getElementById('f-' + n).value = b64;
+                        const prev = document.getElementById('prev-' + n);
+                        if (prev) prev.innerHTML = `<img src="${b64}" style="max-width:100%;border-radius:4px;margin-top:5px;border:1px solid #ddd">`;
+                        Utils.loading(false);
+                        this.runLogic();
+                    };
+                    i.src = e.target.result;
+                };
+                r.readAsDataURL(f);
+            }
+        },
+
+        multiImg(n, inp) {
+            const q = this.def.questions.find(x => x.name == n);
+            // Standard Max Files (YAML first, then Config, then 5 default)
+            const maxImages = q?.max_images || CONFIG.UI.MULTI_IMAGE_DEFAULT_MAX || 5;
+            // Standard Max Size (YAML first, then Config, then 5MB default)
+            const maxSizeBytes = (q.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+
+            if (inp.files && inp.files.length > 0) {
+                if (!this.data[n] || !Array.isArray(this.data[n])) this.data[n] = [];
+
+                const remaining = maxImages - this.data[n].length;
+                if (remaining <= 0) {
+                    Utils.alert(`Maximum ${maxImages} images allowed`);
+                    inp.value = '';
+                    return;
+                }
+
+                const filesToProcess = Math.min(inp.files.length, remaining);
+                if (inp.files.length > remaining) {
+                    Utils.alert(`Only ${remaining} slot(s) available. Uploading first ${remaining} image(s).`);
+                }
+
+                Utils.loading(true, `Processing ${filesToProcess} image(s)...`);
+
+                let processed = 0;
+                Array.from(inp.files).slice(0, filesToProcess).forEach(f => {
+                    // Start Standard Max Size Check
+                    if (f.size > maxSizeBytes) {
+                        Utils.alert(`${f.name} too large (Max ${q.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5}MB)`);
+                        processed++;
+                        if (processed === filesToProcess) {
+                            Utils.loading(false);
+                            this.reRenderField(this.def.questions.find(x => x.name == n));
+                        }
+                        return;
+                    }
+                    // End Standard Max Size Check
+
+                    const r = new FileReader();
+                    r.onload = e => {
+                        const i = new Image();
+                        i.onload = () => {
+                            const c = document.createElement('canvas');
+                            // Use CONFIG for compression
+                            const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                            let w = i.width, h = i.height;
+                            if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX } }
+                            else { if (h > MAX) { w *= MAX / h; h = MAX } }
+                            c.width = Math.floor(w);
+                            c.height = Math.floor(h);
+                            const ctx = c.getContext('2d');
+                            ctx.drawImage(i, 0, 0, w, h);
+                            const b64 = c.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+
+                            this.data[n].push(b64);
+                            this.hasUnsavedChanges = true;
+                            processed++;
+
+                            if (processed === filesToProcess) {
+                                Utils.loading(false);
+                                this.reRenderField(this.def.questions.find(x => x.name == n));
+                            }
+                        };
+                        i.src = e.target.result;
+                    };
+                    r.readAsDataURL(f);
+                });
+
+                inp.value = '';
+            }
+        },
+
+        removeMultiImg(n, idx) {
+            if (this.data[n] && Array.isArray(this.data[n])) {
+                this.data[n].splice(idx, 1);
+                this.hasUnsavedChanges = true;
+                const q = this.def.questions.find(x => x.name == n);
+                this.reRenderField(q);
+            }
+        },
+
+        showImagePreview(imageUrl) {
+            if (!imageUrl) return;
+
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+            `;
+
+            const imgContainer = document.createElement('div');
+            imgContainer.style.cssText = `
+                position: relative;
+                max-width: 90%;
+                max-height: 90%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.style.cssText = `
+                max-width: 100%;
+                max-height: 90vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            `;
+            img.onclick = (e) => e.stopPropagation();
+
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '×';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: -15px;
+                right: -15px;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                border: none;
+                background: var(--color-bg-elevated);
+                color: var(--color-text);
+                font-size: 28px;
+                line-height: 1;
+                cursor: pointer;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+                transition: background 0.2s;
+            `;
+            closeBtn.onmouseover = () => closeBtn.style.background = 'var(--color-bg-hover)';
+            closeBtn.onmouseout = () => closeBtn.style.background = 'var(--color-bg-elevated)';
+            closeBtn.onclick = () => overlay.remove();
+
+            imgContainer.appendChild(img);
+            imgContainer.appendChild(closeBtn);
+            overlay.appendChild(imgContainer);
+
+            overlay.onclick = () => overlay.remove();
+
+            document.body.appendChild(overlay);
+        },
+
+        doc(n, inp) {
+            if (inp.files && inp.files[0]) {
+                const f = inp.files[0];
+
+                // Check Max Size for Single File
+                const q = this.def.questions.find(x => x.name == n);
+                // Standard Max Size (YAML first, then Config, then 10MB default)
+                const limit = (q.max_size || CONFIG.FILE.DOCUMENT_MAX_SIZE_MB || 10) * 1024 * 1024;
+
+                if (f.size > limit) {
+                    Utils.alert(`File too large (Max ${q.max_size || CONFIG.FILE.DOCUMENT_MAX_SIZE_MB || 10}MB)`);
+                    inp.value = '';
+                    return;
+                }
+
+                const r = new FileReader();
+                r.onload = e => {
+                    // Store object with metadata
+                    this.data[n] = {
+                        name: f.name,
+                        size: f.size,
+                        type: f.type,
+                        data: e.target.result
+                    };
+                    this.hasUnsavedChanges = true;
+                    const prev = document.getElementById('prev-' + n);
+                    if (prev) prev.innerHTML = `<div style="margin-top:5px;font-size:0.9em">📄 ${f.name} (${Math.round(f.size / 1024)} KB)</div>`;
+                    this.runLogic();
+                };
+                r.readAsDataURL(f);
+            }
+        },
+
+        multiDoc(n, inp) {
+            const q = this.def.questions.find(x => x.name == n);
+            // Standard Max Files (YAML first, then Config, then 5 default)
+            const maxFiles = q?.max_files || CONFIG.UI.MULTI_FILE_DEFAULT_MAX || 5;
+            // Standard Max Size (YAML first, then Config, then 10MB default)
+            const maxSizeBytes = (q.max_size || CONFIG.FILE.DOCUMENT_MAX_SIZE_MB || 10) * 1024 * 1024;
+
+            if (inp.files && inp.files.length > 0) {
+                if (!this.data[n] || !Array.isArray(this.data[n])) this.data[n] = [];
+
+                const remaining = maxFiles - this.data[n].length;
+                if (remaining <= 0) {
+                    Utils.alert(`Maximum ${maxFiles} files allowed`);
+                    inp.value = '';
+                    return;
+                }
+
+                const filesToProcess = Math.min(inp.files.length, remaining);
+                if (inp.files.length > remaining) {
+                    Utils.alert(`Only ${remaining} slot(s) available. Uploading first ${remaining} file(s).`);
+                }
+
+                Utils.loading(true, `Processing ${filesToProcess} file(s)...`);
+
+                let processed = 0;
+                let errors = [];
+
+                // Copy FileList to Array to iterate easily
+                const files = Array.from(inp.files).slice(0, filesToProcess);
+
+                files.forEach(f => {
+                    // Check file size
+                    if (f.size > maxSizeBytes) {
+                        errors.push(`${f.name} too large (Max ${q.max_size || CONFIG.FILE.DOCUMENT_MAX_SIZE_MB || 10}MB)`);
+                        processed++;
+                        if (processed === filesToProcess) {
+                            Utils.loading(false);
+                            if (errors.length > 0) Utils.alert(errors.join('\n'));
+                            this.reRenderField(this.def.questions.find(x => x.name == n));
+                        }
+                        return;
+                    }
+
+                    const r = new FileReader();
+                    r.onload = e => {
+                        // Store object with metadata for better display
+                        this.data[n].push({
+                            name: f.name,
+                            size: f.size,
+                            type: f.type,
+                            data: e.target.result
+                        });
+                        this.hasUnsavedChanges = true;
+                        processed++;
+
+                        if (processed === filesToProcess) {
+                            Utils.loading(false);
+                            if (errors.length > 0) Utils.alert(errors.join('\n'));
+                            this.reRenderField(this.def.questions.find(x => x.name == n));
+                        }
+                    };
+                    r.readAsDataURL(f);
+                });
+
+                inp.value = '';
+            }
+        },
+
+        removeMultiDoc(n, idx) {
+            if (this.data[n] && Array.isArray(this.data[n])) {
+                this.data[n].splice(idx, 1);
+                this.hasUnsavedChanges = true;
+                const q = this.def.questions.find(x => x.name == n);
+                this.reRenderField(q);
+            }
+        },
+
+        /**
+         * Handle failed file uploads
+         * Auto-remove failed files from form data and re-render affected fields
+         * @param {Array} failedUploads - Array of {field, filename, reason, index?}
+         * @param {boolean} skipRerender - If true, don't re-render fields (useful when form will redirect immediately)
+         */
+        handleFailedUploads(failedUploads, skipRerender = false) {
+            if (!failedUploads || failedUploads.length === 0) return;
+
+            // Group failures by field name
+            const failedByField = {};
+            failedUploads.forEach(fail => {
+                if (!failedByField[fail.field]) {
+                    failedByField[fail.field] = [];
+                }
+                failedByField[fail.field].push(fail);
+            });
+
+            // Process each affected field
+            Object.keys(failedByField).forEach(fieldName => {
+                const failures = failedByField[fieldName];
+
+                // Check if field data exists and is an array (multi_file, multi_image)
+                if (Array.isArray(this.data[fieldName])) {
+                    // For multi-file fields: Remove files by index (backwards to avoid index shifting)
+                    const indicesToRemove = failures
+                        .filter(f => f.index !== undefined && f.index >= 0)
+                        .map(f => f.index)
+                        .sort((a, b) => b - a); // Sort descending
+
+                    indicesToRemove.forEach(idx => {
+                        if (idx < this.data[fieldName].length) {
+                            this.data[fieldName].splice(idx, 1);
+                        }
+                    });
+                } else {
+                    // For single file fields: Set to null
+                    this.data[fieldName] = null;
+                }
+
+                // Only re-render if not skipping (i.e., if form is staying open)
+                if (!skipRerender) {
+                    // Re-render the affected field to update UI
+                    const question = this.def.questions.find(q => q.name === fieldName);
+                    if (question) {
+                        this.reRenderField(question);
+                    }
+                }
+            });
+
+            // Show user-friendly error message
+            const errorLines = failedUploads.map(f => {
+                const trimmedReason = f.reason.replace(/^Upload Failed - /, ''); // Remove prefix if exists
+                return `• ${f.filename}: ${trimmedReason}`;
+            });
+
+            const message = `${failedUploads.length} file(s) failed to upload and have been removed from the list:\n\n${errorLines.join('\n')}\n\nPlease check the file size and format, then try uploading again.`;
+
+            Utils.alert(message);
+        },
+
+        rec(n) {
+            const btn = document.getElementById('btn-rec-' + n);
+            if (!btn) return;
+
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                this.mediaRecorder.stop();
+                btn.innerText = "🎙 Record";
+                return;
+            }
+
+            const field = document.getElementById('f-' + n);
+            const useAGC = field.dataset.agc === 'true';
+            const quality = field.dataset.quality || 'medium';
+
+            // Get question definition for max_size validation
+            const q = this.def.questions.find(x => x.name == n);
+
+            const qualitySettings = {
+                'low': { bitrate: 16000, sampleRate: 16000 },
+                'medium': { bitrate: 32000, sampleRate: 48000 },
+                'high': { bitrate: 64000, sampleRate: 48000 }
+            };
+            const settings = qualitySettings[quality] || qualitySettings['medium'];
+
+            navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: useAGC,
+                    sampleRate: settings.sampleRate
+                }
+            }).then(stream => {
+                const options = {
+                    mimeType: 'audio/webm;codecs=opus',
+                    audioBitsPerSecond: settings.bitrate
+                };
+
+                this.mediaRecorder = new MediaRecorder(stream, options);
+                const chunks = [];
+
+                this.mediaRecorder.ondataavailable = e => chunks.push(e.data);
+                this.mediaRecorder.onstop = () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+
+                    // Check file size (use CONFIG if available)
+                    // Standard Max Size (YAML first, then Config, then 50MB default)
+                    const maxSizeMB = (q && q.max_size) ? q.max_size : (CONFIG.FILE.AUDIO_MAX_SIZE_MB || 50);
+                    const maxSize = maxSizeMB * 1024 * 1024;
+
+                    if (blob.size > maxSize) {
+                        Utils.alert(`Recording too large: ${(blob.size / 1024 / 1024).toFixed(1)} MB. Maximum: ${maxSizeMB} MB`);
+                        btn.innerText = "🎙 Record";
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        this.data[n] = reader.result;
+                        this.hasUnsavedChanges = true;
+                        document.getElementById('f-' + n).value = reader.result;
+                        btn.innerText = "🎙 Record";
+
+                        const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                        const prevEl = document.getElementById('prev-aud-' + n);
+                        if (prevEl) {
+                            prevEl.innerHTML = `
+                                <audio controls src="${reader.result}" style="width:100%;margin-bottom:4px"></audio>
+                                <div style="font-size:0.75em;color:#666">
+                                    🎙️ ${sizeMB} MB | Quality: ${quality.toUpperCase()} | AGC: ${useAGC ? 'ON' : 'OFF'}
+                                </div>
+                            `;
+                        }
+                        this.runLogic();
+                    };
+                    reader.readAsDataURL(blob);
+                };
+
+                this.mediaRecorder.start();
+                btn.innerText = "⏹ Stop";
+
+                // Auto-stop after max duration (use CONFIG)
+                const maxDuration = (CONFIG.FILE.AUDIO_MAX_DURATION_SEC || 7200) * 1000;
+                setTimeout(() => {
+                    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                        this.mediaRecorder.stop();
+                        Utils.alert('Maximum recording duration reached.');
+                    }
+                }, maxDuration);
+
+            }).catch(e => {
+                Utils.alert('Microphone access denied: ' + e.message);
+            });
+        },
+
+        gps(n) {
+            if (!navigator.geolocation) return Utils.alert("No GPS");
+            const field = document.getElementById('f-' + n);
+            if (!field) return;
+
+            field.value = "Locating...";
+            field.style.opacity = "0.7";
+            const ok = (p) => {
+                if (field) field.style.opacity = "1";
+                const v = `${p.coords.latitude}, ${p.coords.longitude}`;
+                field.value = v;
+                this.data[n] = v;
+                this.hasUnsavedChanges = true;
+            };
+            const fail = () => {
+                navigator.geolocation.getCurrentPosition(ok, (e) => {
+                    if (field) {
+                        field.style.opacity = "1";
+                        field.value = "";
+                    }
+                    Utils.alert("GPS Failed. Input manually.");
+                }, { enableHighAccuracy: false, timeout: CONFIG.TIMEOUT.GPS_LOW_ACCURACY });
+            };
+            navigator.geolocation.getCurrentPosition(ok, fail, {
+                enableHighAccuracy: true,
+                timeout: CONFIG.TIMEOUT.GPS_HIGH_ACCURACY
+            });
+        },
+
+        setStar(name, value) {
+            this.data[name] = value;
+            this.hasUnsavedChanges = true;
+            document.getElementById('f-' + name).value = value;
+            this.updateStarUI(name, value);
+            this.runLogic();
+        },
+
+        hoverStar(name, value) {
+            this.updateStarUI(name, value, true);
+        },
+
+        resetStarHover(name) {
+            const val = this.data[name] || 0;
+            this.updateStarUI(name, val);
+        },
+
+        updateStarUI(name, value, isHover = false) {
+            const container = document.querySelector(`.star-container[data-field="${name}"]`);
+            if (!container) return;
+
+            const stars = container.querySelectorAll('.star-item');
+            stars.forEach((star, idx) => {
+                const starVal = idx + 1;
+                if (starVal <= value) {
+                    star.classList.add('active');
+                    star.style.color = '#ffc107';
+                    if (isHover) star.style.transform = 'scale(1.1)';
+                } else {
+                    star.classList.remove('active');
+                    star.style.color = '#e0e0e0';
+                    star.style.transform = 'scale(1)';
+                }
+            });
+
+            const valueDisplay = container.querySelector('.star-rating-value');
+            if (valueDisplay) {
+                const displayVal = value > 0 ? value : '';
+                valueDisplay.textContent = displayVal;
+            }
+        },
+
+        setSmiley(name, value) {
+            this.data[name] = value;
+            this.hasUnsavedChanges = true;
+            document.getElementById('f-' + name).value = value;
+
+            const container = document.querySelector(`.smiley-container[data-field="${name}"]`);
+            if (container) {
+                const smileys = container.querySelectorAll('.smiley-item');
+                smileys.forEach(smiley => {
+                    const smileyValue = parseInt(smiley.getAttribute('data-value'));
+                    const isSelected = smileyValue === value;
+                    if (isSelected) {
+                        smiley.classList.add('selected');
+                        smiley.style.opacity = '1';
+                        smiley.style.transform = 'scale(1.1)';
+                    } else {
+                        smiley.classList.remove('selected');
+                        smiley.style.opacity = '0.5';
+                        smiley.style.transform = 'scale(1)';
+                    }
+                });
+            }
+            this.runLogic();
+        },
+
+        selectButton(name, value, clickedElement) {
+            this.data[name] = value;
+            this.hasUnsavedChanges = true;
+            document.getElementById('f-' + name).value = value;
+
+            // PERFORMANCE FIX: Scope query to parent container, not entire document
+            if (clickedElement) {
+                const container = clickedElement.closest('.button-group');
+                const buttons = container?.querySelectorAll('.button-group-option') || [];
+                buttons.forEach(btn => {
+                    const isActive = btn.dataset.value === value;
+                    btn.classList.toggle('active', isActive);
+                    // Note: Inline styles will be replaced by CSS classes
+                    if (isActive) {
+                        btn.style.background = 'var(--color-primary)';
+                        btn.style.color = 'white';
+                        btn.style.fontWeight = '600';
+                        btn.style.borderColor = 'var(--color-primary)';
+                    } else {
+                        btn.style.background = 'var(--color-bg-elevated)';
+                        btn.style.color = 'var(--color-text)';
+                        btn.style.fontWeight = '500';
+                        btn.style.borderColor = 'var(--color-border)';
+                    }
+                });
+            }
+
+            this.runLogic(); // Now debounced automatically
+        },
+
+        selectSegment(name, value, clickedElement) {
+            this.data[name] = value;
+            this.hasUnsavedChanges = true;
+            document.getElementById('f-' + name).value = value;
+
+            // PERFORMANCE FIX: Scope query to parent container, not entire document
+            if (clickedElement) {
+                const container = clickedElement.closest('.segmented-control');
+                const segments = container?.querySelectorAll('.segmented-option') || [];
+                segments.forEach(seg => {
+                    const isActive = seg.dataset.value === value;
+                    seg.classList.toggle('active', isActive);
+                    // Note: Inline styles will be replaced by CSS classes
+                    if (isActive) {
+                        seg.style.background = 'var(--color-primary)';
+                        seg.style.color = 'white';
+                        seg.style.fontWeight = '600';
+                    } else {
+                        seg.style.background = 'transparent';
+                        seg.style.color = 'var(--color-text)';
+                        seg.style.fontWeight = '500';
+                    }
+                });
+            }
+
+            this.runLogic(); // Now debounced automatically
+        },
+
+        selectLikert(name, value, clickedElement) {
+            this.data[name] = value;
+            this.hasUnsavedChanges = true;
+
+            // Update the hidden radio input
+            const radioInputs = document.querySelectorAll(`input[name="${name}"]`);
+            radioInputs.forEach(input => {
+                if (input.value === value) {
+                    input.checked = true;
+                }
+            });
+
+            // PERFORMANCE FIX: Scope query to parent container
+            if (clickedElement) {
+                const container = clickedElement.closest('.likert-container');
+                const options = container?.querySelectorAll('.likert-option') || [];
+                options.forEach(option => {
+                    option.classList.toggle('active', option === clickedElement);
+                });
+            }
+
+            this.runLogic(); // Now debounced automatically
+        }
+    });
+</script>

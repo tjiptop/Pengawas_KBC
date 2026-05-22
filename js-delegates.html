@@ -1,0 +1,292 @@
+<script>
+    /**
+     * DELEGATION & TOKEN SURVEY MODULE
+     * Handles survey token validation and delegation link management
+     */
+
+    // Extension of App for token survey functions
+    Object.assign(App, {
+        loadTokenSurvey(token) {
+            Utils.loading(true, "Validating survey link...");
+
+            google.script.run.withSuccessHandler(response => {
+                Utils.loading(false);
+
+                if (!response.success) {
+                    const appEl = document.getElementById('app');
+                    appEl.innerHTML = `
+                        <div class="center-screen">
+                            <div class="card" style="max-width:500px;text-align:center">
+                                <h2 style="color:#d9534f">⚠️ Link Tidak Valid</h2>
+                                <p>${response.message}</p>
+                                <p style="font-size:0.9em;opacity:0.7;margin-top:20px">
+                                    Silakan hubungi pembuat link untuk mendapatkan link yang baru.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Store token context in App.state
+                this.state.tokenContext = response;
+                this.state.tokenMode = true;
+
+                // Store madrasahs and forms for lookup fields
+                this.state.madrasahs = response.madrasahs || [];
+                this.state.forms = response.forms || {};
+
+                // Create fake user for filter expressions (based on token target)
+                try {
+                    const targetScope = JSON.parse(response.target_scope || '{}');
+                    this.state.user = {
+                        role: response.role_target,
+                        scope: targetScope.district || targetScope.province || targetScope.madrasah_id || '',
+                        username: 'survey_token_user'
+                    };
+                } catch (e) {
+                    // Fallback if target_scope is not JSON
+                    this.state.user = {
+                        role: response.role_target,
+                        scope: response.target_scope || '',
+                        username: 'survey_token_user'
+                    };
+                }
+
+                // Render token survey form
+                this.renderTokenSurvey(response);
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiValidateSurveyToken(token);
+        },
+
+        renderTokenSurvey(context) {
+            const appEl = document.getElementById('app');
+
+            appEl.innerHTML = `
+                <div class="survey-token-view" style="padding:20px;max-width:800px;margin:0 auto">
+                    <div style="background:var(--color-bg-elevated);padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid var(--color-primary)">
+                        <h3 style="margin:0 0 10px 0">📋 Survey</h3>
+                        <p style="margin:0;opacity:0.8">Silakan isi formulir survey berikut dengan lengkap dan benar.</p>
+                    </div>
+                    <div id="token-form-container"></div>
+                </div>
+            `;
+
+            // Initialize FormEngine with token context
+            const initialData = {};
+
+            // Pre-fill madrasah_id for INDIVIDUAL tokens
+            if (context.locked_madrasah_id) {
+                initialData.madrasah_id = context.locked_madrasah_id;
+            }
+
+            FormEngine.init(
+                'token-form-container',
+                context.form_definition,
+                initialData,
+                (data) => this.submitTokenSurvey(data),
+                context.form_id,
+                context.madrasah_context || null
+            );
+        },
+
+        submitTokenSurvey(data) {
+            const context = this.state.tokenContext;
+
+            Utils.loading(true, "Mengirim survey...");
+
+            const payload = {
+                madrasah_id: context.locked_madrasah_id || data.madrasah_id || 'ANONYMOUS',
+                form_id: context.form_id,
+                username: 'TOKEN_USER',
+                timestamp: new Date().toISOString(),
+                data: data,
+                survey_token: context.token
+            };
+
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+
+                if (r.success) {
+                    const appEl = document.getElementById('app');
+                    appEl.innerHTML = `
+                        <div class="center-screen">
+                            <div class="card" style="max-width:500px;text-align:center">
+                                <h2 style="color:#28a745">✅ Survey Berhasil Dikirim</h2>
+                                <p>Terima kasih telah mengisi survey ini.</p>
+                                <p style="font-size:0.9em;opacity:0.7;margin-top:20px">
+                                    Anda dapat menutup halaman ini.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    Utils.alert(r.message, "Gagal Mengirim");
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiSubmitSurvey(payload);
+        }
+    });
+
+    /**
+     * DELEGATE MANAGER
+     * Handles delegation link generation and management
+     */
+    const DelegateManager = {
+        showModal: (formId, madrasah_id = null) => {
+            const user = App.state.user;
+            if (!['district', 'madrasah', 'enum', 'fasda', 'province', 'national'].includes(user.role)) return;
+
+            // Auto-detect madrasah_id from context if not provided
+            if (!madrasah_id && user.role === 'madrasah') {
+                madrasah_id = user.username;
+            }
+
+            const html = `
+                <div id="del-modal-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center">
+                    <div class="card" style="width:90%;max-width:500px;background:var(--color-bg-elevated);padding:20px;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid var(--color-border)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
+                            <h3 style="margin:0;color:var(--color-primary)">↪️ Delegasi</h3>
+                            <button onclick="document.getElementById('del-modal-overlay').remove()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--color-text)">&times;</button>
+                        </div>
+                        <p style="opacity:0.8;font-size:0.9em;margin-bottom:20px">Buat link khusus untuk dibantu pengisian.</p>
+                        
+                        ${madrasah_id ? `
+                        <div class="form-group">
+                            <label>Target Madrasah:</label>
+                            <input type="text" class="form-control" value="${madrasah_id}" readonly style="background:var(--color-bg-hover);opacity:0.8">
+                            <small style="opacity:0.7">Link akan terkunci untuk madrasah ini</small>
+                        </div>
+                        ` : ''}
+
+                        <div class="form-group">
+                            <label>Expiry (Hours):</label>
+                            <input type="number" id="del-expiry" class="form-control" value="72" min="1" max="720">
+                            <small style="opacity:0.6">Set 0 for unlimited time</small>
+                        </div>
+
+                        <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+                             <button class="btn btn-secondary" onclick="document.getElementById('del-modal-overlay').remove()" style="width:100px;height:40px;margin:0;padding:0;border:1px solid #ced4da;box-sizing:border-box;display:flex;align-items:center;justify-content:center;line-height:normal">Cancel</button>
+                             <button class="btn" style="background:var(--color-primary);color:white" onclick="DelegateManager.generate('${formId}', '${madrasah_id || ''}')">🔗 Generate Link</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            document.body.appendChild(div.firstElementChild);
+        },
+
+        renderActiveLinksList: (tokens, username, formId, madrasah_id = null) => {
+            if (!tokens || tokens.length === 0) {
+                return '<div style="padding:10px;color:#999;font-size:0.9em;border-bottom:1px solid var(--color-border)"><em>Belum ada link aktif.</em></div>';
+            }
+
+            return tokens.map(t => {
+                const isExpired = new Date(t.expires_at) < new Date();
+                const isExhausted = t.max_usages > 0 && t.current_usages >= t.max_usages;
+
+                let statusColor = '#28a745';
+                let statusText = 'ACTIVE';
+
+                if (t.status === 'CLOSED') { statusColor = '#d9534f'; statusText = 'CLOSED'; }
+                else if (isExpired) { statusColor = '#d9534f'; statusText = 'EXPIRED'; }
+                else if (isExhausted) { statusColor = '#d9534f'; statusText = 'EXHAUSTED'; }
+
+                return `
+                    <div style="padding:10px;border-bottom:1px solid var(--color-border);background:var(--color-bg-elevated);font-size:0.9em;border-left:4px solid ${statusColor}">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                             <div>
+                                <strong>${t.type === 'INDIVIDUAL' ? 'Delegasi: ' + t.target_scope : 'Public'}</strong>
+                                <div style="font-size:0.85em;opacity:0.7">
+                                    Exp: ${t.max_usages === 0 && t.expires_at.includes('2099') ? 'Never' : new Date(t.expires_at).toLocaleDateString()}
+                                    | Used: ${t.current_usages}/${t.max_usages === 0 ? '∞' : t.max_usages}
+                                </div>
+                             </div>
+                             <div style="display:flex;gap:6px">
+                                 <button class="btn" style="padding:6px 14px;font-size:0.85em;background:#25D366;color:white;border:none;display:flex;align-items:center;gap:4px;white-space:nowrap" 
+                                    onclick="window.open('https://wa.me/?text=' + encodeURIComponent('Mohon isi formulir berikut: ${(t.url || '').split('?')[0]}?survey_token=${t.token}'), '_blank')" 
+                                    title="Share via WhatsApp">
+                                    <span>✆</span> WA
+                                 </button>
+                                 
+                                 <button class="btn" style="padding:6px 14px;font-size:0.85em;background:#fff;border:1px solid #ccc;color:#333;display:flex;align-items:center;gap:4px;white-space:nowrap" 
+                                    onclick="Utils.copyToClipboard('${(t.url || '').split('?')[0]}?survey_token=${t.token}', this)" 
+                                    title="Copy Link">
+                                    <span>📋</span> Copy
+                                 </button>
+
+                                 ${statusText === 'ACTIVE' ?
+                        `<button class="btn" style="padding:6px 14px;font-size:0.85em;background:#fff;border:1px solid #dc3545;color:#dc3545;display:flex;align-items:center;gap:4px;white-space:nowrap" 
+                                    onclick="DelegateManager.cancel('${t.token}', '${username}', '${formId}', '${madrasah_id || ''}')" 
+                                    title="Hapus / Batalkan Link">
+                                    <span>❌</span> Del
+                                 </button>` : ''}
+                             </div>
+                        </div>
+                    </div>
+                `
+            }).join('');
+        },
+
+        generate: (formId, madrasah_id) => {
+            const user = App.state.user;
+            const expiryEl = document.getElementById('del-expiry');
+
+            const scope = madrasah_id;
+            const expiry = parseInt(expiryEl.value);
+
+            if (!scope) return Utils.alert("Madrasah ID is required");
+            if (isNaN(expiry) || expiry < 0) return Utils.alert("Invalid expiry");
+
+            Utils.loading(true, "Generating...");
+
+            const type = 'INDIVIDUAL';
+            const roleTarget = 'madrasah';
+
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    const card = document.querySelector('#del-modal-overlay .card');
+                    if (card) {
+                        card.innerHTML = `
+                            <div style="text-align:center">
+                                <h3 style="color:#28a745;margin-top:0">✅ Delegasi Berhasil!</h3>
+                                <p style="margin:20px 0;line-height:1.5">
+                                    Link delegasi telah dibuat.<br>
+                                    Silakan salin link pada daftar <b>Active Delegation Links</b> di bawah tabel form.
+                                </p>
+                                <button class="btn" style="background:var(--color-primary);color:white;width:100%" onclick="document.getElementById('del-modal-overlay').remove(); ${madrasah_id ? `AppEnumerator.router('madrasah-detail', {madrasah_id:'${madrasah_id}'})` : `AppEnumerator.router('dashboard')`}">OK</button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    Utils.alert(r.message);
+                }
+            }).apiGenerateSurveyToken(formId, type, roleTarget, scope, expiry, user.username);
+        },
+
+        cancel: (token, username, formId, madrasah_id = null) => {
+            Utils.confirm("Apakah Anda yakin ingin menutup link ini?\nUser tidak akan bisa mengaksesnya lagi.", () => {
+                Utils.loading(true);
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        if (typeof AppEnumerator !== 'undefined' && madrasah_id) {
+                            AppEnumerator.router('madrasah-detail', { madrasah_id: madrasah_id });
+                        } else if (typeof AppEnumerator !== 'undefined') {
+                            AppEnumerator.router('dashboard');
+                        }
+                    } else {
+                        Utils.alert(r.message);
+                    }
+                }).apiCancelToken(token, username);
+            });
+        }
+    };
+</script>

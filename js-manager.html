@@ -1,0 +1,1524 @@
+<script>
+    /**
+     * MANAGER APP (Admin/Supervisor)
+     * Features: Server-side pagination (lazy), Edit/Delete Submissions, Read-Only Dashboard Stats
+     */
+    const AppManager = {
+        user: null,
+        init(user) {
+            this.user = user;
+            this.router('dashboard');
+        },
+
+        router(route, params) {
+            App.state.view = route;
+            const el = document.getElementById('app');
+            window.scrollTo(0, 0);
+
+            if (route == 'dashboard') {
+                el.innerHTML = ManagerViews.Dashboard(this.user);
+                Utils.loading(true, "Loading Dashboard...");
+                // Fetch Stats
+                google.script.run.withSuccessHandler(r => {
+                    if (!App.state.user) return;
+                    Utils.loading(false);
+                    App.state.forms = r.forms;
+                    App.state.madrasahs = r.madrasahs; // Save to state
+                    el.innerHTML = ManagerViews.Dashboard(this.user, r.madrasahs);
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert("Failed to load dashboard: " + e.message);
+                }).apiFetchData(this.user.username);
+
+            } else if (route == 'madrasah-detail') {
+                let m = params;
+                // Try to find full object if state is available
+                if (App.state.madrasahs && App.state.madrasahs.length) {
+                    const found = App.state.madrasahs.find(x => String(x.madrasah_id) === String(params.madrasah_id));
+                    if (found) m = found;
+                }
+
+                // Render with empty history first
+                el.innerHTML = ManagerViews.MadrasahDetail(m, [], false);
+                Utils.loading(true, "Loading History...");
+
+                // Fetch History
+                google.script.run.withSuccessHandler(history => {
+                    Utils.loading(false);
+                    if (!App.state.user) return;
+                    el.innerHTML = ManagerViews.MadrasahDetail(m, history, false);
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert(e);
+                }).apiFetchMadrasahHistory(m.madrasah_id);
+
+            } else if (route == 'submission-detail') {
+                const sid = params.submission_id;
+                Utils.loading(true, "Loading Submission...");
+
+                google.script.run.withSuccessHandler(sub => {
+                    if (!App.state.user) return;
+                    Utils.loading(false);
+                    if (!sub) { Utils.alert("Not found"); App.router('dashboard'); return; }
+                    this.renderSubmission(sub);
+                }).apiFetchSubmissionDetail(sid);
+
+            } else if (route == 'user-management') {
+                // Province-only user management
+                if (this.user.role !== 'province') {
+                    Utils.alert('Only Province can access User Management');
+                    return this.router('dashboard');
+                }
+
+                el.innerHTML = ManagerViews.UserManagement([], []);
+                Utils.loading(true, "Loading Users...");
+
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (!App.state.user) return;
+                    if (r.success) {
+                        App.state.enum_fasda_users = r.users || [];
+                        App.state.province_madrasahs = r.madrasahs || [];
+                        el.innerHTML = ManagerViews.UserManagement(r.users, r.madrasahs);
+                    } else {
+                        Utils.alert(r.message);
+                        this.router('dashboard');
+                    }
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert("Failed to load users: " + e.message);
+                }).apiFetchEnumFasdaUsers(this.user.username);
+
+            } else if (route == 'logger-management') {
+                // National-only logger management
+                if (this.user.role !== 'national') {
+                    Utils.alert('Only Admin can access Logger Management');
+                    return this.router('dashboard');
+                }
+
+                el.innerHTML = ManagerViews.LoggerManagement({}, {});
+                Utils.loading(true, "Loading Logger Data...");
+
+                // Load logger config and stats
+                google.script.run.withSuccessHandler(configResp => {
+                    google.script.run.withSuccessHandler(statsResp => {
+                        google.script.run.withSuccessHandler(logsResp => {
+                            Utils.loading(false);
+                            if (!App.state.user) return;
+
+                            const config = configResp.success ? configResp.config : {};
+                            const stats = statsResp.success ? statsResp.stats : {};
+                            const logs = logsResp.success ? logsResp.logs : [];
+
+                            el.innerHTML = ManagerViews.LoggerManagement(config, stats, logs);
+                        }).withFailureHandler(e => {
+                            Utils.loading(false);
+                            Utils.alert("Failed to load logs: " + e.message);
+                        }).apiGetRecentLogs(50);
+                    }).withFailureHandler(e => {
+                        Utils.loading(false);
+                        Utils.alert("Failed to load stats: " + e.message);
+                    }).apiGetLogStats();
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert("Failed to load config: " + e.message);
+                }).apiGetLoggerConfig();
+            }
+        },
+
+        renderSubmission(sub) {
+            // We need form definition to render properly
+            // We can fetch it or trust it's in the sub? No, sub has form_id.
+            // We should have fetched forms in dashboard? 
+            // Optimization: Fetch forms once or lazy load.
+            // Let's lazy load form def if possible.
+            // Actually, `apiFetchData` returns forms. We didn't store them globally in AppManager.
+            // Let's store forms in App.state.forms when fetching dashboard.
+
+            let def = App.state.forms ? App.state.forms[sub.form_id] : null;
+
+            // If we don't have it (direct link case?), fetch it?
+            // For now assume we came from dashboard and have forms.
+            // If not, we might need a fallback or fetch forms separately.
+            // Let's assume we have it or render generic.
+
+            const el = document.getElementById('app');
+            el.innerHTML = ManagerViews.SubmissionDetail(sub, def);
+        },
+
+        editSubmission(sub) {
+            const def = App.state.forms ? App.state.forms[sub.form_id] : null;
+            if (!def) return Utils.alert("Form definition missing");
+
+            const el = document.getElementById('app');
+            el.innerHTML = ManagerViews.EditContainer(sub);
+
+            let data = {};
+            try { data = JSON.parse(sub.data_json); } catch (e) { }
+
+            FormEngine.init('manager-edit-area', def, data, (newData) => {
+                Utils.confirm("Save Changes?", async () => {
+                    Utils.loading(true, "Processing Files...");
+                    const clean = await Utils.processFileUploads(newData);
+
+                    Utils.loading(true, "Updating...");
+                    const payload = { ...sub, data: clean };
+                    google.script.run.withSuccessHandler(r => {
+                        Utils.loading(false);
+                        if (r.success) {
+                            Utils.alert("Updated", "Success").then(() => {
+                                // Return to madrasah detail
+                                this.router('madrasah-detail', { madrasah_id: sub.madrasah_id });
+                            });
+                        } else {
+                            Utils.alert("Update Failed: " + r.message);
+                        }
+                    }).apiUpdateSubmission(payload);
+                });
+            });
+        },
+
+
+
+        deleteSubmission(sid, madrasahId) {
+            Utils.confirm("Are you sure you want to DELETE this submission? This cannot be undone.", () => {
+                Utils.loading(true, "Deleting...");
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        Utils.alert("Deleted").then(() => {
+                            // Return to madrasah detail page
+                            if (madrasahId) {
+                                this.router('madrasah-detail', { madrasah_id: madrasahId });
+                            } else {
+                                // Fallback to dashboard if madrasah_id not available
+                                this.router('dashboard');
+                            }
+                        });
+                    } else {
+                        Utils.alert("Delete Failed: " + r.message);
+                    }
+                }).apiDeleteSubmission(sid);
+            });
+        },
+
+        // ✨ TREE VIEW HELPER FUNCTIONS
+        generateMadrasahTree(madrasahs, selectedIds = []) {
+            // Group madrasahs by District → Subdistrict
+            const tree = {};
+
+            madrasahs.forEach(m => {
+                const district = m.district || 'Other';
+                const subdistrict = m.subdistrict || 'General';
+
+                if (!tree[district]) tree[district] = {};
+                if (!tree[district][subdistrict]) tree[district][subdistrict] = [];
+
+                tree[district][subdistrict].push(m);
+            });
+
+            // Sort districts and subdistricts
+            const sortedDistricts = Object.keys(tree).sort();
+
+            // Generate HTML
+            let html = '';
+            let districtIdx = 0;
+
+            sortedDistricts.forEach(district => {
+                const subdistricts = tree[district];
+                const sortedSubdistricts = Object.keys(subdistricts).sort();
+
+                // Count total madrasahs in district
+                let districtCount = 0;
+                sortedSubdistricts.forEach(sub => {
+                    districtCount += subdistricts[sub].length;
+                });
+
+                const districtId = `district-${districtIdx}`;
+                const districtCheckId = `check-${districtId}`;
+
+                html += `
+                    <div class="tree-node" data-level="district" data-id="${districtId}">
+                        <div class="tree-folder" onclick="AppManager.toggleTreeNode('${districtId}')">
+                            <span class="tree-toggle" id="toggle-${districtId}">▶</span>
+                            <input type="checkbox" class="tree-checkbox" id="${districtCheckId}" 
+                                   onclick="event.stopPropagation(); AppManager.onDistrictCheckboxChange('${districtId}')"
+                                   data-type="district">
+                            <label class="tree-label" for="${districtCheckId}">${district}</label>
+                            <span class="tree-count">${districtCount} madrasah</span>
+                        </div>
+                        <div class="tree-children" id="children-${districtId}">`;
+
+                let subdistrictIdx = 0;
+                sortedSubdistricts.forEach(subdistrict => {
+                    const madrasahList = subdistricts[subdistrict].sort((a, b) =>
+                        (a.name || '').localeCompare(b.name || '')
+                    );
+
+                    const subdistrictId = `${districtId}-sub-${subdistrictIdx}`;
+                    const subdistrictCheckId = `check-${subdistrictId}`;
+
+                    html += `
+                        <div class="tree-node" data-level="subdistrict" data-id="${subdistrictId}" data-parent="${districtId}">
+                            <div class="tree-folder" onclick="AppManager.toggleTreeNode('${subdistrictId}')">
+                                <span class="tree-toggle" id="toggle-${subdistrictId}">▶</span>
+                                <input type="checkbox" class="tree-checkbox" id="${subdistrictCheckId}"
+                                       onclick="event.stopPropagation(); AppManager.onSubdistrictCheckboxChange('${subdistrictId}')"
+                                       data-type="subdistrict" data-parent="${districtId}">
+                                <label class="tree-label" for="${subdistrictCheckId}">${subdistrict}</label>
+                                <span class="tree-count">${madrasahList.length}</span>
+                            </div>
+                            <div class="tree-children" id="children-${subdistrictId}">`;
+
+                    madrasahList.forEach(m => {
+                        const isChecked = selectedIds.includes(m.madrasah_id);
+                        const madrasahCheckId = `check-madrasah-${m.madrasah_id}`;
+
+                        html += `
+                            <div class="tree-item" data-parent="${subdistrictId}">
+                                <input type="checkbox" class="tree-checkbox madrasah-checkbox" 
+                                       id="${madrasahCheckId}"
+                                       value="${m.madrasah_id}"
+                                       ${isChecked ? 'checked' : ''}
+                                       onclick="AppManager.onMadrasahCheckboxChange('${subdistrictId}')"
+                                       data-parent="${subdistrictId}">
+                                <label class="tree-label" for="${madrasahCheckId}">
+                                    ${m.name}
+                                    <span class="tree-item-id">(${m.madrasah_id})</span>
+                                </label>
+                            </div>`;
+                    });
+
+                    html += `
+                            </div>
+                        </div>`;
+
+                    subdistrictIdx++;
+                });
+
+                html += `
+                        </div>
+                    </div>`;
+
+                districtIdx++;
+            });
+
+            return html;
+        },
+
+        toggleTreeNode(nodeId) {
+            const toggle = document.getElementById(`toggle-${nodeId}`);
+            const children = document.getElementById(`children-${nodeId}`);
+
+            if (children && toggle) {
+                children.classList.toggle('expanded');
+                toggle.classList.toggle('expanded');
+            }
+        },
+
+        onDistrictCheckboxChange(districtId) {
+            const districtCheckbox = document.getElementById(`check-${districtId}`);
+            const isChecked = districtCheckbox.checked;
+
+            // Check/uncheck all subdistricts and madrasahs in this district
+            const children = document.getElementById(`children-${districtId}`);
+            if (children) {
+                const allCheckboxes = children.querySelectorAll('input[type="checkbox"]');
+                allCheckboxes.forEach(cb => cb.checked = isChecked);
+            }
+        },
+
+        onSubdistrictCheckboxChange(subdistrictId) {
+            const subdistrictCheckbox = document.getElementById(`check-${subdistrictId}`);
+            const isChecked = subdistrictCheckbox.checked;
+
+            // Check/uncheck all madrasahs in this subdistrict
+            const children = document.getElementById(`children-${subdistrictId}`);
+            if (children) {
+                const madrasahCheckboxes = children.querySelectorAll('.madrasah-checkbox');
+                madrasahCheckboxes.forEach(cb => cb.checked = isChecked);
+            }
+
+            // Update parent district checkbox
+            const parentId = subdistrictCheckbox.dataset.parent;
+            this.updateParentCheckbox(parentId);
+        },
+
+        onMadrasahCheckboxChange(subdistrictId) {
+            // Update parent subdistrict checkbox
+            this.updateParentCheckbox(subdistrictId);
+
+            // Update parent district checkbox
+            const subdistrictCheckbox = document.getElementById(`check-${subdistrictId}`);
+            if (subdistrictCheckbox) {
+                const districtId = subdistrictCheckbox.dataset.parent;
+                this.updateParentCheckbox(districtId);
+            }
+        },
+
+        updateParentCheckbox(parentId) {
+            const parentCheckbox = document.getElementById(`check-${parentId}`);
+            if (!parentCheckbox) return;
+
+            const children = document.getElementById(`children-${parentId}`);
+            if (!children) return;
+
+            const childCheckboxes = children.querySelectorAll(':scope > .tree-node input[type="checkbox"]');
+            if (childCheckboxes.length === 0) return;
+
+            const checkedCount = Array.from(childCheckboxes).filter(cb => cb.checked).length;
+
+            if (checkedCount === 0) {
+                parentCheckbox.checked = false;
+                parentCheckbox.indeterminate = false;
+            } else if (checkedCount === childCheckboxes.length) {
+                parentCheckbox.checked = true;
+                parentCheckbox.indeterminate = false;
+            } else {
+                parentCheckbox.checked = false;
+                parentCheckbox.indeterminate = true;
+            }
+        },
+
+        collectSelectedMadrasahs() {
+            const checkboxes = document.querySelectorAll('.madrasah-checkbox:checked');
+            const ids = Array.from(checkboxes)
+                .map(cb => String(cb.value).trim())
+                .filter(id => {
+                    // Filter out empty, very long (likely corrupted), or non-string values
+                    return id &&
+                        id.length > 0 &&
+                        id.length < 100 && // Madrasah IDs shouldn't be longer than 100 chars
+                        !id.includes('undefined') &&
+                        !id.includes('null');
+                });
+
+            return ids.join(',');
+        },
+
+        selectAllMadrasahs() {
+            document.querySelectorAll('.madrasah-tree input[type="checkbox"]').forEach(cb => cb.checked = true);
+        },
+
+        deselectAllMadrasahs() {
+            document.querySelectorAll('.madrasah-tree input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                cb.indeterminate = false;
+            });
+        },
+
+        expandAllTreeNodes() {
+            document.querySelectorAll('.tree-children').forEach(el => el.classList.add('expanded'));
+            document.querySelectorAll('.tree-toggle').forEach(el => el.classList.add('expanded'));
+        },
+
+        collapseAllTreeNodes() {
+            document.querySelectorAll('.tree-children').forEach(el => el.classList.remove('expanded'));
+            document.querySelectorAll('.tree-toggle').forEach(el => el.classList.remove('expanded'));
+        },
+
+        // ✨ USER MANAGEMENT METHODS
+
+        showAddUserModal() {
+            const madrasahs = App.state.province_madrasahs || [];
+            const treeHtml = this.generateMadrasahTree(madrasahs, []);
+
+            const html = `
+                <div id="user-modal-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+                    <div class="card" style="max-width:700px;width:100%;background:var(--color-bg-elevated);padding:24px;margin:auto">
+                        <h3 style="margin-top:0">Add New User</h3>
+                        <form id="add-user-form">
+                            <div class="form-group">
+                                <label>Username *</label>
+                                <input name="username" class="form-control" required pattern="[a-zA-Z0-9_]+" title="Alphanumeric and underscore only">
+                            </div>
+                            <div class="form-group">
+                                <label>Password *</label>
+                                <input type="password" name="password" class="form-control" required minlength="3">
+                            </div>
+                            <div class="form-group">
+                                <label>Full Name *</label>
+                                <input name="full_name" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Role *</label>
+                                <select name="role" class="form-control" required>
+                                    <option value="">-- Select Role --</option>
+                                    <option value="enum">Enumerator</option>
+                                    <option value="fasda">Fasilitator Daerah</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Assigned Madrasahs *</label>
+                                <div class="tree-toolbar">
+                                    <button type="button" onclick="AppManager.selectAllMadrasahs()">✓ Select All</button>
+                                    <button type="button" onclick="AppManager.deselectAllMadrasahs()">✗ Deselect All</button>
+                                    <button type="button" onclick="AppManager.expandAllTreeNodes()">▼ Expand All</button>
+                                    <button type="button" onclick="AppManager.collapseAllTreeNodes()">▶ Collapse All</button>
+                                </div>
+                                <div class="madrasah-tree">
+                                    ${treeHtml}
+                                </div>
+                                <small style="opacity:0.7;display:block;margin-top:8px">Select madrasahs using checkboxes. Click folders to expand/collapse.</small>
+                            </div>
+                            <div style="display:flex;gap:10px;margin-top:20px">
+                                <button type="button" class="btn" onclick="document.getElementById('user-modal-overlay').remove()" style="background:var(--color-bg-hover);color:var(--color-text)">Cancel</button>
+                                <button type="submit" class="btn" style="background:var(--color-primary);color:white">Create User</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', html);
+
+            document.getElementById('add-user-form').onsubmit = (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const assignedIds = this.collectSelectedMadrasahs();
+
+                console.log('Collected madrasah IDs:', assignedIds);
+                console.log('ID count:', assignedIds.split(',').length);
+                console.log('First 100 chars:', assignedIds.substring(0, 100));
+
+                if (!assignedIds) {
+                    Utils.alert('Please select at least one madrasah');
+                    return;
+                }
+
+                // ✅ Validation: Check for suspiciously long string
+                if (assignedIds.length > 1000) {
+                    Utils.alert(`ERROR: Collected IDs are too long (${assignedIds.length} chars).\nThis looks like corrupted data. Please refresh and try again.`);
+                    console.error('Corrupted assigned_madrasahs:', assignedIds);
+                    return;
+                }
+
+                this.createUser({
+                    username: form.username.value.trim(),
+                    password: form.password.value,
+                    full_name: form.full_name.value.trim(),
+                    role: form.role.value,
+                    assigned_madrasahs: assignedIds
+                });
+            };
+        },
+
+        createUser(userData) {
+            Utils.loading(true, "Creating User...");
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    document.getElementById('user-modal-overlay').remove();
+                    Utils.alert(r.message);
+                    this.router('user-management'); // Refresh
+                } else {
+                    Utils.alert(r.message);
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiAddUser(userData, App.state.user.username);
+        },
+
+        showEditUserModal(username) {
+            const users = App.state.enum_fasda_users || [];
+            const user = users.find(u => u.username === username);
+            if (!user) return Utils.alert('User not found');
+
+            const madrasahs = App.state.province_madrasahs || [];
+            const assignedIds = (user.assigned_madrasahs || '').split(',').map(id => id.trim()).filter(id => id);
+            const treeHtml = this.generateMadrasahTree(madrasahs, assignedIds);
+
+            const roleLabel = user.role === 'enum' ? 'Enumerator' : 'Fasilitator Daerah';
+
+            const html = `
+                <div id="user-modal-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+                    <div class="card" style="max-width:700px;width:100%;background:var(--color-bg-elevated);padding:24px;margin:auto">
+                        <h3 style="margin-top:0">Edit User: ${user.username}</h3>
+                        <form id="edit-user-form">
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input class="form-control" value="${user.username}" readonly style="background:var(--color-bg-hover);opacity:0.7">
+                            </div>
+                            <div class="form-group">
+                                <label>Role</label>
+                                <input class="form-control" value="${roleLabel}" readonly style="background:var(--color-bg-hover);opacity:0.7">
+                            </div>
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input name="full_name" class="form-control" value="${user.full_name}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password (leave empty to keep current)</label>
+                                <input type="password" name="password" class="form-control" minlength="3">
+                            </div>
+                            <div class="form-group">
+                                <label>Assigned Madrasahs *</label>
+                                <div class="tree-toolbar">
+                                    <button type="button" onclick="AppManager.selectAllMadrasahs()">✓ Select All</button>
+                                    <button type="button" onclick="AppManager.deselectAllMadrasahs()">✗ Deselect All</button>
+                                    <button type="button" onclick="AppManager.expandAllTreeNodes()">▼ Expand All</button>
+                                    <button type="button" onclick="AppManager.collapseAllTreeNodes()">▶ Collapse All</button>
+                                </div>
+                                <div class="madrasah-tree">
+                                    ${treeHtml}
+                                </div>
+                                <small style="opacity:0.7;display:block;margin-top:8px">Select madrasahs using checkboxes. Click folders to expand/collapse.</small>
+                            </div>
+                            <div style="display:flex;gap:10px;margin-top:20px">
+                                <button type="button" class="btn" onclick="document.getElementById('user-modal-overlay').remove()" style="background:var(--color-bg-hover);color:var(--color-text)">Cancel</button>
+                                <button type="submit" class="btn" style="background:var(--color-primary);color:white">Update User</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', html);
+
+            document.getElementById('edit-user-form').onsubmit = (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const assignedIds = this.collectSelectedMadrasahs();
+
+                if (!assignedIds) {
+                    Utils.alert('Please select at least one madrasah');
+                    return;
+                }
+
+                const updates = {
+                    full_name: form.full_name.value.trim(),
+                    assigned_madrasahs: assignedIds
+                };
+
+                if (form.password.value) {
+                    updates.password = form.password.value;
+                }
+
+                this.updateUser(username, updates);
+            };
+        },
+
+        updateUser(username, updates) {
+            Utils.loading(true, "Updating User...");
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    document.getElementById('user-modal-overlay').remove();
+                    Utils.alert(r.message);
+                    this.router('user-management'); // Refresh
+                } else {
+                    Utils.alert(r.message);
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiUpdateUser(username, updates, App.state.user.username);
+        },
+
+        deleteUser(username) {
+            Utils.confirm(`Delete user "${username}"? This cannot be undone.`, () => {
+                Utils.loading(true, "Deleting User...");
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        Utils.alert(r.message);
+                        this.router('user-management'); // Refresh
+                    } else {
+                        Utils.alert(r.message);
+                    }
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert("Error: " + e.message);
+                }).apiDeleteUser(username, App.state.user.username);
+            });
+        },
+
+        confirmExit(submissionId) {
+            if (FormEngine.hasUnsavedChanges) {
+                Utils.confirm('You have unsaved changes. Exit anyway?', () => {
+                    FormEngine.hasUnsavedChanges = false;
+                    this.router('submission-detail', { submission_id: submissionId });
+                });
+            } else {
+                this.router('submission-detail', { submission_id: submissionId });
+            }
+        },
+
+        toggleUserLock(username, status) {
+            Utils.confirm(`${status === 'locked' ? 'Lock' : 'Unlock'} user "${username}"?`, () => {
+                Utils.loading(true, "Updating status...");
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        Utils.alert(r.message);
+                        this.router('user-management'); // Refresh
+                    } else {
+                        Utils.alert(r.message);
+                    }
+                }).apiToggleUserLock(username, status.toLowerCase(), App.state.user.username);
+            });
+        },
+
+        exportExcel() {
+            const user = App.state.user;
+            const scope = user.role === 'province' ? 'for your province' : 'for all data';
+            Utils.confirm(`Download Excel export ${scope}? This may take 30-60 seconds.`, () => {
+                Utils.loading(true, 'Generating Excel file... Please wait...');
+
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        // Show success message with details
+                        const details = r.data;
+                        Utils.alert(
+                            `Excel export created successfully!<br><br>` +
+                            `📁 File: ${details.filename}<br>` +
+                            `📊 Sheets exported: ${details.sheetsExported}<br>` +
+                            `🏫 Madrasahs: ${details.madrasahsCount}<br>` +
+                            `📂 Saved to: ${details.folder}<br><br>` +
+                            `Opening download...`
+                        ).then(() => {
+                            // Open download URL in new tab
+                            window.open(details.downloadUrl, '_blank');
+                        });
+                    } else {
+                        Utils.alert('Export failed: ' + r.message);
+                    }
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert('Export error: ' + e.message);
+                }).apiExportExcel(App.state.user.username);
+            });
+        },
+
+        updateLoggerConfig(enabled, logLevel) {
+            Utils.loading(true, "Updating Logger Config...");
+            google.script.run.withSuccessHandler(r => {
+                Utils.loading(false);
+                if (r.success) {
+                    Utils.alert('Logger configuration updated successfully!');
+                    this.router('logger-management'); // Refresh
+                } else {
+                    Utils.alert('Failed to update config: ' + r.message);
+                }
+            }).withFailureHandler(e => {
+                Utils.loading(false);
+                Utils.alert("Error: " + e.message);
+            }).apiUpdateLoggerConfig({ ENABLED: enabled, LOG_LEVEL: logLevel });
+        },
+
+        clearOldLogs(days) {
+            Utils.confirm(`Delete logs older than ${days} days? This cannot be undone.`, () => {
+                Utils.loading(true, "Clearing Old Logs...");
+                google.script.run.withSuccessHandler(r => {
+                    Utils.loading(false);
+                    if (r.success) {
+                        Utils.alert(r.message);
+                        this.router('logger-management'); // Refresh
+                    } else {
+                        Utils.alert('Failed to clear logs: ' + r.message);
+                    }
+                }).withFailureHandler(e => {
+                    Utils.loading(false);
+                    Utils.alert("Error: " + e.message);
+                }).apiClearOldLogs(parseInt(days));
+            });
+        }
+    };
+
+    const ManagerViews = {
+        Dashboard: (u, madrasahs) => {
+            const madList = madrasahs || [];
+
+            // Grouping Logic
+            const groups = {};
+            madList.forEach(m => {
+                const p = m.province || 'Lain-lain';
+                if (!groups[p]) groups[p] = {};
+                const d = m.district || 'Umum';
+                if (!groups[p][d]) groups[p][d] = [];
+                groups[p][d].push(m);
+            });
+
+            const list = Object.keys(groups).sort().map((prov, i) => {
+                const districts = groups[prov];
+                const distKeys = Object.keys(districts).sort();
+                const totalDist = distKeys.length;
+                let totalMadrasah = 0;
+                distKeys.forEach(k => totalMadrasah += districts[k].length);
+
+                const pid = `prov-${i}`;
+
+                // Nested District Accordions
+                const distHtml = distKeys.map((dName, j) => {
+                    const mList = districts[dName].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(x =>
+                        `<div class="card" style="margin:5px 0 10px 10px;border-left:4px solid var(--color-primary);cursor:pointer" onclick="App.router('madrasah-detail',{madrasah_id:'${x.madrasah_id}'})">
+                           <h4 style="margin:0">${x.name}</h4>
+                           <small>ID: ${x.madrasah_id}</small>
+                           ${x.submission_count != null ? `<br><small>Total: ${x.submission_count}</small>` : ''}
+                       </div>`
+                    ).join('');
+
+                    const did = `dist-${i}-${j}`;
+                    const dCount = districts[dName].length;
+
+                    return `
+                    <div style="margin:10px 0 10px 10px;border-left:1px solid var(--color-border);padding-left:5px">
+                        <div class="form-btn-group" style="background:var(--color-bg-elevated);border-bottom:1px solid var(--color-border);margin-bottom:5px" onclick="document.getElementById('${did}').classList.toggle('open')">
+                             <button class="form-btn-main" style="padding:10px 12px;font-size:1rem;font-weight:600">
+                                ${dName}
+                             </button>
+                             <div class="form-count-badge" style="font-weight:normal;font-size:0.85em;background:var(--color-bg-elevated)">
+                                ${dCount} Mad &nbsp; &#10095;
+                             </div>
+                        </div>
+                        <div id="${did}" class="history-slide">
+                            ${mList}
+                        </div>
+                    </div>`;
+                }).join('');
+
+                const pCount = totalMadrasah;
+
+                return `
+                <div class="form-row" style="margin-bottom:5px">
+                    <div class="form-btn-group" onclick="document.getElementById('${pid}').classList.toggle('open')">
+                         <button class="form-btn-main" style="font-size:1.1rem;font-weight:bold;color:var(--color-primary)">
+                            ${prov}
+                         </button>
+                         <div class="form-count-badge" style="font-weight:normal;font-size:0.85em;background:var(--color-bg-elevated)">
+                            ${totalDist} Dist / ${pCount} Mad &nbsp; &#10095;
+                         </div>
+                    </div>
+                    <div id="${pid}" class="history-slide" style="background:var(--color-bg);border-top:1px solid var(--color-border);padding-bottom:5px">
+                        ${distHtml}
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Stats View
+            const content = `<div class="card" style="background:transparent;box-shadow:none;padding:0">
+                ${list}
+            </div>`;
+
+            // Build dropdown menu items
+            let menuItems = `
+                <div class="menu-item" onclick="App.showChangePassword(); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">🔑</span>
+                    <span class="menu-item-text">Change Password</span>
+                </div>`;
+
+            // Province-only menu items
+            if (u.role === 'province') {
+                menuItems += `
+                <div class="menu-item" onclick="App.router('user-management'); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">👥</span>
+                    <span class="menu-item-text">User Management</span>
+                </div>
+                <div class="menu-item" onclick="AppManager.exportExcel(); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">📥</span>
+                    <span class="menu-item-text">Download Excel</span>
+                </div>`;
+            }
+
+            // National-only menu items
+            if (u.role === 'national') {
+                menuItems += `
+                <div class="menu-item" onclick="AppManager.exportExcel(); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">📥</span>
+                    <span class="menu-item-text">Download Excel</span>
+                </div>
+                <div class="menu-item" onclick="App.router('logger-management'); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">📊</span>
+                    <span class="menu-item-text">Log Info</span>
+                </div>`;
+            }
+
+            menuItems += `
+                <div class="menu-item" onclick="App.router('dashboard'); document.getElementById('manager-menu').classList.remove('show')">
+                    <span class="menu-item-icon">🔄</span>
+                    <span class="menu-item-text">Refresh</span>
+                </div>`;
+
+            return `<div class="header">
+                        <div style="display:flex;align-items:center;gap:10px">
+                            <div class="menu-dropdown">
+                                <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('manager-menu').classList.toggle('show')">⋮</button>
+                                <div id="manager-menu" class="menu-dropdown-content">
+                                    ${menuItems}
+                                </div>
+                            </div>
+                            <h1>Manager Dashboard</h1>
+                        </div>
+                        <button class="logout-btn" onclick="App.logout()">Logout</button>
+                    </div>
+                    <div class="content">
+                        <p style="margin-bottom:15px">
+                            <span>Welcome, <b>${u.full_name}</b></span>
+                        </p>
+                        ${content}
+                    </div>`;
+        },
+
+
+
+        MadrasahDetail: (m, history, loading) => {
+
+
+            const forms = App.state.forms || {};
+
+            const renderForms = () => {
+                // Pre-group forms by group name
+                const formGroups = {};
+
+                // ✅ SORT form keys to ensure consistent order
+                Object.keys(forms).sort().forEach(k => {
+                    try {
+                        const yaml = forms[k];
+                        const parsed = jsyaml.load(yaml);
+                        const groupName = parsed.group || 'Other Forms';
+
+                        if (!formGroups[groupName]) formGroups[groupName] = [];
+                        formGroups[groupName].push({ id: k, def: parsed, yaml: yaml });
+                    } catch (e) {
+                        console.error(`Error parsing form ${k}:`, e);
+                    }
+                });
+
+                // Render each group
+                return Object.keys(formGroups).sort().map((groupName, groupIdx) => {
+                    const groupId = `mgr-group-${groupIdx}`;
+                    const groupForms = formGroups[groupName];
+
+                    // ✨ SORT BY TITLE (Numeric Aware: 1.1, 1.2, 1.10)
+                    groupForms.sort((a, b) => {
+                        const titleA = (a.def.title || a.id).toLowerCase();
+                        const titleB = (b.def.title || b.id).toLowerCase();
+                        return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+
+                    // Render forms within this group
+                    const formsHtml = groupForms.map(({ id: k, def }) => {
+                        const title = def.title || k;
+
+                        // Filter submissions for this form
+                        const mySubs = history.filter(s => s.form_id == k);
+                        mySubs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                        const listHtml = mySubs.length ? mySubs.map(s => `
+                            <div class="history-item" onclick="App.router('submission-detail',{submission_id:'${s.submission_id}'})">
+                                 <span>${Utils.formatDate(s.timestamp)}</span>
+                                 <span>&#10095;</span>
+                            </div>
+                        `).join('') : '<div style="padding:10px;color:#999;font-size:0.9em">Belum ada data</div>';
+
+                        return `
+                        <div style="margin-bottom:15px">
+                            <div class="form-btn-main" style="background:var(--color-bg);cursor:default;border:1px solid var(--color-border);font-weight:bold;text-align:left;display:block;width:100%;padding:12px">
+                                ${title}
+                            </div>
+                            <div class="history-slide open" style="border:1px solid var(--color-border);border-top:none;background:var(--color-bg-elevated)">
+                                ${listHtml}
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    // Return group accordion
+                    return `
+                    <div style="margin-bottom:20px">
+                        <div class="form-btn-group" style="background:var(--color-bg-elevated);border:2px solid var(--color-border);border-radius:8px 8px 0 0;cursor:pointer" onclick="document.getElementById('${groupId}').classList.toggle('open')">
+                            <button class="form-btn-main" style="background:transparent;color:var(--color-primary);font-weight:bold;font-size:1.05rem">
+                                📂 ${groupName}
+                            </button>
+                            <div class="form-count-badge" style="background:var(--color-bg-hover);color:var(--color-text-secondary);font-weight:600">
+                                ${groupForms.length} form &nbsp; &#10095;
+                            </div>
+                        </div>
+                        <div id="${groupId}" class="history-slide open" style="border:1px solid var(--color-border);border-top:none;background:var(--color-bg);padding:10px;border-radius:0 0 8px 8px">
+                            ${formsHtml}
+                        </div>
+                    </div>`;
+                }).join('');
+            };
+
+            const info = `
+                <div class="card" style="margin-bottom:10px">
+                    <h2 style="margin:0 0 5px 0;color:var(--color-primary);font-size:1.4rem">${m.name || 'Madrasah'}</h2>
+                    <div style="margin-bottom:8px">
+                        <span style="font-size:0.9em;margin-right:8px;opacity:0.7">ID: ${m.madrasah_id}</span>
+                        <span class="badge-status ${m.state == 'Negeri' ? 'badge-negeri' : 'badge-swasta'}">${m.state || '-'}</span>
+                    </div>
+                    <p style="margin:5px 0;font-size:0.85em;text-transform:uppercase;opacity:0.8">
+                         ${m.address || ''}, ${m.village || ''}, ${m.subdistrict || ''}<br>
+                         ${m.district || ''}, ${m.province || ''}
+                    </p>
+                </div>`;
+
+            return `<div class="header"><h1>Detail Madrasah</h1><button class="back-btn" onclick="App.router('dashboard')">Back</button></div>
+                    <div class="content">${info}${renderForms()}</div>`;
+        },
+
+
+        SubmissionDetail: (sub, defYaml) => {
+            // Render Read-Only View
+            let content = '';
+            let formTitle = sub.form_id;  // Default to form ID
+            try {
+                const data = JSON.parse(sub.data_json);
+                let def = null;
+                if (defYaml) try {
+                    def = jsyaml.load(defYaml);
+                    // ✨ Extract form title for display
+                    if (def && def.title) formTitle = def.title;
+                } catch (e) { }
+
+                const fields = (def && def.questions) ? def.questions : Object.keys(data).map(k => ({ name: k, label: k }));
+
+                content = fields.map(q => {
+                    // Skip non-displayable field types
+                    if (!q.name || q.type === 'note' || q.type === 'header' || q.type === 'text_block' || q.type === 'spacer') return '';
+
+                    let v = data[q.name];
+                    // Skip empty/null values
+                    if (v === undefined || v === null || v === '') return '';
+
+                    if (Array.isArray(v)) {
+                        // Check if it's an array of FILE OBJECTS first (multi_file/multi_doc)
+                        const isFileArray = v.length > 0 && typeof v[0] === 'object' && v[0] !== null &&
+                            (v[0].hasOwnProperty('name') && (v[0].hasOwnProperty('data') || v[0].hasOwnProperty('url')) &&
+                                (v[0].hasOwnProperty('size') || v[0].hasOwnProperty('type')));
+
+                        // Check if it's an array of objects for TABLE (not file objects)
+                        if (!isFileArray && v.length > 0 && typeof v[0] === 'object' && v[0] !== null) {
+                            let cols = [];
+                            let thead = '';
+
+                            // Handling Columns
+                            if (q.columns) {
+                                cols = q.columns.map(c => c.name);
+                                // For Fixed Table, Prepend 'row_label'
+                                if (q.type === 'table_col_fix') {
+                                    cols.unshift('row_label');
+                                    const label = q.first_col_label || 'Item';
+                                    thead = `<th>${label}</th>` + q.columns.map(c => `<th>${c.label || c.name}</th>`).join('');
+                                } else {
+                                    thead = q.columns.map(c => `<th>${c.label || c.name}</th>`).join('');
+                                }
+                            } else {
+                                cols = Object.keys(v[0]);
+                                thead = cols.map(c => `<th>${c}</th>`).join('');
+                            }
+
+                            const tbody = v.map(row => {
+                                return `<tr>${cols.map(c => `<td>${row[c] || ''}</td>`).join('')}</tr>`;
+                            }).join('');
+                            v = `<div class="table-wrap"><table class="clean-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+                        } else {
+                            // Regular array (e.g. multi_image)
+                            v = `<div style="display:flex;flex-wrap:wrap;gap:5px">` +
+                                v.map(item => {
+                                    if (typeof item === 'string' && (item.startsWith('data:image') || item.match(/\.(jpg|jpeg|png|gif|webp)$/i) || (item.includes('drive.google.com') && !item.includes('view') && !item.includes('download')))) {
+                                        return `<img src="${item}" onclick="FormEngine.showImagePreview('${item}')" style="width:80px;height:80px;object-fit:cover;border:1px solid #eee;border-radius:4px;cursor:pointer">`;
+                                    }
+                                    else if (typeof item === 'object' && (item.url || item.data)) {
+                                        // It's a file object {name, url, size, type}
+                                        const name = item.name || 'document';
+                                        const url = item.url || item.data;
+                                        let sizeKB = 0;
+                                        if (item.size) sizeKB = Math.round(item.size / 1024);
+                                        else if (item.data) sizeKB = Math.round((item.data.length * 0.75) / 1024);
+
+                                        // Standardized file type icons
+                                        let typeIcon = '📄';
+                                        if (name.match(/\.pdf$/i)) typeIcon = '📕';
+                                        else if (name.match(/\.(doc|docx)$/i)) typeIcon = '📘';
+                                        else if (name.match(/\.(xls|xlsx|csv)$/i)) typeIcon = '📗';
+                                        else if (name.match(/\.(ppt|pptx)$/i)) typeIcon = '📙';
+                                        else if (name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) typeIcon = '🖼️';
+                                        else if (name.match(/\.(mp3|wav|ogg|m4a|flac)$/i)) typeIcon = '🎵';
+                                        else if (name.match(/\.(mp4|avi|mov|wmv|mkv)$/i)) typeIcon = '🎬';
+                                        else if (name.match(/\.(zip|rar|7z|tar|gz)$/i)) typeIcon = '📦';
+                                        else if (name.match(/\.(txt|md)$/i)) typeIcon = '📝';
+
+                                        // Clickable list item (no separate download button)
+                                        return `<a href="${url}" target="_blank" download="${name}" style="width:100%;display:flex;align-items:center;background:var(--color-bg-elevated);border:1px solid var(--color-border);padding:8px 12px;margin-bottom:5px;border-radius:4px;text-decoration:none;color:var(--color-text);cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='var(--color-bg-elevated)'">
+                                            <div style="flex-grow:1;display:flex;align-items:center;overflow:hidden;">
+                                                <span style="font-size:1.5em;margin-right:10px">${typeIcon}</span>
+                                                <div style="overflow:hidden;">
+                                                    <div style="font-size:0.9em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                                                    <div style="font-size:0.8em;color:var(--color-text-secondary);">${sizeKB > 0 ? sizeKB + ' KB' : 'Saved'}</div>
+                                                </div>
+                                            </div>
+                                        </a>`;
+                                    }
+                                    else if (typeof item === 'object' && item.is_pending) {
+                                        const name = item.name || 'pending';
+                                        // Standardized file type icons
+                                        let type = '📄';
+                                        if (name.match(/\.pdf$/i)) type = '📕';
+                                        else if (name.match(/\.(doc|docx)$/i)) type = '📘';
+                                        else if (name.match(/\.(xls|xlsx|csv)$/i)) type = '📗';
+                                        else if (name.match(/\.(ppt|pptx)$/i)) type = '📙';
+                                        else if (name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) type = '🖼️';
+                                        else if (name.match(/\.(mp3|wav|ogg|m4a|flac)$/i)) type = '🎵';
+
+                                        return `<div style="width:100%;display:flex;align-items:center;justify-content:between;background:#fff3cd;border:1px solid #ffeeba;padding:8px 12px;margin-bottom:5px;border-radius:4px;">
+                                            <div style="flex-grow:1;display:flex;align-items:center;overflow:hidden;">
+                                                <span style="font-size:1.5em;margin-right:10px">${type}</span>
+                                                <div>
+                                                    <div style="font-size:0.9em;font-weight:500;">${name}</div>
+                                                    <div style="font-size:0.75em;color:#856404;">Pending Sync</div>
+                                                </div>
+                                            </div>
+                                         </div>`;
+                                    }
+                                    else if (typeof item === 'string' && (item.startsWith('data:application') || item.startsWith('data:text') || item.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i))) {
+                                        // Extract filename from URL or use generic
+                                        let filename = 'Document';
+                                        try {
+                                            const urlParts = item.split('/');
+                                            filename = urlParts[urlParts.length - 1].split('?')[0] || 'Document';
+                                        } catch (e) { }
+
+                                        // Standardized file type icons
+                                        let type = '📄';
+                                        if (item.includes('pdf') || filename.match(/\.pdf$/i)) type = '📕';
+                                        else if (item.includes('word') || item.includes('doc') || filename.match(/\.(doc|docx)$/i)) type = '📘';
+                                        else if (item.includes('sheet') || item.includes('xls') || filename.match(/\.(xls|xlsx|csv)$/i)) type = '📗';
+                                        else if (filename.match(/\.(ppt|pptx)$/i)) type = '📙';
+
+                                        return `<a href="${item}" download="${filename}" target="_blank" style="width:100%;display:flex;align-items:center;background:var(--color-bg-elevated);border:1px solid var(--color-border);padding:8px 12px;margin-bottom:5px;border-radius:4px;text-decoration:none;color:var(--color-text);cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='var(--color-bg-elevated)'">
+                                            <div style="flex-grow:1;display:flex;align-items:center;overflow:hidden;">
+                                                <span style="font-size:1.5em;margin-right:10px">${type}</span>
+                                                <div style="overflow:hidden;">
+                                                    <div style="font-size:0.9em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${filename}</div>
+                                                    <div style="font-size:0.8em;color:var(--color-text-secondary);">Click to download</div>
+                                                </div>
+                                            </div>
+                                        </a>`;
+                                    }
+                                    return `<span class="badge" title="${item}">${item.length > 20 ? item.substring(0, 15) + '...' : item}</span>`;
+                                }).join('') + `</div>`;
+                        }
+                    } else if (typeof v === 'boolean') {
+                        v = v ? '✅ Yes' : '❌ No';
+                    }
+
+                    // Special rendering for media types (check original value)
+                    if (v && typeof v === 'string') {
+                        // Check audio FIRST to prevent false-positive image detection
+                        const fieldName = q.name ? String(q.name).toLowerCase() : '';
+                        const fieldNameHasAudio = fieldName.includes('audio') || fieldName.includes('recorder');
+                        const isAudio = v.startsWith('data:audio') ||
+                            v.match(/\.(mp3|wav|webm|ogg|m4a)$/i) ||
+                            (q.type === 'audio') ||
+                            (v.includes('drive.google.com') && fieldNameHasAudio);
+
+                        const isImage = !isAudio && (v.startsWith('data:image') ||
+                            v.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+                            (q.type === 'image'));
+                        const isDoc = v.startsWith('data:application') || v.startsWith('data:text') || v.match(/\.(pdf|doc|docx|xls|xlsx)$/i);
+
+                        if (isImage) {
+                            v = `<img src="${v}" onclick="FormEngine.showImagePreview('${v}')" style="max-width:100%;border-radius:6px;border:1px solid #eee;cursor:pointer">`;
+                        } else if (isAudio) {
+                            // Fix Drive URL for audio playback (export=open → export=download)
+                            let audioSrc = v;
+                            if (v.includes('drive.google.com') && v.includes('export=open')) {
+                                audioSrc = v.replace('export=open', 'export=download');
+                            }
+
+                            const fileSize = v.startsWith('data:audio') ? `${(v.length * 0.75 / 1024 / 1024).toFixed(2)} MB` : 'Drive file';
+
+                            // For Drive files, provide download link (streaming blocked in iframe)
+                            const downloadLink = v.includes('drive.google.com')
+                                ? `<a href="${audioSrc}" target="_blank" style="color:var(--color-primary);text-decoration:none;font-weight:500">📥 Download & Play</a>`
+                                : `<span>${q.label || 'Audio'}</span>`;
+
+                            v = `<div style="background:var(--color-bg-elevated);padding:12px;border-radius:6px;border:1px solid var(--color-border)">
+                                    <audio controls src="${audioSrc}" style="width:100%;margin-bottom:8px"></audio>
+                                    <div style="font-size:0.75em;color:var(--color-text-secondary);display:flex;justify-content:space-between;align-items:center">
+                                        <span>🎙️ ${fileSize}</span>
+                                        ${downloadLink}
+                                    </div>
+                                 </div>`;
+                        } else if (isDoc) {
+                            v = `<a href="${v}" class="btn" style="width:100%;display:flex;align-items:center;background:var(--color-bg-elevated);border:1px solid var(--color-border);padding:8px 12px;margin-bottom:5px;border-radius:4px;text-decoration:none;color:var(--color-text);" target="_blank">
+                                <span style="font-size:1.5em;margin-right:10px">📄</span>
+                                <div>
+                                    <div style="font-size:0.9em;font-weight:500;">Download Document</div>
+                                    <div style="font-size:0.8em;color:var(--color-text-secondary);">Click to download</div>
+                                </div>
+                             </a>`;
+                        }
+                    }
+                    // Special rendering for File Objects (New Format)
+                    else if (typeof v === 'object' && v !== null && (v.url || v.data) && !Array.isArray(v)) {
+                        // Single file object {name, url/data, size, type}
+                        let name = v.name || 'document';
+                        let url = v.url || v.data;
+                        let sizeKB = 0;
+                        if (v.size) sizeKB = Math.round(v.size / 1024);
+                        else if (v.data) sizeKB = Math.round((v.data.length * 0.75) / 1024);
+
+                        let type = '📄';
+                        if (name.match(/\.pdf$/i)) type = '📕';
+                        else if (name.match(/\.(doc|docx)$/i)) type = '📘';
+                        else if (name.match(/\.(xls|xlsx)$/i)) type = '📗';
+                        else if (name.match(/\.(ppt|pptx)$/i)) type = '📙';
+                        else if (name.match(/\.(mp3|wav|ogg)$/i)) type = '🎵';
+
+                        v = `<a href="${url}" class="btn" style="display:flex;align-items:center;padding:12px;background:var(--color-bg-elevated);color:var(--color-text);border:1px solid var(--color-border);border-radius:6px;text-decoration:none;gap:10px" target="_blank" download="${name}">
+                             <span style="font-size:1.5em">${type}</span> 
+                             <div style="flex:1;overflow:hidden">
+                                <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+                                <div style="font-size:0.8em;color:var(--color-text-secondary)">${sizeKB > 0 ? sizeKB + ' KB' : 'Download'}</div>
+                             </div>
+                             <span style="font-size:1.2em;color:var(--color-primary)">📥</span>
+                        </a>`;
+                    }
+                    return `<div class="detail-item"><div class="detail-label">${q.label || q.name}</div><div class="detail-value">${v}</div></div>`;
+                }).join('');
+
+            } catch (e) { content = `<div style="padding:20px;color:red">Error parsing data definition</div>`; }
+
+            // Actions
+            const actions = `
+                <div style="margin-top:20px;display:flex;gap:10px">
+                    <button class="btn" style="background:#ffc107;color:#000" onclick='AppManager.editSubmission(${JSON.stringify(sub).replace(/'/g, "&#39;")})'> Edit</button>
+                    <button class="btn" style="background:#dc3545" onclick="AppManager.deleteSubmission('${sub.submission_id}', '${sub.madrasah_id}')">Delete</button>
+                </div>`;
+
+            const backAction = sub.madrasah_id
+                ? `App.router('madrasah-detail', {madrasah_id: '${sub.madrasah_id}'})`
+                : `App.router('dashboard')`;
+
+            return `<div class="header">
+                        <div>
+                            <h1 style="margin:0;font-size:1.3rem">Submission Detail</h1>
+                        </div>
+                        <button class="back-btn" onclick="${backAction}">Back</button>
+                    </div>
+                    <div class="card" style="padding:24px">
+                        <div style="background:var(--color-bg-elevated);padding:16px;border-radius:6px;margin-bottom:20px;border-left:4px solid var(--color-primary)">
+                            <h2 style="margin:0 0 5px 0;font-size:1.1rem;color:var(--color-primary)">📋 ${formTitle}</h2>
+                            <div style="font-size:0.75em;opacity:0.7;margin-top:4px;line-height:1.4">
+                                <div>Madrasah: ${sub.madrasah_id}</div>
+                                <div>ID: ${sub.submission_id}</div>
+                                <div>${Utils.formatDate(sub.timestamp)}</div>
+                            </div>
+                        </div>
+                        <div class="detail-list">${content}</div>${actions}</div>`;
+        },
+
+        UserManagement: (users, madrasahs) => {
+            // Card layout for mobile
+            const usersCards = users.map(u => {
+                const assignedNames = (u.assigned_madrasahs || '')
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(id => id)
+                    .map(id => {
+                        const m = madrasahs.find(m => m.madrasah_id === id);
+                        return m ? m.name : id;
+                    })
+                    .join(', ');
+
+                const roleLabel = u.role === 'enum' ? 'Enumerator' : 'Fasda';
+                const roleBadgeColor = u.role === 'enum' ? 'var(--color-primary)' : '#17a2b8';
+
+                // FORMAT MADRASAHS AS NUMBERED LIST (Mobile)
+                const assignedIds = (u.assigned_madrasahs || '').split(',').map(id => id.trim()).filter(id => id);
+                let assignedHtml = '-';
+                if (assignedIds.length > 0) {
+                    const names = assignedIds.map(id => {
+                        const m = madrasahs.find(m => m.madrasah_id === id);
+                        return m ? m.name : id;
+                    });
+                    // Format: "1. Name<br>2. Name"
+                    assignedHtml = names.map((name, i) => `<div style="margin-bottom:2px">${i + 1}. ${name}</div>`).join('');
+                }
+
+                const isLocked = String(u.status || '').toLowerCase() === 'locked';
+                const statusBadge = isLocked
+                    ? `<span style="display:inline-block;padding:2px 8px;background:#dc3545;color:white;border-radius:12px;font-size:0.75em;font-weight:500;margin-left:5px">Locked</span>`
+                    : `<span style="display:inline-block;padding:2px 8px;background:#28a745;color:white;border-radius:12px;font-size:0.75em;font-weight:500;margin-left:5px">Active</span>`;
+
+                // COMPACT BUTTON STYLES (Mobile)
+                const btnStyle = "background:var(--color-bg);border:1px solid var(--color-border);padding:6px;border-radius:4px;cursor:pointer;font-size:1.1em;transition:all 0.2s;flex:1;display:flex;align-items:center;justify-content:center";
+
+                const lockBtn = isLocked
+                    ? `<button onclick="AppManager.toggleUserLock('${u.username}', 'Active')" title="Unlock User" style="${btnStyle};color:#28a745">🔓</button>`
+                    : `<button onclick="AppManager.toggleUserLock('${u.username}', 'locked')" title="Lock User" style="${btnStyle};color:#ffc107">🔒</button>`;
+
+                return `
+                    <div class="user-card-mobile" style="background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:8px;padding:16px;margin-bottom:12px">
+                        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+                            <div style="flex:1">
+                                <div style="font-weight:600;font-size:1.05em;margin-bottom:4px;color:var(--color-text)">${u.username}</div>
+                                <div style="font-size:0.9em;color:var(--color-text-secondary);margin-bottom:8px">${u.full_name}</div>
+                                <span style="display:inline-block;padding:2px 8px;background:${roleBadgeColor};color:white;border-radius:12px;font-size:0.75em;font-weight:500">${roleLabel}</span>
+                                ${statusBadge}
+                            </div>
+                        </div>
+                        <div style="font-size:0.85em;color:var(--color-text-secondary);margin-bottom:12px;padding:8px;background:var(--color-bg);border-radius:4px">
+                            <div style="font-weight:600;font-size:0.7em;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;opacity:0.7">Assigned Madrasahs</div>
+                            <div>${assignedHtml}</div>
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <button onclick="AppManager.showEditUserModal('${u.username}')" title="Edit User" style="${btnStyle};color:var(--color-text)">✏️</button>
+                            ${lockBtn}
+                            <button onclick="AppManager.deleteUser('${u.username}')" title="Delete User" style="${btnStyle};color:#dc3545">✖</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Table rows for desktop
+            const usersList = users.map(u => {
+                // FORMAT MADRASAHS AS NUMBERED LIST (Desktop)
+                const assignedIds = (u.assigned_madrasahs || '').split(',').map(id => id.trim()).filter(id => id);
+                let assignedHtml = '-';
+                if (assignedIds.length > 0) {
+                    const names = assignedIds.map(id => {
+                        const m = madrasahs.find(m => m.madrasah_id === id);
+                        return m ? m.name : id;
+                    });
+                    assignedHtml = names.map((name, i) => `<div style="margin-bottom:2px">${i + 1}. ${name}</div>`).join('');
+                }
+
+                const roleLabel = u.role === 'enum' ? 'Enumerator' : 'Fasda';
+                const roleBadgeColor = u.role === 'enum' ? 'var(--color-primary)' : '#17a2b8';
+
+                const isLocked = String(u.status || '').toLowerCase() === 'locked';
+                const statusBadge = isLocked
+                    ? `<span style="display:inline-block;padding:2px 8px;background:#dc3545;color:white;border-radius:12px;font-size:0.75em;font-weight:500">Locked</span>`
+                    : `<span style="display:inline-block;padding:2px 8px;background:#28a745;color:white;border-radius:12px;font-size:0.75em;font-weight:500">Active</span>`;
+
+                // COMPACT BUTTON STYLES (Desktop)
+                const btnStyle = "background:var(--color-bg);border:1px solid var(--color-border);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:1em;transition:all 0.2s;display:inline-flex;align-items:center;justify-content:center;min-width:32px";
+
+                const lockBtn = isLocked
+                    ? `<button onclick="AppManager.toggleUserLock('${u.username}', 'Active')" title="Unlock User" style="${btnStyle};color:#28a745">🔓</button>`
+                    : `<button onclick="AppManager.toggleUserLock('${u.username}', 'locked')" title="Lock User" style="${btnStyle};color:#ffc107">🔒</button>`;
+
+
+                return `
+                    <tr style="border-bottom:1px solid var(--color-border)">
+                        <td style="padding:12px;font-weight:500;vertical-align:top">${u.username}</td>
+                        <td style="padding:12px;vertical-align:top">${u.full_name}</td>
+                        <td style="padding:12px;vertical-align:top">
+                            <span style="display:inline-block;padding:2px 8px;background:${roleBadgeColor};color:white;border-radius:12px;font-size:0.75em;font-weight:500">${roleLabel}</span>
+                        </td>
+                        <td style="padding:12px;vertical-align:top">${statusBadge}</td>
+                        <td style="padding:12px;font-size:0.85em;color:var(--color-text-secondary);max-width:350px;vertical-align:top">${assignedHtml}</td>
+                        <td style="padding:12px;text-align:center;white-space:nowrap;vertical-align:top;width:120px">
+                           <div style="display:flex;gap:4px;justify-content:center">
+                                <button onclick="AppManager.showEditUserModal('${u.username}')" title="Edit User" style="${btnStyle};color:var(--color-text)">✏️</button>
+                                ${lockBtn}
+                                <button onclick="AppManager.deleteUser('${u.username}')" title="Delete User" style="${btnStyle};color:#dc3545">✖</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const tableContent = users.length > 0
+                ? usersList
+                : '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--color-text-secondary)">No users yet. Click "+ Add User" to create one.</td></tr>';
+
+            const cardsContent = users.length > 0
+                ? usersCards
+                : '<div style="text-align:center;padding:40px;color:var(--color-text-secondary)">No users yet. Click "+ Add User" to create one.</div>';
+
+            return `
+                <style>
+                    /* Desktop: show table, hide cards */
+                    .user-table-desktop { display: block; }
+                    .user-cards-mobile { display: none; }
+                    
+                    /* Mobile: hide table, show cards */
+                    @media (max-width: 768px) {
+                        .user-table-desktop { display: none; }
+                        .user-cards-mobile { display: block; }
+                    }
+                </style>
+                <div class="header">
+                    <h1 style="font-size:1.4rem">User Management</h1>
+                    <button class="back-btn" onclick="App.router('dashboard')">Back</button>
+                </div>
+                <div class="content">
+                    <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+                        <button onclick="AppManager.showAddUserModal()" style="background:var(--color-primary);color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:0.9em;transition:opacity 0.2s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">+ Add User</button>
+                        <div style="font-size:0.85em;color:var(--color-text-secondary)">
+                            <strong>${users.length}</strong> users · <strong>${madrasahs.length}</strong> madrasahs
+                        </div>
+                    </div>
+                    
+                    <!-- Desktop Table View -->
+                    <div class="user-table-desktop card" style="padding:0;overflow:hidden">
+                        <table style="width:100%;border-collapse:collapse">
+                            <thead>
+                                <tr style="background:var(--color-bg-elevated);border-bottom:2px solid var(--color-border)">
+                                    <th style="padding:14px 12px;text-align:left;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary)">Username</th>
+                                    <th style="padding:14px 12px;text-align:left;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary)">Full Name</th>
+                                    <th style="padding:14px 12px;text-align:left;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary)">Role</th>
+                                    <th style="padding:14px 12px;text-align:left;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary)">Status</th>
+                                    <th style="padding:14px 12px;text-align:left;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary)">Assigned Madrasahs</th>
+                                    <th style="padding:14px 12px;text-align:center;font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:var(--color-text-secondary);width:200px">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableContent}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Mobile Cards View -->
+                    <div class="user-cards-mobile">
+                        ${cardsContent}
+                    </div>
+                </div>
+            `;
+        },
+
+        LoggerManagement: (config, stats, logs) => {
+            const isEnabled = config.ENABLED === true;
+            const logLevel = config.LOG_LEVEL || 'INFO';
+
+            // Statistics cards
+            const totalLogs = stats.totalLogs || 0;
+            const oldestLog = stats.oldestLog ? new Date(stats.oldestLog).toLocaleString('id-ID') : 'N/A';
+            const newestLog = stats.newestLog ? new Date(stats.newestLog).toLocaleString('id-ID') : 'N/A';
+            const byLevel = stats.byLevel || { INFO: 0, WARNING: 0, ERROR: 0 };
+
+            // Recent logs table
+            const recentLogsHtml = (logs && logs.length > 0) ? logs.map(log => {
+                const levelColor = log.level === 'ERROR' ? '#dc3545' :
+                    log.level === 'WARNING' ? '#ffc107' : '#28a745';
+                const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
+                let details = log.details || '';
+                if (details.length > 100) details = details.substring(0, 100) + '...';
+
+                return `
+                    <tr>
+                        <td style="padding:8px;font-size:0.75em;white-space:nowrap">${timestamp}</td>
+                        <td style="padding:8px;text-align:center">
+                            <span style="background:${levelColor};color:white;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600">${log.level}</span>
+                        </td>
+                        <td style="padding:8px;font-weight:500;font-size:0.85em">${log.action}</td>
+                        <td style="padding:8px;font-size:0.8em">${log.username}</td>
+                        <td style="padding:8px;font-size:0.75em;color:var(--color-text-secondary);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${log.details}">${details}</td>
+                    </tr>
+                `;
+            }).join('') : '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--color-text-secondary)">No logs available</td></tr>';
+
+            return `
+                <div class="header">
+                    <h1 style="font-size:1.4rem">📊 Log Info</h1>
+                    <button class="back-btn" onclick="App.router('dashboard')">Back</button>
+                </div>
+                <div class="content">
+                    <!-- Configuration Card -->
+                    <div class="card" style="margin-bottom:20px">
+                        <h3 style="margin:0 0 15px 0;color:var(--color-primary)">⚙️ Logger Settings</h3>
+                        <form id="logger-config-form" onsubmit="event.preventDefault(); const form = event.target; AppManager.updateLoggerConfig(form.enabled.checked, form.log_level.value);">
+                            <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:15px">
+                                <div style="flex:1;min-width:200px">
+                                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--color-bg-elevated);border-radius:6px;border:1px solid var(--color-border)">
+                                        <input type="checkbox" name="enabled" ${isEnabled ? 'checked' : ''} style="width:20px;height:20px;cursor:pointer">
+                                        <div>
+                                            <div style="font-weight:600">Enable Logger</div>
+                                            <div style="font-size:0.75em;color:var(--color-text-secondary)">Track all data operations</div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div style="flex:1;min-width:200px">
+                                    <label style="display:block;margin-bottom:5px;font-weight:600">Log Level</label>
+                                    <select name="log_level" class="form-control" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-elevated);color:var(--color-text)">
+                                        <option value="INFO" ${logLevel === 'INFO' ? 'selected' : ''}>INFO - All operations</option>
+                                        <option value="WARNING" ${logLevel === 'WARNING' ? 'selected' : ''}>WARNING - Warnings & Errors</option>
+                                        <option value="ERROR" ${logLevel === 'ERROR' ? 'selected' : ''}>ERROR - Errors only</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn" style="background:var(--color-primary);color:white;padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-weight:600">💾 Save Settings</button>
+                        </form>
+                    </div>
+
+                    <!-- Statistics Cards -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px">
+                        <div class="card" style="text-align:center;padding:20px">
+                            <div style="font-size:2em;font-weight:bold;color:var(--color-primary)">${totalLogs}</div>
+                            <div style="font-size:0.85em;color:var(--color-text-secondary);margin-top:5px">Total Logs</div>
+                        </div>
+                        <div class="card" style="text-align:center;padding:20px">
+                            <div style="font-size:2em;font-weight:bold;color:#28a745">${byLevel.INFO}</div>
+                            <div style="font-size:0.85em;color:var(--color-text-secondary);margin-top:5px">INFO</div>
+                        </div>
+                        <div class="card" style="text-align:center;padding:20px">
+                            <div style="font-size:2em;font-weight:bold;color:#ffc107">${byLevel.WARNING}</div>
+                            <div style="font-size:0.85em;color:var(--color-text-secondary);margin-top:5px">WARNING</div>
+                        </div>
+                        <div class="card" style="text-align:center;padding:20px">
+                            <div style="font-size:2em;font-weight:bold;color:#dc3545">${byLevel.ERROR}</div>
+                            <div style="font-size:0.85em;color:var(--color-text-secondary);margin-top:5px">ERROR</div>
+                        </div>
+                    </div>
+
+                    <!-- Oldest/Newest Info -->
+                    <div class="card" style="margin-bottom:20px;padding:15px;background:var(--color-bg-elevated)">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px">
+                            <div>
+                                <div style="font-size:0.75em;color:var(--color-text-secondary);margin-bottom:3px">📅 Oldest Log</div>
+                                <div style="font-weight:500;font-size:0.9em">${oldestLog}</div>
+                            </div>
+                            <div>
+                                <div style="font-size:0.75em;color:var(--color-text-secondary);margin-bottom:3px">🕒 Newest Log</div>
+                                <div style="font-weight:500;font-size:0.9em">${newestLog}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clear Logs Actions -->
+                    <div class="card" style="margin-bottom:20px">
+                        <h3 style="margin:0 0 15px 0;color:var(--color-primary)">🗑️ Clear Old Logs</h3>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button onclick="AppManager.clearOldLogs(7)" class="btn" style="background:#ffc107;color:#000;padding:10px 15px;border:none;border-radius:6px;cursor:pointer;font-weight:600">Delete > 7 days</button>
+                            <button onclick="AppManager.clearOldLogs(30)" class="btn" style="background:#ff9800;color:#fff;padding:10px 15px;border:none;border-radius:6px;cursor:pointer;font-weight:600">Delete > 30 days</button>
+                            <button onclick="AppManager.clearOldLogs(90)" class="btn" style="background:#dc3545;color:#fff;padding:10px 15px;border:none;border-radius:6px;cursor:pointer;font-weight:600">Delete > 90 days</button>
+                        </div>
+                        <p style="margin:10px 0 0 0;font-size:0.75em;color:var(--color-text-secondary)">⚠️ This action cannot be undone. Old logs will be permanently deleted.</p>
+                    </div>
+
+                    <!-- Recent Logs Table -->
+                    <div class="card">
+                        <h3 style="margin:0 0 15px 0;color:var(--color-primary)">📋 Recent Logs (Last 50)</h3>
+                        <div style="overflow-x:auto">
+                            <table style="width:100%;border-collapse:collapse">
+                                <thead>
+                                    <tr style="background:var(--color-bg-elevated);border-bottom:2px solid var(--color-border)">
+                                        <th style="padding:10px;text-align:left;font-weight:600;font-size:0.85em">Timestamp</th>
+                                        <th style="padding:10px;text-align:center;font-weight:600;font-size:0.85em">Level</th>
+                                        <th style="padding:10px;text-align:left;font-weight:600;font-size:0.85em">Action</th>
+                                        <th style="padding:10px;text-align:left;font-weight:600;font-size:0.85em">Username</th>
+                                        <th style="padding:10px;text-align:left;font-weight:600;font-size:0.85em">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recentLogsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        EditContainer: (sub) => {
+            return `<div class="header"><h1>Edit Submission</h1><button class="back-btn" onclick="AppManager.confirmExit('${sub.submission_id}')">Cancel</button></div>
+                    <div class="content"><div id="manager-edit-area"></div></div>`;
+        }
+    };
+</script>

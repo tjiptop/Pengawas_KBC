@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <title>Madrasah Survey App</title>
+    <?!= include('css'); ?>
+</head>
+
+<body>
+    <div id="app" class="app-container">
+        <!-- Content injected by JS -->
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top:1rem;color:#555;font-weight:600;">Loading...</p>
+    </div>
+
+    <!-- Dependencies -->
+    <!-- JS-YAML for parsing form definitions -->
+    <!-- JS-YAML for parsing form definitions -->
+    <?!= include('js-yaml'); ?>
+
+    <!-- Configuration (MUST load first) -->
+    <?!= include('config'); ?>
+
+    <!-- Survey Token Injection (if applicable) -->
+    <? if (typeof surveyToken !== 'undefined' && surveyToken) { ?>
+    <script>
+        window.SURVEY_TOKEN = "<?= surveyToken ?>";
+    </script>
+    <? } ?>
+
+    <!-- Modular JavaScript Files (in dependency order) -->
+    <?!= include('js-qrcode'); ?>
+    <?!= include('js-qrcode-gen'); ?>
+    <?!= include('js-core'); ?>
+    <?!= include('js-auth'); ?>
+    <?!= include('js-delegates'); ?>
+    <?!= include('js-form-engine'); ?>
+    <?!= include('js-form-handlers'); ?>
+
+    <!-- Role-specific modules -->
+    <?!= include('js-manager'); ?>
+    <?!= include('js-enumerator'); ?>
+
+</body>
+
+</html>
