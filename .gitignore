@@ -15,3 +15,7 @@ Thumbs.db
 
 # Clasp local logs & temp files
 .clasp.json.bak
+
+# Excel temporary lock files
+~$*.xlsx
+~$*.xls
