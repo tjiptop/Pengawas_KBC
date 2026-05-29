@@ -10,7 +10,7 @@ const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
-const APP_VERSION = 'v2.1.9';
+const APP_VERSION = 'v2.1.10';
 
 // ============================================================
 // ENTRY POINT
@@ -267,6 +267,17 @@ function getProfile(nip) {
           }
           profile[headersProfil[j]] = val;
         }
+        
+        // Auto-heal WA number
+        if (profile['WA']) {
+          let strVal = String(profile['WA']).trim();
+          if (strVal && !strVal.startsWith('0') && !strVal.startsWith('+') && !strVal.startsWith('62')) {
+            if (/^[1-9]\d{8,12}$/.test(strVal)) {
+              profile['WA'] = '0' + strVal;
+            }
+          }
+        }
+        
         return profile;
       }
     }
@@ -315,7 +326,15 @@ function getProfile(nip) {
           else if (h.includes('JENJANG')) {
              if (typeof val === 'string' && val.trim() !== '') profile['Jenjang'] = val;
           }
-          else if (h.includes('WA') || h.includes('HP') || h.includes('TELP')) profile['WA'] = val;
+          else if (h.includes('WA') || h.includes('HP') || h.includes('TELP')) {
+            let strVal = String(val).trim();
+            if (strVal && !strVal.startsWith('0') && !strVal.startsWith('+') && !strVal.startsWith('62')) {
+              if (/^[1-9]\d{8,12}$/.test(strVal)) {
+                strVal = '0' + strVal;
+              }
+            }
+            profile['WA'] = strVal;
+          }
           else if (h.includes('EMAIL')) profile['Email'] = val;
           else if (h.includes('ALAMAT')) profile['Alamat'] = val;
           // Urutan penting: cek TANGGAL LAHIR lebih dulu agar tidak tertangkap oleh TEMPAT LAHIR
@@ -368,10 +387,17 @@ function saveProfile(data) {
     if (!data['Foto URL'] && existingPhoto) {
       rowData[headers.indexOf('Foto URL')] = existingPhoto;
     }
-    sheet.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
   } else {
-    sheet.appendRow(rowData);
+    // Append a blank row first to get the row index
+    sheet.appendRow(headers.map(() => ''));
+    rowIdx = sheet.getLastRow();
   }
+
+  // Set number formats of the row to plain text to preserve leading zeros (like WA starting with 0)
+  const range = sheet.getRange(rowIdx, 1, 1, rowData.length);
+  const formats = rowData.map(() => '@'); // Plain Text format in Google Sheets
+  range.setNumberFormats([formats]);
+  range.setValues([rowData]);
 
   return apiSuccess(getProfile(nipStr), 'Profil berhasil disimpan.');
 }

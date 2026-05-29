@@ -107,10 +107,10 @@ window.ProfileViews = {
                             \x3Clabel>Tempat Lahir\x3C/label>
                             \x3Cinput type="text" id="prof-tempat-lahir" class="form-control" value="${esc(user['Tempat Lahir'])}" required>
                         \x3C/div>
-                        \x3Cdiv class="form-group" style="flex:1;">
-                            \x3Clabel>Tanggal Lahir (Otomatis dari NIP)\x3C/label>
-                            \x3Cinput type="date" id="prof-tgl-lahir" class="form-control" value="${esc(tglLahirDefault)}" required>
-                        \x3C/div>
+                        <div class="form-group" style="flex:1;">
+                             <label>Tanggal Lahir</label>
+                             <input type="date" id="prof-tgl-lahir" class="form-control" value="${esc(tglLahirDefault)}" required>
+                         </div>
                     \x3C/div>
                     \x3Cdiv class="form-group" style="margin-bottom:15px;">
                         \x3Clabel>Golongan\x3C/label>
