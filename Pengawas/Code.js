@@ -460,7 +460,10 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
   if (idxJenjang === -1) idxJenjang = 3;
 
   kabupaten = sanitizeHtml(String(kabupaten || '').toLowerCase().trim());
-  let cleanKabupaten = kabupaten.replace(/^(kab\.|kabupaten)\s+/i, '').trim();
+  let normProfileKab = kabupaten.replace(/^kab\.\s+/i, 'kabupaten ').trim();
+  if (normProfileKab && !normProfileKab.startsWith('kota ') && !normProfileKab.startsWith('kabupaten ')) {
+      normProfileKab = 'kabupaten ' + normProfileKab;
+  }
   let allowedJenjangs = String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '');
 
   let results = [];
@@ -471,11 +474,14 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
        continue; // DIBLOKIR: Sudah diambil pengawas lain
     }
 
-    let kab = String(data[i][idxKab]).toLowerCase();
+    let kab = String(data[i][idxKab]).toLowerCase().trim();
+    let normDbKab = kab.replace(/^kab\.\s+/i, 'kabupaten ').trim();
+    if (normDbKab && !normDbKab.startsWith('kota ') && !normDbKab.startsWith('kabupaten ')) {
+        normDbKab = 'kabupaten ' + normDbKab;
+    }
     let jenjang = String(data[i][idxJenjang]).toLowerCase();
 
-    let escapedKabupaten = cleanKabupaten.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    let matchKab = !cleanKabupaten || new RegExp('\\b' + escapedKabupaten + '\\b', 'i').test(kab);
+    let matchKab = !normProfileKab || normDbKab === normProfileKab;
     let matchJenjang = allowedJenjangs.length === 0 || allowedJenjangs.some(j => jenjang === j || jenjang.includes(j) || j.includes(jenjang));
 
     if (matchKab && matchJenjang) {

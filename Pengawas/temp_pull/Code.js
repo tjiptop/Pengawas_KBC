@@ -402,17 +402,23 @@ function searchMadrasah(kabupaten, keyword) {
   // Sanitasi input pencarian
   keyword = sanitizeHtml(String(keyword || '').toLowerCase().trim());
   kabupaten = sanitizeHtml(String(kabupaten || '').toLowerCase().trim());
-  let cleanKabupaten = kabupaten.replace(/^(kab\.|kabupaten)\s+/i, '').trim();
+  let normProfileKab = kabupaten.replace(/^kab\.\s+/i, 'kabupaten ').trim();
+  if (normProfileKab && !normProfileKab.startsWith('kota ') && !normProfileKab.startsWith('kabupaten ')) {
+      normProfileKab = 'kabupaten ' + normProfileKab;
+  }
 
   let results = [];
   for (let i = 1; i < data.length; i++) {
     let nsm = String(data[i][idxNSM]).toLowerCase();
     let nama = String(data[i][idxNama]).toLowerCase();
-    let kab = String(data[i][idxKab]).toLowerCase();
+    let kab = String(data[i][idxKab]).toLowerCase().trim();
+    let normDbKab = kab.replace(/^kab\.\s+/i, 'kabupaten ').trim();
+    if (normDbKab && !normDbKab.startsWith('kota ') && !normDbKab.startsWith('kabupaten ')) {
+        normDbKab = 'kabupaten ' + normDbKab;
+    }
     let jenjang = String(data[i][idxJenjang]).toLowerCase();
 
-    let escapedKabupaten = cleanKabupaten.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    let matchKab = !cleanKabupaten || new RegExp('\\b' + escapedKabupaten + '\\b', 'i').test(kab);
+    let matchKab = !normProfileKab || normDbKab === normProfileKab;
     let matchKey = !keyword || nsm.includes(keyword) || nama.includes(keyword);
 
     if (matchKab && matchKey) {
