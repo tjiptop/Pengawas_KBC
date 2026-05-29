@@ -448,8 +448,7 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       normProfileKab = 'kabupaten ' + normProfileKab;
   }
   let allowedJenjangs = String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '');
-
-  let safeCacheKey = 'kab_madrasah_' + Utilities.base64Encode(normProfileKab).replace(/[^a-zA-Z0-9]/g, '').substring(0, 50);
+  let safeCacheKey = 'kab_madrasah_' + normProfileKab.replace(/[^a-zA-Z0-9]/g, '').substring(0, 50);
   let cachedDataStr = getCacheChunked(safeCacheKey);
   let allKabMadrasahs = null;
 
@@ -1185,10 +1184,12 @@ function putCacheChunked(key, str, expirationInSeconds) {
   const cache = CacheService.getScriptCache();
   const CHUNK_SIZE = 90000;
   const chunks = Math.ceil(str.length / CHUNK_SIZE);
+  let payload = {};
   for (let i = 0; i < chunks; i++) {
-    cache.put(key + '_' + i, str.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), expirationInSeconds);
+    payload[key + '_' + i] = str.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
   }
-  cache.put(key + '_chunks', String(chunks), expirationInSeconds);
+  payload[key + '_chunks'] = String(chunks);
+  cache.putAll(payload, expirationInSeconds);
 }
 
 function getCacheChunked(key) {
@@ -1196,9 +1197,14 @@ function getCacheChunked(key) {
   const chunkCountStr = cache.get(key + '_chunks');
   if (!chunkCountStr) return null;
   const chunks = parseInt(chunkCountStr);
+  let keys = [];
+  for (let i = 0; i < chunks; i++) {
+    keys.push(key + '_' + i);
+  }
+  const chunkData = cache.getAll(keys);
   let str = '';
   for (let i = 0; i < chunks; i++) {
-    let chunk = cache.get(key + '_' + i);
+    let chunk = chunkData[key + '_' + i];
     if (!chunk) return null; // Incomplete cache
     str += chunk;
   }
