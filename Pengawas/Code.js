@@ -10,7 +10,7 @@ const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
-const APP_VERSION = 'v2.1.10';
+const APP_VERSION = 'v2.1.11';
 
 // ============================================================
 // ENTRY POINT
@@ -1510,12 +1510,12 @@ function kamadValidateSetupToken(token) {
 /**
  * Ambil semua data dashboard kamad dalam 1 panggilan
  */
-function kamadGetDashboard(nsm) {
+function kamadGetDashboard(nsm, viewerRole) {
   try {
     const nsmStr = String(nsm).trim();
     const madrasahInfo = getMadrasahByNsm(nsmStr);
     if (!madrasahInfo) return apiError('Data madrasah tidak ditemukan: ' + nsmStr, 'NOT_FOUND');
-    const formsResult = kamadGetAvailableForms(nsmStr);
+    const formsResult = kamadGetAvailableForms(nsmStr, viewerRole);
     const forms = formsResult.success ? (formsResult.data || []) : [];
     const histResult = kamadGetSubmissionHistory(nsmStr);
     const history = histResult.success ? (histResult.data || []) : [];
@@ -1534,7 +1534,7 @@ function kamadGetDashboard(nsm) {
 /**
  * Daftar form tersedia untuk kamad (dengan flag canFill)
  */
-function kamadGetAvailableForms(nsm) {
+function kamadGetAvailableForms(nsm, viewerRole) {
   try {
     const definitions = getMadrasahFormDefinitions();
     const ICONS = { '0': '📊', '1': '🔍', '2': '📝', '3': '🎙️', '4': '👤' };
@@ -1542,11 +1542,20 @@ function kamadGetAvailableForms(nsm) {
       const tM = yaml.match(/^title:\s*(.+)$/m);
       const gM = yaml.match(/^group:\s*(.+)$/m);
       const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
+      const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
       const title = tM ? tM[1].trim() : id;
       const group = gM ? gM[1].trim() : 'Lainnya';
       const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
-      const canFill = allowed.length === 0 || allowed.includes('kamad');
-      return { id, title, group, canFill, icon: ICONS[group.charAt(0)] || '📋' };
+      
+      let canFill = false;
+      if (viewerRole === 'district') {
+        canFill = allowed.includes('district');
+      } else {
+        canFill = allowed.length === 0 || allowed.includes('kamad');
+      }
+      
+      const submissionLimit = sL ? parseInt(sL[1].trim()) : -1;
+      return { id, title, group, canFill, icon: ICONS[group.charAt(0)] || '📋', submission_limit: submissionLimit };
     });
     forms.sort((a, b) => a.canFill !== b.canFill ? (a.canFill ? -1 : 1) : a.title.localeCompare(b.title));
     return apiSuccess(forms);
@@ -1620,9 +1629,19 @@ function kamadSubmitForm(payload) {
     if (!yaml) return apiError('Form tidak ditemukan.', 'NOT_FOUND');
     const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
     const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
-    if (allowed.length > 0 && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+    
+    const submitterRole = payload.role === 'district' ? 'district' : 'kamad';
+    if (submitterRole === 'district') {
+      if (!allowed.includes('district')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+    } else {
+      if (allowed.length > 0 && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+    }
+
     const sM = yaml.match(/^target_sheet:\s*(.+)$/m);
     const targetSheet = sM ? sM[1].trim() : formId;
+    const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
+    const limit = sL ? parseInt(sL[1].trim()) : -1;
+
     const ss = SpreadsheetApp.openById(APP_DB_ID);
     let sheet = ss.getSheetByName(targetSheet);
     if (!sheet) sheet = ss.insertSheet(targetSheet);
@@ -1637,13 +1656,57 @@ function kamadSubmitForm(payload) {
       if (h === 'nsm')           return nsm;
       if (h === 'madrasah_nama') return madrasah.nama || '';
       if (h === 'form_id')       return formId;
-      if (h === 'role')          return 'kamad';
+      if (h === 'role')          return submitterRole;
       const v = flat[h];
       return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
     });
-    sheet.appendRow(row);
+
+    // 🌟 Respect submission limit (0 or 1) by overwriting existing row
+    let overwritten = false;
+    if (limit === 0 || limit === 1) {
+      const nsmIdx = hdrs.indexOf('nsm');
+      if (nsmIdx !== -1 && sheet.getLastRow() > 1) {
+        const nsmValues = sheet.getRange(2, nsmIdx + 1, sheet.getLastRow() - 1, 1).getValues().flat();
+        const formIdIdx = hdrs.indexOf('form_id');
+        let existingRowIdx = -1;
+        if (formIdIdx !== -1) {
+          const formIdValues = sheet.getRange(2, formIdIdx + 1, sheet.getLastRow() - 1, 1).getValues().flat();
+          for (let i = 0; i < nsmValues.length; i++) {
+            if (String(nsmValues[i]).trim() === String(nsm).trim() && String(formIdValues[i]).trim() === String(formId).trim()) {
+              existingRowIdx = i;
+              break;
+            }
+          }
+        } else {
+          existingRowIdx = nsmValues.findIndex(v => String(v).trim() === String(nsm).trim());
+        }
+
+        if (existingRowIdx !== -1) {
+          const rowNum = existingRowIdx + 2;
+          sheet.getRange(rowNum, 1, 1, hdrs.length).setValues([row]);
+          overwritten = true;
+        }
+      }
+    }
+
+    if (!overwritten) {
+      sheet.appendRow(row);
+    }
+
     const log = getKamadSheet(ss, 'KamadSubmissions');
-    log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
+    let logRowIdx = -1;
+    if ((limit === 0 || limit === 1) && log.getLastRow() > 1) {
+      const logValues = log.getRange(2, 1, log.getLastRow() - 1, 3).getValues();
+      logRowIdx = logValues.findIndex(r => String(r[1]).trim() === String(nsm).trim() && String(r[2]).trim() === String(formId).trim());
+    }
+
+    if (logRowIdx !== -1) {
+      log.getRange(logRowIdx + 2, 1).setValue(timestamp);
+      log.getRange(logRowIdx + 2, 5).setValue('final');
+    } else {
+      log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
+    }
+
     return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
   } catch (e) {
     return apiError(e.toString());

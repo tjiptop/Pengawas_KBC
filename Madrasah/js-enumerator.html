@@ -640,9 +640,9 @@
                                 ? `<div class="form-date-badge" onclick="AppEnumerator.router('submission-detail',{submission_id:'${last.submission_id}', madrasah_id:'${m.madrasah_id}'})">${ts} &nbsp; &#10095;</div>`
                                 : `<div class="form-date-badge" style="cursor:default;opacity:0.5">-</div>`;
 
-                            const mainButton = isReadOnly
-                                ? `<button class="form-btn-main" style="cursor:default;opacity:0.8;background:var(--color-bg-elevated);color:var(--color-text)">
-                                       ${title} <small style="opacity:0.6">(View Only)</small>
+                            const mainButton = isReadOnly || (limit === 1 && last)
+                                ? `<button class="form-btn-main" onclick="AppEnumerator.router('submission-detail',{submission_id:'${last.submission_id}', madrasah_id:'${m.madrasah_id}'})" style="opacity:0.9;background:var(--color-bg-elevated);color:var(--color-text)">
+                                       ${title} <small style="opacity:0.6">(${isReadOnly ? 'View Only' : 'Submitted'})</small>
                                    </button>`
                                 : `<button class="form-btn-main" onclick="App.router('survey',{madrasah_id:'${m.madrasah_id}',formId:'${k}'})">
                                        ${title}

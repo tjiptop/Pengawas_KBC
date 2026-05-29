@@ -118,7 +118,7 @@ const DashboardManager = {
             
             const actionButton = item.kamad_aktif ? '' : `
                 <button
-                    onclick="DashboardManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
+                    onclick="event.stopPropagation(); DashboardManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
                     title="Salin Link Setup Kamad"
                     class="wa-link-btn"
                     style="background:var(--color-primary); border:none; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.15); flex-shrink:0; margin-left:8px;"
@@ -142,7 +142,11 @@ const DashboardManager = {
                  </span>`) : '';
 
             return `
-            <div style="padding:12px 16px;${idx < Math.min(data.length,5)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;gap:12px;align-items:center;justify-content:space-between;">
+            <div 
+                onclick="DashboardManager.viewMadrasahAsKamad('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
+                style="padding:12px 16px;${idx < Math.min(data.length,5)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;gap:12px;align-items:center;justify-content:space-between;cursor:pointer;"
+                class="binaan-item"
+            >
                 <div style="width:28px;height:28px;background:rgba(26,115,232,0.1);color:var(--color-primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;flex-shrink:0;">${idx+1}</div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nama}</div>
@@ -163,6 +167,15 @@ const DashboardManager = {
             html += `<div style="padding:10px 16px;text-align:center;color:var(--color-text-light);font-size:0.78em;">+${data.length - 5} madrasah lainnya</div>`;
         }
         container.innerHTML = html;
+    },
+
+    viewMadrasahAsKamad(nsm, namaMadrasah) {
+        App.state.isSupervisorViewAs = true;
+        App.state.kamad = {
+            nsm: nsm,
+            madrasah_name: namaMadrasah
+        };
+        App.router('kamad-dashboard');
     },
 
     sendKamadLink(nsm, namaMadrasah) {

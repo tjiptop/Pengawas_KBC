@@ -76,7 +76,14 @@ const KamadForms = {
       Object.keys(groups).sort().forEach(groupName => {
         html += `<div class="kamad-group-label">${groupName}</div>`;
         groups[groupName].forEach(form => {
-          const canFill = form.canFill;
+          const subCount = (KamadForms.state.history || []).filter(s => s.form_id === form.id).length;
+          const limit = form.submission_limit !== undefined ? parseInt(form.submission_limit) : -1;
+          
+          let canFill = form.canFill;
+          if (canFill && limit === 1 && subCount >= 1) {
+            canFill = false;
+          }
+
           const badge = canFill
             ? `<span class="kamad-badge kamad-badge-fill">Isi</span>`
             : `<span class="kamad-badge kamad-badge-readonly">Lihat</span>`;
@@ -214,7 +221,13 @@ const KamadForms = {
 
   open(formId) {
     const formMeta = (App.state.kamadForms || []).find(f => f.id === formId) || { id: formId };
-    const canFill  = formMeta.canFill !== false;
+    const subCount = (this.state.history || []).filter(s => s.form_id === formId).length;
+    const limit = formMeta.submission_limit !== undefined ? parseInt(formMeta.submission_limit) : -1;
+    
+    let canFill = formMeta.canFill !== false;
+    if (canFill && limit === 1 && subCount >= 1) {
+      canFill = false;
+    }
 
     // Tampilkan panel fill
     const panelHistory = document.getElementById('kpanel-history');
@@ -302,7 +315,8 @@ const KamadForms = {
     const payload = {
       nsm:    nsm,
       formId: formId,
-      data:   data
+      data:   data,
+      role:   App.state.isSupervisorViewAs ? 'district' : 'kamad'
     };
 
     App.loading(true, 'Mengirim formulir...');
