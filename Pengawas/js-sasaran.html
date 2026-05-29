@@ -58,15 +58,38 @@ const SasaranViews = {
         </details>
     `,
 
-    MadrasahItem: (item, isChecked) => `
-        <label class="madrasah-item" style="display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed #eee; cursor: pointer;">
-            <input type="checkbox" value="${item.nsm}" onchange="SasaranManager.toggleSelection(this, '${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')" ${isChecked ? 'checked' : ''} style="margin-top: 4px; margin-right: 12px; transform: scale(1.3);">
-            <div>
-                <strong style="display:block; color: #333;">${item.nama}</strong>
-                <small style="color:#666;">NSM: ${item.nsm} ${item.npsn ? `| NPSN: ${item.npsn}` : ''} | Jenjang: ${item.jenjang}</small>
-            </div>
-        </label>
-    `
+    MadrasahItem: (item, isChecked, isKamadAktif) => {
+        const statusBadge = isChecked ? (isKamadAktif ? 
+            `<span style="font-size:0.68rem;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;margin-left:8px;vertical-align:middle;display:inline-block;white-space:nowrap;">✅ Kamad Aktif</span>` :
+            `<span style="font-size:0.68rem;padding:2px 8px;border-radius:6px;background:#fff3cd;color:#856404;font-weight:600;margin-left:8px;vertical-align:middle;display:inline-block;white-space:nowrap;">⚠️ Kamad Belum Aktif</span>`
+        ) : '';
+
+        const actionButton = (isChecked && !isKamadAktif) ? `
+        <button
+            onclick="SasaranManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
+            title="Salin Link Setup Kamad"
+            class="wa-link-btn"
+            style="background:var(--color-primary); border:none; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.15); flex-shrink:0; margin-left:8px;"
+            aria-label="Salin Link Setup Kamad ke kamad ${item.nama}">
+            🔗
+        </button>` : '';
+
+        return `
+        <div class="madrasah-item-wrap" style="display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed #eee;">
+            <label style="flex:1; display: flex; align-items: flex-start; cursor: pointer; gap:12px; margin:0;">
+                <input type="checkbox" value="${item.nsm}" onchange="SasaranManager.toggleSelection(this, '${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')" ${isChecked ? 'checked' : ''} style="margin-top: 4px; transform: scale(1.3); flex-shrink:0;">
+                <div>
+                    <strong style="display:block; color: #333; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span>${item.nama}</span>
+                        ${statusBadge}
+                    </strong>
+                    <small style="color:#666;">NSM: ${item.nsm} ${item.npsn ? `| NPSN: ${item.npsn}` : ''} | Jenjang: ${item.jenjang}</small>
+                </div>
+            </label>
+            ${actionButton}
+        </div>
+        `;
+    }
 };
 
 const SasaranManager = {
@@ -160,8 +183,10 @@ const SasaranManager = {
             
             for (let jenjang of sortedJenjang) {
                 let itemsHtml = grouped[kec][jenjang].map(item => {
-                    let isChecked = this.selectedData.some(s => s.nsm == item.nsm);
-                    return SasaranViews.MadrasahItem(item, isChecked);
+                    const existing = this.selectedData.find(s => s.nsm == item.nsm);
+                    const isChecked = !!existing;
+                    const isKamadAktif = existing ? !!existing.kamad_aktif : false;
+                    return SasaranViews.MadrasahItem(item, isChecked, isKamadAktif);
                 }).join('');
                 
                 let jHtml = SasaranViews.JenjangGroup(jenjang, itemsHtml);
@@ -213,6 +238,88 @@ const SasaranManager = {
             App.loading(false);
             App.alert(err.message, 'System Error');
         }).saveSasaranList(App.state.user['NIP'], this.selectedData);
+    },
+
+    sendKamadLink(nsm, namaMadrasah) {
+        const nip = App.state.user['NIP'];
+        App.loading(true, `Membuat link setup untuk ${namaMadrasah}...`);
+        
+        google.script.run
+            .withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    let linkUrl = res.data.setup_url;
+                    // Tambahkan cache buster dinamis untuk melewati cache agresif Google CDN / browser
+                    if (linkUrl) {
+                        const separator = linkUrl.indexOf('?') !== -1 ? '&' : '?';
+                        linkUrl = `${linkUrl}${separator}cb=${Date.now()}`;
+                    }
+                    
+                    // Fungsi pembantu untuk salin teks
+                    const copyToClipboard = (text) => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            return navigator.clipboard.writeText(text);
+                        } else {
+                            // Fallback untuk browser/webview lama
+                            const textArea = document.createElement("textarea");
+                            textArea.value = text;
+                            textArea.style.position = "fixed";
+                            document.body.appendChild(textArea);
+                            textArea.focus();
+                            textArea.select();
+                            let successful = false;
+                            try {
+                                successful = document.execCommand('copy');
+                            } catch (err) { successful = false; }
+                            document.body.removeChild(textArea);
+                            return successful ? Promise.resolve() : Promise.reject();
+                        }
+                    };
+
+                    const showToast = (msg) => {
+                        if (!document.getElementById('toast-animation-style')) {
+                            const style = document.createElement('style');
+                            style.id = 'toast-animation-style';
+                            style.textContent = `
+                                @keyframes fadeInOut {
+                                    0% { opacity: 0; transform: translate(-50%, 10px); }
+                                    15% { opacity: 1; transform: translate(-50%, 0); }
+                                    85% { opacity: 1; transform: translate(-50%, 0); }
+                                    100% { opacity: 0; transform: translate(-50%, -10px); }
+                                }
+                            `;
+                            document.head.appendChild(style);
+                        }
+                        const toast = document.createElement('div');
+                        toast.style.cssText = `
+                            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+                            background: rgba(0,0,0,0.85); color: white; padding: 10px 24px;
+                            border-radius: 30px; font-size: 0.82rem; font-weight: 600; z-index: 10000;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none;
+                            animation: fadeInOut 2.2s forwards; font-family: sans-serif;
+                        `;
+                        toast.textContent = msg;
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 2200);
+                    };
+
+                    copyToClipboard(linkUrl).then(() => {
+                        showToast("🔗 Link berhasil disalin!");
+                    }).catch(() => {
+                        App.alert(
+                            `Gagal menyalin otomatis. Silakan salin link berikut secara manual:<br><br><input type="text" style="width:100%;font-size:0.9em;padding:8px;border-radius:4px;border:1px solid #ccc;" value="${linkUrl}" readonly onclick="this.select()">`,
+                            'Gagal Salin Otomatis'
+                        );
+                    });
+                } else {
+                    App.alert(res.error || 'Gagal membuat link.', 'Gagal');
+                }
+            })
+            .withFailureHandler(err => {
+                App.loading(false);
+                App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+            })
+            .generateKamadSetupLink(nsm, nip);
     }
 };
 </script>

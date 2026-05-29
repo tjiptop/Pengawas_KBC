@@ -1892,4 +1892,765 @@
             height: 13px;
         }
     }
+
+    /* ========================================
+       AUTH WRAP (Pengawas + Kamad login pages)
+       Mobile-first, centered, premium feel
+       ======================================== */
+
+    .auth-wrap,
+    .kamad-auth-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100svh;
+        padding: 16px;
+        background: var(--color-bg);
+    }
+
+    .auth-card,
+    .kamad-auth-card {
+        background: var(--color-bg-elevated);
+        border-radius: var(--radius-xl);
+        padding: 28px 24px 24px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--color-border-light);
+    }
+
+    [data-theme="dark"] .auth-card,
+    [data-theme="dark"] .kamad-auth-card {
+        border-color: #383838;
+    }
+
+    /* Brand header inside auth card */
+    .auth-brand,
+    .kamad-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+
+    .auth-brand-icon,
+    .kamad-brand-icon {
+        width: 48px; height: 48px;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(26,115,232,0.3);
+    }
+
+    .auth-brand-title,
+    .kamad-brand-title {
+        margin: 0 0 2px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--color-text);
+        letter-spacing: -0.02em;
+    }
+
+    .auth-brand-sub,
+    .kamad-brand-sub {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--color-text-light);
+    }
+
+    .auth-divider,
+    .kamad-divider {
+        height: 1px;
+        background: var(--color-border-light);
+        margin: 0 0 20px;
+    }
+
+    /* Input with eye button */
+    .kamad-input-wrap {
+        position: relative;
+    }
+
+    .kamad-input-wrap .form-control {
+        padding-right: 44px;
+    }
+
+    .kamad-eye-btn {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--color-text-light);
+        padding: 4px;
+        opacity: 1;
+        transition: opacity var(--transition-fast);
+    }
+
+    .kamad-label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        margin-bottom: 6px;
+    }
+
+    .kamad-input {
+        margin-bottom: 0;
+    }
+
+    .kamad-submit-btn {
+        padding: 13px;
+        font-size: 0.95rem;
+        margin-top: 16px;
+    }
+
+    .kamad-error-msg {
+        background: rgba(234,67,53,0.08);
+        border: 1px solid rgba(234,67,53,0.25);
+        color: var(--color-accent);
+        border-radius: var(--radius-md);
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        margin-bottom: 14px;
+        line-height: 1.5;
+    }
+
+    .kamad-error-inline {
+        color: var(--color-accent);
+        font-size: 0.85rem;
+        padding: 12px;
+        background: rgba(234,67,53,0.06);
+        border-radius: var(--radius-md);
+    }
+
+    @keyframes kamadShake {
+        0%, 100% { transform: translateX(0); }
+        20% { transform: translateX(-6px); }
+        40% { transform: translateX(6px); }
+        60% { transform: translateX(-4px); }
+        80% { transform: translateX(4px); }
+    }
+    .kamad-shake { animation: kamadShake 0.35s ease; }
+
+    .kamad-footer-link {
+        text-align: center;
+        margin-top: 18px;
+    }
+
+    .kamad-text-btn {
+        background: none;
+        border: none;
+        color: var(--color-text-secondary);
+        font-size: 0.82rem;
+        cursor: pointer;
+        padding: 6px;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        transition: color var(--transition-fast);
+    }
+
+    .kamad-text-btn:hover { color: var(--color-primary); }
+
+    /* Kamad info box (pada setup password) */
+    .kamad-info-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(26,115,232,0.06);
+        border: 1px solid rgba(26,115,232,0.15);
+        border-radius: var(--radius-lg);
+        padding: 14px;
+        margin-bottom: 16px;
+    }
+
+    .kamad-info-icon { font-size: 1.8rem; flex-shrink: 0; }
+    .kamad-info-name { font-weight: 600; font-size: 0.95rem; color: var(--color-text); }
+    .kamad-info-nsm  { font-size: 0.8rem; color: var(--color-text-secondary); margin-top: 2px; }
+
+    .kamad-setup-desc {
+        font-size: 0.85rem;
+        color: var(--color-text-secondary);
+        line-height: 1.5;
+        margin: 0 0 18px;
+    }
+
+    /* ========================================
+       KAMAD APP HEADER
+       ======================================== */
+
+    .kamad-header {
+        background: var(--color-bg-elevated);
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--color-border-light);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        min-height: 56px;
+    }
+
+    .kamad-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .kamad-header-icon {
+        width: 34px; height: 34px;
+        border-radius: var(--radius-md);
+        background: linear-gradient(135deg, #0f9b58 0%, #0a7a45 100%);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.05rem; flex-shrink: 0;
+    }
+
+    .kamad-header-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+    }
+
+    .kamad-header-meta {
+        font-size: 0.73rem;
+        color: var(--color-text-light);
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+    }
+
+    .kamad-header-actions { position: relative; }
+
+    .kamad-logout-btn {
+        background: none;
+        border: 1px solid var(--color-border);
+        color: var(--color-text-secondary);
+        border-radius: var(--radius-full);
+        padding: 6px 14px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-logout-btn:hover {
+        background: rgba(234,67,53,0.08);
+        color: var(--color-danger);
+        border-color: var(--color-danger);
+    }
+
+    .kamad-menu-btn {
+        background: none;
+        border: none;
+        font-size: 1.4rem;
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: var(--radius-md);
+        line-height: 1;
+        transition: background var(--transition-fast);
+    }
+
+    .kamad-menu-btn:hover { background: var(--color-bg-hover); }
+
+    .kamad-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        min-width: 160px;
+        overflow: hidden;
+        z-index: 200;
+    }
+
+    .kamad-dropdown.open {
+        display: block;
+        animation: slideDown 0.15s ease-out;
+    }
+
+    .kamad-dropdown-item {
+        display: block;
+        width: 100%;
+        padding: 12px 16px;
+        text-align: left;
+        background: none;
+        border: none;
+        border-bottom: 1px solid var(--color-border-light);
+        color: var(--color-text);
+        font-size: 0.88rem;
+        cursor: pointer;
+        transition: background var(--transition-fast);
+    }
+
+    .kamad-dropdown-item:last-child { border-bottom: none; }
+    .kamad-dropdown-item:hover { background: var(--color-bg-hover); }
+    .kamad-dropdown-item.danger { color: var(--color-danger); }
+
+    /* ========================================
+       KAMAD DASHBOARD CONTENT
+       ======================================== */
+
+    .kamad-progress-card {
+        background: linear-gradient(135deg, #0f9b58 0%, #0a7a45 100%);
+        border-radius: var(--radius-xl);
+        padding: 18px 20px;
+        color: white;
+        margin-bottom: 14px;
+    }
+
+    .kamad-progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .kamad-progress-label { font-size: 0.85rem; opacity: 0.85; }
+    .kamad-progress-pct { font-size: 1.4rem; font-weight: 700; }
+
+    .kamad-progress-bar-bg {
+        background: rgba(255,255,255,0.25);
+        border-radius: var(--radius-full);
+        height: 8px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+
+    .kamad-progress-bar-fill {
+        height: 100%;
+        background: rgba(255,255,255,0.9);
+        border-radius: var(--radius-full);
+        transition: width 0.6s ease;
+        min-width: 4px;
+    }
+
+    .kamad-progress-detail {
+        font-size: 0.78rem;
+        opacity: 0.8;
+    }
+
+    /* Stat Cards */
+    .kamad-stats-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .kamad-stat-card {
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border-light);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-stat-card:hover {
+        border-color: #0f9b58;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .kamad-stat-num {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #0f9b58;
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+
+    .kamad-stat-lbl {
+        font-size: 0.78rem;
+        color: var(--color-text-secondary);
+    }
+
+    /* Quick Menu */
+    .kamad-quick-menu {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .kamad-quick-btn {
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border-light);
+        border-radius: var(--radius-lg);
+        padding: 16px 12px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-quick-btn:hover {
+        border-color: #0f9b58;
+        background: rgba(15,155,88,0.04);
+        transform: translateY(-1px);
+    }
+
+    .kamad-quick-icon { font-size: 1.5rem; }
+    .kamad-quick-lbl { font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary); }
+
+    /* Recent Form List */
+    .kamad-section-header {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--color-text-light);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+    }
+
+    .kamad-recent-list {
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border-light);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+
+    .kamad-recent-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--color-border-light);
+        cursor: pointer;
+        transition: background var(--transition-fast);
+    }
+
+    .kamad-recent-item:last-child { border-bottom: none; }
+    .kamad-recent-item:hover { background: var(--color-bg-hover); }
+
+    .kamad-recent-icon { font-size: 1.2rem; flex-shrink: 0; }
+
+    .kamad-recent-info { flex: 1; min-width: 0; }
+
+    .kamad-recent-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .kamad-recent-meta {
+        font-size: 0.75rem;
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+
+    .kamad-chevron { color: var(--color-text-light); flex-shrink: 0; }
+
+    .kamad-see-all-btn {
+        width: 100%;
+        background: none;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: 12px;
+        color: #0f9b58;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-see-all-btn:hover {
+        background: rgba(15,155,88,0.06);
+        border-color: #0f9b58;
+    }
+
+    /* ========================================
+       KAMAD FORMS PAGE
+       ======================================== */
+
+    .kamad-back-btn {
+        background: none;
+        border: none;
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        padding: 6px 8px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-back-btn:hover { background: var(--color-bg-hover); }
+
+    /* Tabs */
+    .kamad-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--color-border-light);
+        margin-bottom: 16px;
+    }
+
+    .kamad-tab {
+        flex: 1;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 11px 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--color-text-light);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-tab.active {
+        color: #0f9b58;
+        border-bottom-color: #0f9b58;
+    }
+
+    /* Group label */
+    .kamad-group-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--color-text-light);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 14px 0 6px;
+    }
+
+    /* Form Cards */
+    .kamad-form-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border-light);
+        border-radius: var(--radius-lg);
+        padding: 14px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .kamad-form-card:hover {
+        border-color: #0f9b58;
+        transform: translateX(3px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .kamad-form-card-readonly {
+        opacity: 0.7;
+    }
+
+    .kamad-form-card-readonly:hover {
+        border-color: var(--color-border);
+        transform: none;
+    }
+
+    .kamad-form-card-icon { font-size: 1.3rem; flex-shrink: 0; }
+
+    .kamad-form-card-body { flex: 1; min-width: 0; }
+
+    .kamad-form-card-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .kamad-form-card-desc {
+        font-size: 0.76rem;
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+
+    /* Badges */
+    .kamad-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: var(--radius-full);
+        flex-shrink: 0;
+    }
+
+    .kamad-badge-fill {
+        background: rgba(15,155,88,0.12);
+        color: #0a7a45;
+        border: 1px solid rgba(15,155,88,0.2);
+    }
+
+    .kamad-badge-readonly {
+        background: var(--color-bg-hover);
+        color: var(--color-text-light);
+        border: 1px solid var(--color-border);
+    }
+
+    /* History Item */
+    .kamad-history-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .kamad-history-item:last-child { border-bottom: none; }
+
+    .kamad-history-icon { font-size: 1.2rem; flex-shrink: 0; }
+
+    .kamad-history-body { flex: 1; }
+
+    .kamad-history-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .kamad-history-meta {
+        font-size: 0.75rem;
+        color: var(--color-text-light);
+        margin-top: 2px;
+    }
+
+    .kamad-status-badge {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: var(--radius-full);
+        text-transform: uppercase;
+    }
+
+    .kamad-status-final { background: rgba(15,155,88,0.1); color: #0a7a45; }
+    .kamad-status-draft { background: rgba(251,188,4,0.1); color: #b3860a; }
+
+    /* Form fill area */
+    .kamad-back-inline {
+        background: none;
+        border: none;
+        color: var(--color-text-secondary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0;
+        transition: color var(--transition-fast);
+    }
+
+    .kamad-back-inline:hover { color: var(--color-primary); }
+
+    .kamad-form-header { margin-bottom: 16px; }
+
+    .kamad-form-header-badge {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: var(--radius-full);
+        background: rgba(15,155,88,0.1);
+        color: #0a7a45;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+
+    .kamad-form-fill-title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--color-text);
+        line-height: 1.3;
+    }
+
+    .kamad-submit-wrap {
+        position: sticky;
+        bottom: 16px;
+        padding-top: 12px;
+    }
+
+    .kamad-submit-form-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px;
+        font-size: 0.95rem;
+        background: linear-gradient(135deg, #0f9b58 0%, #0a7a45 100%);
+        box-shadow: 0 4px 16px rgba(15,155,88,0.35);
+    }
+
+    /* Skeleton */
+    .kamad-skeleton {
+        background: linear-gradient(90deg, var(--color-bg-hover) 25%, var(--color-bg) 50%, var(--color-bg-hover) 75%);
+        background-size: 200% 100%;
+        animation: kamadSkeleton 1.3s infinite;
+        border-radius: var(--radius-md);
+    }
+
+    .kamad-skeleton-card { width: 100%; height: 70px; margin-bottom: 12px; border-radius: var(--radius-lg); }
+
+    @keyframes kamadSkeleton {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    .kamad-empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .kamad-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    .kamad-loading-text {
+        text-align: center;
+        padding: 40px;
+        color: var(--color-text-light);
+        font-size: 0.88rem;
+    }
+
+    /* ========================================
+       WA Button in Sasaran List
+       ======================================== */
+
+    .wa-link-btn {
+        background: none;
+        border: 1px solid #25D366;
+        color: #25D366;
+        border-radius: var(--radius-md);
+        padding: 5px 9px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        flex-shrink: 0;
+        align-self: center;
+        margin-left: 8px;
+        transition: all var(--transition-fast);
+        line-height: 1;
+    }
+
+    .wa-link-btn:hover {
+        background: #25D366;
+        color: white;
+    }
+
+    .wa-link-btn:active {
+        transform: scale(0.95);
+    }
+
 </style>

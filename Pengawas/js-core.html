@@ -6,6 +6,8 @@
 const App = {
   state: {
     user: null,
+    kamad: null,           // Session kamad (nsm, madrasah_name, dll.)
+    kamadForms: [],        // Cache daftar form kamad
     view: 'login',
     madrasahSasaran: [],
     darkMode: localStorage.getItem('pengawas_dark') === 'true'
@@ -15,6 +17,50 @@ const App = {
     // Terapkan dark mode dari preferensi tersimpan
     this.applyDarkMode(this.state.darkMode);
 
+    // Tampilkan label versi aktif secara dinamis di pojok kanan bawah
+    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v2.1.9';
+    const badgeEl = document.getElementById('version-badge');
+    if (badgeEl) {
+      badgeEl.textContent = appVersion;
+    }
+
+    // Cek apakah ada kamad_setup_token dari server (Google Apps Script iframe safe)
+    let kamadSetupToken = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.kamad_setup_token ? window.SERVER_PARAMS.kamad_setup_token : null;
+    if (!kamadSetupToken) {
+      // Fallback tetap baca URL jika di-host di luar iframe
+      const urlParams = new URLSearchParams(window.location.search);
+      kamadSetupToken = urlParams.get('kamad_setup_token');
+    }
+    
+    // Normalisasi defensif: cegah token bernilai string "null", "undefined", atau kosong
+    if (kamadSetupToken === 'null' || kamadSetupToken === 'undefined' || kamadSetupToken === '') {
+      kamadSetupToken = null;
+    }
+    
+    if (kamadSetupToken) {
+      // Render halaman setup password kamad
+      document.getElementById('app').innerHTML = `
+        <div class="kamad-auth-wrap">
+          <div class="kamad-auth-card" style="text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:12px;">🔑</div>
+            <p style="color:var(--color-text-secondary);margin:0;">Memverifikasi link...</p>
+          </div>
+        </div>`;
+      KamadAuth.handleSetupToken(kamadSetupToken);
+      return;
+    }
+
+    // Cek session kamad tersimpan
+    const storedKamad = localStorage.getItem('kamad_session');
+    if (storedKamad) {
+      try {
+        this.state.kamad = JSON.parse(storedKamad);
+        this.router('kamad-dashboard');
+        return;
+      } catch (e) { localStorage.removeItem('kamad_session'); }
+    }
+
+    // Cek session pengawas tersimpan
     const storedUser = localStorage.getItem('pengawas_user');
     if (storedUser) {
       try {
@@ -72,6 +118,19 @@ const App = {
       }
       el.innerHTML = DashboardViews.Main(this.state.user);
       DashboardManager.init();
+
+    // ---- KAMAD ROUTES ----
+    } else if (view === 'kamad-login') {
+      el.innerHTML = KamadAuth.views.login();
+    } else if (view === 'kamad-dashboard') {
+      // Simpan session kamad
+      if (this.state.kamad) localStorage.setItem('kamad_session', JSON.stringify(this.state.kamad));
+      KamadDashboard.init();
+    } else if (view === 'kamad-forms') {
+      KamadForms.init();
+    } else if (view === 'kamad-history') {
+      KamadForms.init();
+      setTimeout(() => KamadForms.switchTab('history'), 100);
     }
   },
 
@@ -144,6 +203,12 @@ const App = {
     localStorage.removeItem('pengawas_user');
     this.state.user = null;
     this.state.madrasahSasaran = [];
+    this.router('login');
+  },
+
+  kamadLogout() {
+    localStorage.removeItem('kamad_session');
+    this.state.kamad = null;
     this.router('login');
   }
 };

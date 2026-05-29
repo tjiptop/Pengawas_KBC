@@ -1,0 +1,334 @@
+<script>
+// ============================================================
+// KAMAD FORMS MODULE
+// Daftar form dan pengisian form untuk Kepala Madrasah
+// Form dengan allowed_roles: [kamad] → bisa diisi
+// Form lain → read-only / tidak tampil
+// ============================================================
+
+const KamadForms = {
+
+  state: {
+    forms:       [],   // Semua form tersedia untuk kamad
+    history:     [],   // Riwayat pengisian
+    activeTab:   'forms',
+    currentForm: null, // { id, yaml, meta }
+  },
+
+  // --------------------------------------------------------
+  // VIEWS
+  // --------------------------------------------------------
+
+  views: {
+
+    /**
+     * Layout utama halaman form
+     */
+    main: () => `
+      <div class="kamad-header">
+        <div class="kamad-header-left">
+          <button class="kamad-back-btn" onclick="App.router('kamad-dashboard')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          </button>
+          <div class="kamad-header-icon">📋</div>
+          <div>
+            <div id="kamad-forms-header-title" class="kamad-header-name">Form Instrumen</div>
+            <div class="kamad-header-meta">${App.state.kamad?.madrasah_name || 'Madrasah Anda'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Panel History -->
+        <div id="kpanel-history" style="display:none;">
+          <div id="kforms-history">
+            <div class="kamad-loading-text">Memuat riwayat...</div>
+          </div>
+        </div>
+
+        <!-- Panel Pengisian Form -->
+        <div id="kpanel-fill" style="display:none;">
+          <div id="kform-fill-area"></div>
+        </div>
+      </div>
+    `,
+
+    /**
+     * Daftar form dikelompokkan per group
+     */
+    formsList: (forms) => {
+      if (!forms || !forms.length) {
+        return `<div class="kamad-empty-state">
+          <div class="kamad-empty-icon">📭</div>
+          <p>Belum ada form yang tersedia untuk Anda.</p>
+        </div>`;
+      }
+
+      // Group per group
+      const groups = {};
+      forms.forEach(f => {
+        const g = f.group || 'Lainnya';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(f);
+      });
+
+      let html = '';
+      Object.keys(groups).sort().forEach(groupName => {
+        html += `<div class="kamad-group-label">${groupName}</div>`;
+        groups[groupName].forEach(form => {
+          const canFill = form.canFill;
+          const badge = canFill
+            ? `<span class="kamad-badge kamad-badge-fill">Isi</span>`
+            : `<span class="kamad-badge kamad-badge-readonly">Lihat</span>`;
+
+          html += `
+            <div class="kamad-form-card ${canFill ? '' : 'kamad-form-card-readonly'}"
+                 onclick="KamadForms.open('${form.id}')">
+              <div class="kamad-form-card-icon">${form.icon || '📋'}</div>
+              <div class="kamad-form-card-body">
+                <div class="kamad-form-card-title">${form.title}</div>
+                ${form.description ? `<div class="kamad-form-card-desc">${form.description}</div>` : ''}
+              </div>
+              ${badge}
+            </div>`;
+        });
+      });
+
+      return html;
+    },
+
+    /**
+     * Riwayat pengisian
+     */
+    historyList: (history, forms) => {
+      if (!history || !history.length) {
+        return `<div class="kamad-empty-state">
+          <div class="kamad-empty-icon">📂</div>
+          <p>Belum ada riwayat pengisian.</p>
+        </div>`;
+      }
+
+      return history.map(item => {
+        const formMeta = (forms || []).find(f => f.id === item.form_id) || {};
+        const date = item.timestamp
+          ? new Date(item.timestamp).toLocaleDateString('id-ID', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit'
+            })
+          : '—';
+
+        return `
+          <div class="kamad-history-item">
+            <div class="kamad-history-icon">${formMeta.icon || '📋'}</div>
+            <div class="kamad-history-body">
+              <div class="kamad-history-title">${formMeta.title || item.form_id}</div>
+              <div class="kamad-history-meta">${date}</div>
+            </div>
+            <span class="kamad-status-badge ${item.status === 'final' ? 'kamad-status-final' : 'kamad-status-draft'}">
+              ${item.status || 'draft'}
+            </span>
+          </div>`;
+      }).join('');
+    },
+
+    /**
+     * Area pengisian form
+     */
+    fillArea: (formMeta, canFill) => `
+      <div style="margin-bottom:14px;">
+        <button onclick="KamadForms.closeFill()"
+          class="kamad-back-inline">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Kembali
+        </button>
+      </div>
+
+      <div class="kamad-form-header">
+        <span class="kamad-form-header-badge ${canFill ? '' : 'kamad-badge-readonly'}">
+          ${canFill ? '✏️ Mode Pengisian' : '👁️ Mode Baca'}
+        </span>
+        <h1 id="kfill-title" class="kamad-form-fill-title">Memuat...</h1>
+      </div>
+
+      <div id="kfill-engine"></div>
+    `,
+  },
+
+  // --------------------------------------------------------
+  // LIFECYCLE
+  // --------------------------------------------------------
+
+  init() {
+    const el = document.getElementById('app');
+    el.innerHTML = KamadForms.views.main();
+    this.loadHistory();
+  },
+
+  // --------------------------------------------------------
+  // TABS
+  // --------------------------------------------------------
+
+  switchTab(tab) {
+    this.state.activeTab = tab;
+    const panelHistory = document.getElementById('kpanel-history');
+    const panelFill = document.getElementById('kpanel-fill');
+    
+    if (panelHistory) panelHistory.style.display = tab === 'history' ? '' : 'none';
+    if (panelFill) panelFill.style.display = tab === 'fill' ? '' : 'none';
+
+    const titleEl = document.getElementById('kamad-forms-header-title');
+    if (titleEl) {
+      titleEl.textContent = tab === 'history' ? 'Riwayat Pengisian' : 'Form Instrumen';
+    }
+  },
+
+  // --------------------------------------------------------
+  // DATA LOADING
+  // --------------------------------------------------------
+
+  loadHistory() {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          this.state.history = res.data || [];
+          document.getElementById('kforms-history').innerHTML =
+            KamadForms.views.historyList(this.state.history, this.state.forms);
+        } else {
+          document.getElementById('kforms-history').innerHTML =
+            `<p class="kamad-error-inline">Gagal: ${res.error}</p>`;
+        }
+      })
+      .withFailureHandler(() => {
+        document.getElementById('kforms-history').innerHTML =
+          `<p class="kamad-error-inline">Koneksi terputus.</p>`;
+      })
+      .kamadGetSubmissionHistory(nsm);
+  },
+
+  // --------------------------------------------------------
+  // FORM FILL
+  // --------------------------------------------------------
+
+  open(formId) {
+    const formMeta = (App.state.kamadForms || []).find(f => f.id === formId) || { id: formId };
+    const canFill  = formMeta.canFill !== false;
+
+    // Tampilkan panel fill
+    const panelHistory = document.getElementById('kpanel-history');
+    const panelFill = document.getElementById('kpanel-fill');
+    if (panelHistory) panelHistory.style.display = 'none';
+    if (panelFill) panelFill.style.display = '';
+
+    const fillArea = document.getElementById('kform-fill-area');
+    fillArea.innerHTML = KamadForms.views.fillArea(formMeta, canFill);
+
+    this.state.currentForm = { id: formId, canFill };
+
+    const titleEl = document.getElementById('kamad-forms-header-title');
+    if (titleEl) {
+      titleEl.textContent = 'Pengisian Form';
+    }
+
+    // Fetch YAML definisi form & prefill data
+    App.loading(true, 'Memuat form...');
+    const nsm = App.state.kamad?.nsm;
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this._renderFormEngine(res.data.yaml, formId, canFill, res.data.prefill || {});
+        } else {
+          document.getElementById('kfill-engine').innerHTML =
+            `<p class="kamad-error-inline">Gagal memuat form: ${res.error}</p>`;
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        document.getElementById('kfill-engine').innerHTML =
+          `<p class="kamad-error-inline">Koneksi terputus: ${err.message || err}</p>`;
+      })
+      .kamadGetFormDefinition(formId, nsm);
+  },
+
+  _renderFormEngine(yamlStr, formId, canFill, prefillData = {}) {
+    try {
+      const parsed = jsyaml.load(yamlStr);
+      const titleEl = document.getElementById('kfill-title');
+      if (titleEl) titleEl.textContent = parsed.title || formId;
+
+      const mountEl = document.getElementById('kfill-engine');
+      const info = App.state.kamad?.madrasahInfo || {};
+      const madrasah = {
+        madrasah_id:  App.state.kamad?.nsm || '',
+        nsm:          App.state.kamad?.nsm || '',
+        name:         info.nama || App.state.kamad?.madrasah_name || '',
+        level:        info.jenjang || '',
+        province:     info.provinsi || '',
+        district:     info.kabupaten || '',
+        subdistrict:  info.kecamatan || ''
+      };
+
+      if (typeof FormEngine !== 'undefined' && FormEngine.init) {
+        FormEngine.init('kfill-engine', yamlStr, prefillData, (data) => {
+          if (canFill) KamadForms.submitForm(data);
+        }, formId, madrasah, { readonly: !canFill });
+      }
+
+      // Sembunyikan tombol submit bawaan jika readonly
+      const submitBtn = document.querySelector('#kfill-engine #sf button:not([type="button"])');
+      if (submitBtn) {
+        submitBtn.style.display = canFill ? '' : 'none';
+      }
+    } catch (e) {
+      document.getElementById('kfill-engine').innerHTML =
+        `<p class="kamad-error-inline">Error render form: ${e.message}</p>`;
+    }
+  },
+
+  triggerSubmit() {
+    const form = document.getElementById('sf');
+    if (form) {
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+  },
+
+  submitForm(data) {
+    const { id: formId } = this.state.currentForm;
+    const nsm = App.state.kamad?.nsm;
+
+    const payload = {
+      nsm:    nsm,
+      formId: formId,
+      data:   data
+    };
+
+    App.loading(true, 'Mengirim formulir...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          App.alert(`Form berhasil dikirim!`, 'Berhasil');
+          this.state.currentForm = null;
+          App.router('kamad-history');
+        } else {
+          App.alert(res.error || 'Gagal mengirim form.', 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kamadSubmitForm(payload);
+  },
+
+  closeFill() {
+    this.state.currentForm = null;
+    const panelFill = document.getElementById('kpanel-fill');
+    if (panelFill) panelFill.style.display = 'none';
+    App.router('kamad-dashboard');
+  }
+};
+</script>

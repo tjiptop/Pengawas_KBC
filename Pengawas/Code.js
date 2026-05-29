@@ -10,12 +10,17 @@ const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
+const APP_VERSION = 'v2.1.9';
+
 // ============================================================
 // ENTRY POINT
 // ============================================================
 
 function doGet(e) {
   let template = HtmlService.createTemplateFromFile('index');
+  // Pass query parameters to template safely (bypasses iframe parameter loss)
+  template.kamad_setup_token = (e && e.parameter && e.parameter.kamad_setup_token) ? e.parameter.kamad_setup_token : '';
+  template.app_version = APP_VERSION;
   return template.evaluate()
       .setTitle('Aplikasi Pengawas KBC')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -552,9 +557,39 @@ function getSasaran(nip) {
 
   const nipStr = String(nip).trim();
   let sasaran = [];
+
+  // Ambil data NSM Kamad yang sudah aktif
+  const activeKamadNsms = new Set();
+  try {
+    const kSheet = ss.getSheetByName('KamadUsers');
+    if (kSheet) {
+      const kData = kSheet.getDataRange().getValues();
+      if (kData.length > 1) {
+        const kHeaders = kData[0].map(h => String(h).toLowerCase().trim());
+        const nsmIdx = kHeaders.indexOf('nsm');
+        const statusIdx = kHeaders.indexOf('status');
+        if (nsmIdx !== -1) {
+          for (let i = 1; i < kData.length; i++) {
+            const statusVal = statusIdx !== -1 ? String(kData[i][statusIdx]).toLowerCase().trim() : '';
+            if (statusVal === 'aktif' || statusVal === 'active') {
+              activeKamadNsms.add(String(kData[i][nsmIdx]).trim());
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading KamadUsers status:', e);
+  }
+
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() == nipStr) {
-      sasaran.push({ nsm: data[i][idxNsm], nama: data[i][idxNama] });
+      const nsmVal = String(data[i][idxNsm]).trim();
+      sasaran.push({ 
+        nsm: nsmVal, 
+        nama: data[i][idxNama],
+        kamad_aktif: activeKamadNsms.has(nsmVal)
+      });
     }
   }
   return sasaran;
@@ -1071,29 +1106,64 @@ function apiGetSubmissionHistory(nip, formId) {
   if (!nip) return apiError('NIP tidak valid.', 'VALIDATION');
   try {
     const ss = SpreadsheetApp.openById(APP_DB_ID);
-    const sheet = ss.getSheetByName('Form_Responses');
-    if (!sheet) return apiSuccess([]);
-    const data = sheet.getDataRange().getValues();
-    const nipStr = String(nip).trim();
-
-    // Header: Submission_ID, Timestamp, NIP, Form_ID, NSM_Madrasah, Status, Data_JSON
+    
+    // 1. Get supervisor's targeted NSMs list
+    const sasaranList = getSasaran(nip) || [];
+    const targetNsms = new Set(sasaranList.map(s => String(s.nsm).trim()));
+    
     let history = [];
-    for (let i = 1; i < data.length; i++) {
-      const rowNip = String(data[i][2]).trim();
-      const rowFormId = String(data[i][3]).trim();
-      if (rowNip !== nipStr) continue;
-      if (formId && rowFormId !== String(formId).trim()) continue;
 
-      history.push({
-        submissionId: data[i][0],
-        timestamp: data[i][1] instanceof Date ? data[i][1].toISOString() : String(data[i][1]),
-        formId: rowFormId,
-        nsmMadrasah: data[i][4],
-        status: data[i][5]
-      });
+    // 2. Fetch supervisor's own submissions from Form_Responses
+    const sheet = ss.getSheetByName('Form_Responses');
+    if (sheet) {
+      const data = sheet.getDataRange().getValues();
+      const nipStr = String(nip).trim();
+      for (let i = 1; i < data.length; i++) {
+        const rowNip = String(data[i][2]).trim();
+        const rowFormId = String(data[i][3]).trim();
+        if (rowNip !== nipStr) continue;
+        if (formId && rowFormId !== String(formId).trim()) continue;
+
+        history.push({
+          submissionId: data[i][0],
+          timestamp: data[i][1] instanceof Date ? data[i][1].toISOString() : String(data[i][1]),
+          formId: rowFormId,
+          nsmMadrasah: data[i][4],
+          status: data[i][5]
+        });
+      }
     }
 
-    // Urutkan terbaru dulu
+    // 3. Fetch Kamad submissions for targeted schools from KamadSubmissions
+    const kSheet = ss.getSheetByName('KamadSubmissions');
+    if (kSheet && kSheet.getLastRow() > 1) {
+      const kData = kSheet.getDataRange().getValues();
+      const kHeaders = kData[0].map(h => String(h).toLowerCase().trim());
+      const idxNsm = kHeaders.indexOf('nsm');
+      const idxForm = kHeaders.indexOf('form_id');
+      const idxTime = kHeaders.indexOf('timestamp');
+      const idxStatus = kHeaders.indexOf('status');
+
+      if (idxNsm !== -1 && idxForm !== -1 && idxTime !== -1) {
+        for (let i = 1; i < kData.length; i++) {
+          const rowNsm = String(kData[i][idxNsm]).trim();
+          const rowFormId = String(kData[i][idxForm]).trim();
+          
+          if (!targetNsms.has(rowNsm)) continue;
+          if (formId && rowFormId !== String(formId).trim()) continue;
+
+          history.push({
+            submissionId: 'KM-' + i,
+            timestamp: kData[i][idxTime] instanceof Date ? kData[i][idxTime].toISOString() : String(kData[i][idxTime]),
+            formId: rowFormId,
+            nsmMadrasah: rowNsm,
+            status: idxStatus !== -1 ? kData[i][idxStatus] || 'final' : 'final'
+          });
+        }
+      }
+    }
+
+    // Sort newest first
     history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     return apiSuccess(history);
   } catch (e) {
@@ -1211,3 +1281,416 @@ function getCacheChunked(key) {
   return str;
 }
 
+
+// ============================================================
+// ============================================================
+// KAMAD (KEPALA MADRASAH) API
+// Semua fungsi backend untuk role Kamad.
+// DB: APP_DB_ID (Pengawas DB) untuk KamadUsers, KamadTokens, KamadSubmissions
+//     MASTER_MADRASAH_DB_ID untuk lookup data madrasah (nama, kecamatan, dll.)
+// ============================================================
+// ============================================================
+
+/**
+ * Helper: Mendapatkan atau membuat sheet Kamad di APP_DB_ID
+ */
+function getKamadSheet(ss, sheetName) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    if (sheetName === 'KamadUsers') {
+      sheet.appendRow(['nsm', 'password', 'status', 'created_at', 'updated_at']);
+    } else if (sheetName === 'KamadTokens') {
+      sheet.appendRow(['token', 'nsm', 'created_at', 'expires_at', 'used']);
+    } else if (sheetName === 'KamadSubmissions') {
+      sheet.appendRow(['timestamp', 'nsm', 'form_id', 'target_sheet', 'status']);
+    }
+  }
+  return sheet;
+}
+
+/**
+ * Helper: Mencari data madrasah berdasarkan NSM dari master DB
+ */
+function getMadrasahByNsm(nsm) {
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_MADRASAH_DB_ID);
+    const sheet = ss.getSheets()[0];
+    const data = sheet.getDataRange().getDisplayValues();
+    const headers = data[0].map(h => String(h).trim());
+    const idx = name => {
+      const i = headers.findIndex(h => h.toUpperCase().includes(name));
+      return i;
+    };
+    const idxNsm  = idx('NSM');
+    const idxNama = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('NAMA') || u === 'NAME'; });
+    const idxKec  = idx('KEC');
+    const idxKab  = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT'; });
+    const idxProv = idx('PROV');
+    const idxJenjang = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('JENJANG') || u === 'LEVEL'; });
+    const nsmStr = String(nsm).trim();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idxNsm]).trim() === nsmStr) {
+        return {
+          nsm:       nsmStr,
+          nama:      idxNama    !== -1 ? data[i][idxNama]    : '',
+          kecamatan: idxKec     !== -1 ? data[i][idxKec]     : '',
+          kabupaten: idxKab     !== -1 ? data[i][idxKab]     : '',
+          provinsi:  idxProv    !== -1 ? data[i][idxProv]    : '',
+          jenjang:   idxJenjang !== -1 ? data[i][idxJenjang] : '',
+        };
+      }
+    }
+    return null;
+  } catch (e) {
+    console.log('getMadrasahByNsm error: ' + e.toString());
+    return null;
+  }
+}
+
+// ============================================================
+// KAMAD AUTHENTICATION
+// ============================================================
+
+/**
+ * Login Kamad menggunakan NSM dan password
+ */
+function kamadLogin(nsm, password) {
+  if (!nsm || !password) return apiError('NSM dan password harus diisi.', 'VALIDATION');
+  const rateLimitKey = 'kamad_login_' + String(nsm).trim();
+  if (isRateLimited(rateLimitKey)) return apiError('Terlalu banyak percobaan. Coba lagi dalam 5 menit.', 'RATE_LIMITED');
+
+  const nsmStr = String(nsm).trim();
+  const ss = SpreadsheetApp.openById(APP_DB_ID);
+  const sheet = getKamadSheet(ss, 'KamadUsers');
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const iNsm  = headers.indexOf('nsm');
+  const iPwd  = headers.indexOf('password');
+  const iStat = headers.indexOf('status');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][iNsm]).trim() === nsmStr) {
+      if (String(data[i][iStat] || '').toLowerCase() === 'nonaktif')
+        return apiError('Akun dinonaktifkan. Hubungi pengawas.', 'ACCOUNT_DISABLED');
+      const stored = String(data[i][iPwd] || '');
+      if (!stored) return apiError('Password belum disetel. Gunakan link dari pengawas.', 'NO_PASSWORD');
+      const isHashed = stored.length === 64 && /^[0-9a-f]+$/i.test(stored);
+      const inputHash = hashPassword(password);
+      const match = isHashed ? stored === inputHash : stored === password;
+      if (match) {
+        resetRateLimit(rateLimitKey);
+        if (!isHashed) sheet.getRange(i + 1, iPwd + 1).setValue(inputHash);
+        const madrasahInfo = getMadrasahByNsm(nsmStr);
+        return apiSuccess({ nsm: nsmStr, madrasah_name: madrasahInfo?.nama || nsmStr, madrasahInfo }, 'Login berhasil.');
+      }
+      return apiError('Password salah.', 'WRONG_PASSWORD');
+    }
+  }
+  return apiError('NSM tidak ditemukan. Hubungi pengawas Anda.', 'NSM_NOT_FOUND');
+}
+
+/**
+ * Setup password pertama Kamad menggunakan token dari link WA
+ */
+function kamadSetPassword(nsm, newPassword, token) {
+  if (!nsm || !newPassword || !token) return apiError('Data tidak lengkap.', 'VALIDATION');
+  if (String(newPassword).length < 6) return apiError('Password minimal 6 karakter.', 'VALIDATION');
+  const nsmStr = String(nsm).trim();
+  const ss = SpreadsheetApp.openById(APP_DB_ID);
+
+  // Validasi token
+  const tokenSheet = getKamadSheet(ss, 'KamadTokens');
+  const tData = tokenSheet.getDataRange().getValues();
+  const tH = tData[0].map(h => String(h).toLowerCase().trim());
+  const tiT = tH.indexOf('token'); const tiN = tH.indexOf('nsm');
+  const tiE = tH.indexOf('expires_at'); const tiU = tH.indexOf('used');
+
+  let tokenRow = -1;
+  for (let i = 1; i < tData.length; i++) {
+    if (String(tData[i][tiT]) === String(token) && String(tData[i][tiN]).trim() === nsmStr) {
+      if (String(tData[i][tiU]).toLowerCase() === 'true') return apiError('Token sudah digunakan.', 'TOKEN_USED');
+      if (new Date() > new Date(tData[i][tiE]))           return apiError('Token sudah kadaluarsa. Minta link baru dari pengawas.', 'TOKEN_EXPIRED');
+      tokenRow = i; break;
+    }
+  }
+  if (tokenRow === -1) return apiError('Token tidak valid.', 'INVALID_TOKEN');
+
+  // Simpan/update password
+  const uSheet = getKamadSheet(ss, 'KamadUsers');
+  const uData  = uSheet.getDataRange().getValues();
+  const uH = uData[0].map(h => String(h).toLowerCase().trim());
+  const uiN = uH.indexOf('nsm'); const uiP = uH.indexOf('password');
+  const uiS = uH.indexOf('status'); const uiU = uH.indexOf('updated_at');
+  const now = new Date().toISOString();
+  const hashed = hashPassword(newPassword);
+  let found = false;
+  for (let i = 1; i < uData.length; i++) {
+    if (String(uData[i][uiN]).trim() === nsmStr) {
+      uSheet.getRange(i + 1, uiP + 1).setValue(hashed);
+      uSheet.getRange(i + 1, uiS + 1).setValue('aktif');
+      if (uiU !== -1) uSheet.getRange(i + 1, uiU + 1).setValue(now);
+      found = true; break;
+    }
+  }
+  if (!found) uSheet.appendRow([nsmStr, hashed, 'aktif', now, now]);
+
+  // Tandai token terpakai
+  tokenSheet.getRange(tokenRow + 1, tiU + 1).setValue('true');
+
+  const madrasahInfo = getMadrasahByNsm(nsmStr);
+  return apiSuccess({ nsm: nsmStr, madrasah_name: madrasahInfo?.nama || nsmStr, madrasahInfo }, 'Password berhasil disetel.');
+}
+
+/**
+ * Validasi token setup password (dipanggil saat kamad buka link WA)
+ */
+function kamadValidateSetupToken(token) {
+  try {
+    const ss = SpreadsheetApp.openById(APP_DB_ID);
+    const sheet = getKamadSheet(ss, 'KamadTokens');
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return { valid: false, reason: 'Belum ada data link Kamad di sistem.' };
+
+    const H = data[0].map(h => String(h).toLowerCase().trim());
+    let iT = H.indexOf('token'); if (iT === -1) iT = 0;
+    let iN = H.indexOf('nsm'); if (iN === -1) iN = 1;
+    let iE = H.indexOf('expires_at'); if (iE === -1) iE = 3;
+    let iU = H.indexOf('used'); if (iU === -1) iU = 4;
+    
+    const searchToken = String(token).trim();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][iT]).trim() === searchToken) {
+        if (String(data[i][iU]).toLowerCase().trim() === 'true')
+          return { valid: false, reason: 'Link sudah digunakan. Minta link baru dari pengawas.' };
+        if (new Date() > new Date(data[i][iE]))
+          return { valid: false, reason: 'Link sudah kadaluarsa. Minta link baru dari pengawas.' };
+        const nsmStr = String(data[i][iN]).trim();
+        const m = getMadrasahByNsm(nsmStr);
+        return { valid: true, nsm: nsmStr, madrasah_name: m?.nama || nsmStr };
+      }
+    }
+    return { valid: false, reason: 'Link tidak dikenali. Pastikan link lengkap dan tidak terpotong. (Kode: ' + searchToken.substring(0,8) + '...)' };
+  } catch (e) {
+    return { valid: false, reason: 'Terjadi kesalahan: ' + e.toString() };
+  }
+}
+
+// ============================================================
+// KAMAD DATA & FORMS
+// ============================================================
+
+/**
+ * Ambil semua data dashboard kamad dalam 1 panggilan
+ */
+function kamadGetDashboard(nsm) {
+  try {
+    const nsmStr = String(nsm).trim();
+    const madrasahInfo = getMadrasahByNsm(nsmStr);
+    if (!madrasahInfo) return apiError('Data madrasah tidak ditemukan: ' + nsmStr, 'NOT_FOUND');
+    const formsResult = kamadGetAvailableForms(nsmStr);
+    const forms = formsResult.success ? (formsResult.data || []) : [];
+    const histResult = kamadGetSubmissionHistory(nsmStr);
+    const history = histResult.success ? (histResult.data || []) : [];
+    const filledIds = new Set(history.map(h => h.form_id));
+    return apiSuccess({
+      madrasahInfo,
+      forms,
+      history, // Include history array
+      stats: { total: forms.length, filled: forms.filter(f => filledIds.has(f.id)).length }
+    });
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * Daftar form tersedia untuk kamad (dengan flag canFill)
+ */
+function kamadGetAvailableForms(nsm) {
+  try {
+    const definitions = getMadrasahFormDefinitions();
+    const ICONS = { '0': '📊', '1': '🔍', '2': '📝', '3': '🎙️', '4': '👤' };
+    const forms = Object.entries(definitions).map(([id, yaml]) => {
+      const tM = yaml.match(/^title:\s*(.+)$/m);
+      const gM = yaml.match(/^group:\s*(.+)$/m);
+      const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
+      const title = tM ? tM[1].trim() : id;
+      const group = gM ? gM[1].trim() : 'Lainnya';
+      const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
+      const canFill = allowed.length === 0 || allowed.includes('kamad');
+      return { id, title, group, canFill, icon: ICONS[group.charAt(0)] || '📋' };
+    });
+    forms.sort((a, b) => a.canFill !== b.canFill ? (a.canFill ? -1 : 1) : a.title.localeCompare(b.title));
+    return apiSuccess(forms);
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * Definisi YAML satu form
+ */
+function kamadGetFormDefinition(formId, nsm) {
+  try {
+    const yaml = getMadrasahFormDefinitions()[formId];
+    if (!yaml) return apiError('Form tidak ditemukan: ' + formId, 'NOT_FOUND');
+    
+    let prefill = {};
+    if (nsm) {
+      const nsmStr = String(nsm).trim();
+      const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
+      const targetSheet = match ? match[2].trim() : formId;
+      
+      const ss = SpreadsheetApp.openById(APP_DB_ID);
+      const sheet = ss.getSheetByName(targetSheet);
+      if (sheet && sheet.getLastRow() > 0) {
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0].map(h => String(h).trim());
+        const nsmIdx = headers.indexOf('nsm');
+        if (nsmIdx !== -1) {
+          // Scan from bottom to top to get the latest submission
+          for (let i = data.length - 1; i >= 1; i--) {
+            if (String(data[i][nsmIdx]).trim() === nsmStr) {
+              // Construct the prefill object
+              const standardCols = ['timestamp', 'nsm', 'madrasah_nama', 'form_id', 'role'];
+              for (let j = 0; j < headers.length; j++) {
+                const header = headers[j];
+                if (standardCols.includes(header.toLowerCase())) continue;
+                let val = data[i][j];
+                // If it is a JSON string (e.g. arrays or tables), parse it
+                if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+                  try { val = JSON.parse(val); } catch(e) {}
+                }
+                prefill[header] = val;
+              }
+              break; // Found the latest one
+            }
+          }
+        }
+      }
+    }
+
+    return apiSuccess({ formId, yaml, prefill });
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * Submit form oleh kamad
+ */
+function kamadSubmitForm(payload) {
+  try {
+    const nsm    = sanitizeHtml(String(payload.nsm    || '').trim());
+    const formId = sanitizeHtml(String(payload.formId || '').trim());
+    const data   = payload.data || {};
+    if (!nsm || !formId) return apiError('NSM dan formId wajib diisi.', 'VALIDATION');
+    const madrasah = getMadrasahByNsm(nsm);
+    if (!madrasah) return apiError('NSM tidak valid.', 'NOT_FOUND');
+    const definitions = getMadrasahFormDefinitions();
+    const yaml = definitions[formId];
+    if (!yaml) return apiError('Form tidak ditemukan.', 'NOT_FOUND');
+    const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
+    const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
+    if (allowed.length > 0 && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+    const sM = yaml.match(/^target_sheet:\s*(.+)$/m);
+    const targetSheet = sM ? sM[1].trim() : formId;
+    const ss = SpreadsheetApp.openById(APP_DB_ID);
+    let sheet = ss.getSheetByName(targetSheet);
+    if (!sheet) sheet = ss.insertSheet(targetSheet);
+    const timestamp = new Date().toISOString();
+    const flat = sanitizeObject(data);
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['timestamp', 'nsm', 'madrasah_nama', 'form_id', 'role', ...Object.keys(flat)]);
+    }
+    const hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const row = hdrs.map(h => {
+      if (h === 'timestamp')     return timestamp;
+      if (h === 'nsm')           return nsm;
+      if (h === 'madrasah_nama') return madrasah.nama || '';
+      if (h === 'form_id')       return formId;
+      if (h === 'role')          return 'kamad';
+      const v = flat[h];
+      return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
+    });
+    sheet.appendRow(row);
+    const log = getKamadSheet(ss, 'KamadSubmissions');
+    log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
+    return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * Riwayat pengisian form oleh kamad
+ */
+function kamadGetSubmissionHistory(nsm) {
+  try {
+    const nsmStr = String(nsm).trim();
+    const ss = SpreadsheetApp.openById(APP_DB_ID);
+    const sheet = ss.getSheetByName('KamadSubmissions');
+    if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
+    const data = sheet.getDataRange().getValues();
+    const H = data[0].map(h => String(h).toLowerCase().trim());
+    const iN = H.indexOf('nsm'); const iF = H.indexOf('form_id');
+    const iT = H.indexOf('timestamp'); const iS = H.indexOf('status');
+    const history = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][iN]).trim() === nsmStr) {
+        history.push({ form_id: data[i][iF], timestamp: data[i][iT], status: data[i][iS] || 'final' });
+      }
+    }
+    history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return apiSuccess(history);
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}
+
+// ============================================================
+// WA LINK GENERATOR (dipanggil dari Pengawas App)
+// ============================================================
+
+/**
+ * Generate link setup password kamad.
+ * Token berlaku 7 hari. Pengawas mendapat URL wa.me untuk diforward.
+ */
+function generateKamadSetupLink(nsm, requesterNip) {
+  try {
+    if (!nsm || !requesterNip) return apiError('NSM dan NIP pengawas wajib diisi.', 'VALIDATION');
+    const nsmStr = String(nsm).trim();
+    const madrasah = getMadrasahByNsm(nsmStr);
+    if (!madrasah) return apiError('NSM ' + nsmStr + ' tidak ditemukan di data master.', 'NOT_FOUND');
+
+    const token = Utilities.getUuid();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const ss = SpreadsheetApp.openById(APP_DB_ID);
+    getKamadSheet(ss, 'KamadTokens').appendRow([token, nsmStr, now.toISOString(), expiresAt.toISOString(), 'false']);
+
+    const props = PropertiesService.getScriptProperties();
+    const base = props.getProperty('PENGAWAS_DEPLOYMENT_URL') || ScriptApp.getService().getUrl();
+    const setupUrl = `${base}?kamad_setup_token=${token}`;
+    const expStr = Utilities.formatDate(expiresAt, 'GMT+7', 'dd/MM/yyyy');
+    const msg = encodeURIComponent(
+      `Assalamualaikum wr. wb.\n\n` +
+      `Kepada Yth. Bapak/Ibu Kepala Madrasah *${madrasah.nama}* (NSM: ${nsmStr})\n\n` +
+      `Berikut link untuk mengakses *Portal Kamad* dan membuat password:\n\n` +
+      `🔗 ${setupUrl}\n\n` +
+      `_Link berlaku hingga ${expStr}._\n\n` +
+      `Setelah klik link, silakan buat password. Login selanjutnya menggunakan NSM sebagai username.\n\nJazakumullahu khairan 🙏`
+    );
+
+    return apiSuccess({
+      token, nsm: nsmStr, madrasah: madrasah.nama,
+      setup_url: setupUrl, expires_at: expiresAt.toISOString(),
+      text: msg,
+      wa_url: `https://api.whatsapp.com/send?text=${msg}`
+    }, 'Link berhasil dibuat.');
+  } catch (e) {
+    return apiError(e.toString());
+  }
+}

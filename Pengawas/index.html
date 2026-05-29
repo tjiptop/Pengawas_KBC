@@ -19,12 +19,21 @@
         <p id="loading-text" style="margin-top:1rem;color:#555;font-weight:600;">Loading...</p>
     </div>
 
+    <!-- Version Badge -->
+    <div id="version-badge" style="position: fixed; bottom: 8px; right: 8px; font-size: 0.68rem; color: var(--color-text-light, #888); font-family: monospace; z-index: 9999; pointer-events: none; opacity: 0.7;"></div>
+
     <!-- Dependencies -->
     <!-- JS-YAML for parsing form definitions -->
     <?!= include('js-yaml'); ?>
 
     <!-- Modular JavaScript Files (in dependency order) -->
     <script>
+      // Global parameter passed from server doGet(e)
+      window.SERVER_PARAMS = {
+        kamad_setup_token: <?!= JSON.stringify(kamad_setup_token || '') ?>,
+        app_version: <?!= JSON.stringify(app_version || 'v2.1.9') ?>
+      };
+      
       console.log("Sizes:");
       console.log("js-core:", <?= include('js-core').length ?>);
       console.log("js-auth:", <?= include('js-auth').length ?>);
@@ -39,6 +48,9 @@
     <?!= include('js-dashboard'); ?>
     <?!= include('js-forms'); ?>
     <?!= include('js-form-engine'); ?>
+    <?!= include('js-kamad-auth'); ?>
+    <?!= include('js-kamad-dashboard'); ?>
+    <?!= include('js-kamad-forms'); ?>
 </body>
 
 </html>

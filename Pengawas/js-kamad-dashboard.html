@@ -1,0 +1,187 @@
+<script>
+// ============================================================
+// KAMAD DASHBOARD MODULE
+// Dashboard utama untuk Kepala Madrasah
+// Menampilkan info madrasah, statistik form, dan menu cepat
+// ============================================================
+
+const KamadDashboard = {
+
+  // --------------------------------------------------------
+  // VIEWS
+  // --------------------------------------------------------
+
+  views: {
+
+    /**
+     * Skeleton loading state
+     */
+    skeleton: () => `
+      <div class="kamad-header">
+        <div class="kamad-header-left">
+          <div class="kamad-header-icon">🏫</div>
+          <div>
+            <div class="kamad-skeleton" style="width:140px;height:14px;margin-bottom:5px;"></div>
+            <div class="kamad-skeleton" style="width:90px;height:11px;"></div>
+          </div>
+        </div>
+        <button class="kamad-logout-btn" onclick="KamadAuth.logout()">Keluar</button>
+      </div>
+      <div class="content">
+        <div class="kamad-skeleton" style="width:120px;height:16px;margin:15px 0 10px;"></div>
+        <div class="kamad-skeleton kamad-skeleton-card" style="height:70px;margin-bottom:8px;"></div>
+        <div class="kamad-skeleton kamad-skeleton-card" style="height:70px;margin-bottom:8px;"></div>
+        <div class="kamad-skeleton kamad-skeleton-card" style="height:70px;margin-bottom:8px;"></div>
+      </div>
+    `,
+
+    /**
+     * Konten dashboard penuh setelah data dimuat
+     */
+    main: (madrasahInfo, stats, recentForms, history) => {
+      const nama = madrasahInfo?.nama || madrasahInfo?.name || '—';
+      const nsm  = madrasahInfo?.nsm || '—';
+      const kec  = madrasahInfo?.kecamatan || madrasahInfo?.subdistrict || '';
+      const kab  = madrasahInfo?.kabupaten  || madrasahInfo?.district    || '';
+      const loc  = [kec, kab].filter(Boolean).join(', ');
+
+      // Group per group
+      const groups = {};
+      (recentForms || []).forEach(f => {
+        const g = f.group || 'Lainnya';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(f);
+      });
+
+      let formsHtml = '';
+      if (!recentForms || !recentForms.length) {
+        formsHtml = `
+          <div class="kamad-empty-state">
+            <div class="kamad-empty-icon">📭</div>
+            <p>Belum ada form tersedia.</p>
+          </div>`;
+      } else {
+        Object.keys(groups).sort().forEach(groupName => {
+          formsHtml += `<div class="kamad-group-label" style="margin-top:15px;margin-bottom:8px;">${groupName}</div>`;
+          groups[groupName].forEach(form => {
+            const canFill = form.canFill;
+            const badge = canFill
+              ? `<span class="kamad-badge kamad-badge-fill">Isi</span>`
+              : `<span class="kamad-badge kamad-badge-readonly">Lihat</span>`;
+
+            // Calculate submission count specifically for this form
+            const subCount = (history || []).filter(s => s.form_id === form.id).length;
+            const countBadge = subCount > 0 ? 
+              `<span style="font-size:0.72rem;padding:3px 8px;border-radius:20px;background:rgba(26,115,232,0.08);color:var(--color-primary);font-weight:700;white-space:nowrap;margin-right:6px;display:inline-flex;align-items:center;gap:3px;">
+                📄 ${subCount}
+               </span>` : '';
+
+            formsHtml += `
+              <div class="kamad-form-card ${canFill ? '' : 'kamad-form-card-readonly'}"
+                   onclick="App.router('kamad-forms'); setTimeout(() => KamadForms.open('${form.id}'), 50);"
+                   style="margin-bottom:8px;">
+                <div class="kamad-form-card-icon">${form.icon || '📋'}</div>
+                <div class="kamad-form-card-body">
+                  <div class="kamad-form-card-title">${form.title}</div>
+                  ${form.description ? `<div class="kamad-form-card-desc">${form.description}</div>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;">
+                  ${countBadge}
+                  ${badge}
+                </div>
+              </div>`;
+          });
+        });
+      }
+
+      return `
+        <div class="kamad-header">
+          <div class="kamad-header-left">
+            <div class="kamad-header-icon">🏫</div>
+            <div>
+              <div class="kamad-header-name">${nama}</div>
+              <div class="kamad-header-meta">NSM ${nsm}${loc ? ' · ' + loc : ''}</div>
+            </div>
+          </div>
+          <div class="kamad-header-actions">
+            <button class="kamad-menu-btn" onclick="KamadDashboard.toggleMenu(this)">⋮</button>
+            <div class="kamad-dropdown" id="kamad-dash-menu">
+              <button class="kamad-dropdown-item" onclick="KamadDashboard.closeMenu(); App.router('kamad-history')">🕐 Riwayat</button>
+              <button class="kamad-dropdown-item danger" onclick="KamadAuth.logout()">🚪 Keluar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="kamad-section-header" style="margin-bottom: 5px;">Form Instrumen Tersedia</div>
+          <div id="kamad-forms-container">
+            ${formsHtml}
+          </div>
+        </div>
+      `;
+    }
+  },
+
+  // --------------------------------------------------------
+  // LIFECYCLE
+  // --------------------------------------------------------
+
+  init() {
+    const el = document.getElementById('app');
+    el.innerHTML = KamadDashboard.views.skeleton();
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) { App.router('kamad-login'); return; }
+
+    // Load dashboard data
+    App.loading(true, 'Memuat dashboard...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          App.state.kamadForms = res.data.forms || [];
+          App.state.kamadHistory = res.data.history || [];
+          el.innerHTML = KamadDashboard.views.main(
+            res.data.madrasahInfo,
+            res.data.stats,
+            res.data.forms,
+            res.data.history
+          );
+        } else {
+          el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-text-secondary);">Gagal memuat: ${res.error}</div></div>`;
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-accent);">Koneksi terputus: ${err.message || err}</div></div>`;
+      })
+      .kamadGetDashboard(nsm);
+  },
+
+  // --------------------------------------------------------
+  // MENU DROPDOWN
+  // --------------------------------------------------------
+
+  toggleMenu(btn) {
+    const menu = document.getElementById('kamad-dash-menu');
+    if (!menu) return;
+    const isOpen = menu.classList.contains('open');
+    this.closeMenu();
+    if (!isOpen) {
+      menu.classList.add('open');
+      // Close on outside click
+      setTimeout(() => {
+        document.addEventListener('click', KamadDashboard._outsideClick, { once: true });
+      }, 10);
+    }
+  },
+
+  closeMenu() {
+    document.querySelectorAll('.kamad-dropdown.open').forEach(m => m.classList.remove('open'));
+  },
+
+  _outsideClick() {
+    KamadDashboard.closeMenu();
+  }
+};
+</script>
