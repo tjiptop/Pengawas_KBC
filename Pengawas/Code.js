@@ -442,23 +442,6 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       }
   }
 
-  const ss = SpreadsheetApp.openById(MASTER_MADRASAH_DB_ID);
-  const sheet = ss.getSheets()[0];
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-
-  let idxNSM = headers.findIndex(h => h.toString().toUpperCase() === 'NSM' || h.toString().toUpperCase().includes('NSM'));
-  let idxNPSN = headers.findIndex(h => h.toString().toUpperCase().includes('NPSN'));
-  let idxNama = headers.findIndex(h => h.toString().toUpperCase().includes('NAMA') || h.toString().toUpperCase() === 'NAME');
-  let idxKab = headers.findIndex(h => h.toString().toUpperCase().includes('KAB') || h.toString().toUpperCase().includes('KOTA') || h.toString().toUpperCase() === 'DISTRICT');
-  let idxKec = headers.findIndex(h => h.toString().toUpperCase().includes('SUB_DISTRICT') || h.toString().toUpperCase().includes('KECAMATAN') || h.toString().toUpperCase().includes('KEC'));
-  let idxJenjang = headers.findIndex(h => h.toString().toUpperCase().includes('JENJANG') || h.toString().toUpperCase().includes('BENTUK') || h.toString().toUpperCase() === 'LEVEL');
-
-  if (idxNSM === -1) idxNSM = 0;
-  if (idxNama === -1) idxNama = 1;
-  if (idxKab === -1) idxKab = 2;
-  if (idxJenjang === -1) idxJenjang = 3;
-
   kabupaten = sanitizeHtml(String(kabupaten || '').toLowerCase().trim());
   let normProfileKab = kabupaten.replace(/^kab\.\s+/i, 'kabupaten ').trim();
   if (normProfileKab && !normProfileKab.startsWith('kota ') && !normProfileKab.startsWith('kabupaten ')) {
@@ -466,33 +449,74 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
   }
   let allowedJenjangs = String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '');
 
+  let safeCacheKey = 'kab_madrasah_' + Utilities.base64Encode(normProfileKab).replace(/[^a-zA-Z0-9]/g, '').substring(0, 50);
+  let cachedDataStr = getCacheChunked(safeCacheKey);
+  let allKabMadrasahs = null;
+
+  if (cachedDataStr) {
+    try {
+      allKabMadrasahs = JSON.parse(cachedDataStr);
+    } catch (e) {}
+  }
+
+  if (!allKabMadrasahs) {
+    const ss = SpreadsheetApp.openById(MASTER_MADRASAH_DB_ID);
+    const sheet = ss.getSheets()[0];
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    let idxNSM = headers.findIndex(h => h.toString().toUpperCase() === 'NSM' || h.toString().toUpperCase().includes('NSM'));
+    let idxNPSN = headers.findIndex(h => h.toString().toUpperCase().includes('NPSN'));
+    let idxNama = headers.findIndex(h => h.toString().toUpperCase().includes('NAMA') || h.toString().toUpperCase() === 'NAME');
+    let idxKab = headers.findIndex(h => h.toString().toUpperCase().includes('KAB') || h.toString().toUpperCase().includes('KOTA') || h.toString().toUpperCase() === 'DISTRICT');
+    let idxKec = headers.findIndex(h => h.toString().toUpperCase().includes('SUB_DISTRICT') || h.toString().toUpperCase().includes('KECAMATAN') || h.toString().toUpperCase().includes('KEC'));
+    let idxJenjang = headers.findIndex(h => h.toString().toUpperCase().includes('JENJANG') || h.toString().toUpperCase().includes('BENTUK') || h.toString().toUpperCase() === 'LEVEL');
+
+    if (idxNSM === -1) idxNSM = 0;
+    if (idxNama === -1) idxNama = 1;
+    if (idxKab === -1) idxKab = 2;
+    if (idxJenjang === -1) idxJenjang = 3;
+
+    allKabMadrasahs = [];
+    for (let i = 1; i < data.length; i++) {
+      let kab = String(data[i][idxKab]).toLowerCase().trim();
+      let normDbKab = kab.replace(/^kab\.\s+/i, 'kabupaten ').trim();
+      if (normDbKab && !normDbKab.startsWith('kota ') && !normDbKab.startsWith('kabupaten ')) {
+          normDbKab = 'kabupaten ' + normDbKab;
+      }
+
+      if (!normProfileKab || normDbKab === normProfileKab) {
+        allKabMadrasahs.push({
+          nsm: data[i][idxNSM],
+          npsn: idxNPSN !== -1 ? data[i][idxNPSN] : '',
+          nama: data[i][idxNama],
+          kecamatan: idxKec !== -1 ? String(data[i][idxKec]).trim() : 'Tanpa Kecamatan',
+          kabupaten: data[i][idxKab],
+          jenjang: data[i][idxJenjang]
+        });
+      }
+    }
+    
+    try {
+      putCacheChunked(safeCacheKey, JSON.stringify(allKabMadrasahs), 21600);
+    } catch (e) {
+      console.log("Cache save error: " + e.toString());
+    }
+  }
+
   let results = [];
-  for (let i = 1; i < data.length; i++) {
-    let nsmVal = String(data[i][idxNSM]).trim();
+  for (let i = 0; i < allKabMadrasahs.length; i++) {
+    let m = allKabMadrasahs[i];
+    let nsmVal = String(m.nsm).trim();
     let owner = takenNSM[nsmVal];
     if (owner && owner !== String(currentNip || '').trim()) {
        continue; // DIBLOKIR: Sudah diambil pengawas lain
     }
-
-    let kab = String(data[i][idxKab]).toLowerCase().trim();
-    let normDbKab = kab.replace(/^kab\.\s+/i, 'kabupaten ').trim();
-    if (normDbKab && !normDbKab.startsWith('kota ') && !normDbKab.startsWith('kabupaten ')) {
-        normDbKab = 'kabupaten ' + normDbKab;
-    }
-    let jenjang = String(data[i][idxJenjang]).toLowerCase();
-
-    let matchKab = !normProfileKab || normDbKab === normProfileKab;
+    
+    let jenjang = String(m.jenjang).toLowerCase();
     let matchJenjang = allowedJenjangs.length === 0 || allowedJenjangs.some(j => jenjang === j || jenjang.includes(j) || j.includes(jenjang));
-
-    if (matchKab && matchJenjang) {
-      results.push({
-        nsm: data[i][idxNSM],
-        npsn: idxNPSN !== -1 ? data[i][idxNPSN] : '',
-        nama: data[i][idxNama],
-        kecamatan: idxKec !== -1 ? String(data[i][idxKec]).trim() : 'Tanpa Kecamatan',
-        kabupaten: data[i][idxKab],
-        jenjang: data[i][idxJenjang]
-      });
+    if (matchJenjang) {
+       results.push(m);
     }
   }
 
@@ -1152,3 +1176,32 @@ function incrementSKCounter() {
   }
   return 1;
 }
+
+// ============================================================
+// CACHE UTILITIES FOR LARGE DATA
+// ============================================================
+
+function putCacheChunked(key, str, expirationInSeconds) {
+  const cache = CacheService.getScriptCache();
+  const CHUNK_SIZE = 90000;
+  const chunks = Math.ceil(str.length / CHUNK_SIZE);
+  for (let i = 0; i < chunks; i++) {
+    cache.put(key + '_' + i, str.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), expirationInSeconds);
+  }
+  cache.put(key + '_chunks', String(chunks), expirationInSeconds);
+}
+
+function getCacheChunked(key) {
+  const cache = CacheService.getScriptCache();
+  const chunkCountStr = cache.get(key + '_chunks');
+  if (!chunkCountStr) return null;
+  const chunks = parseInt(chunkCountStr);
+  let str = '';
+  for (let i = 0; i < chunks; i++) {
+    let chunk = cache.get(key + '_' + i);
+    if (!chunk) return null; // Incomplete cache
+    str += chunk;
+  }
+  return str;
+}
+
