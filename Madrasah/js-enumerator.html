@@ -429,10 +429,16 @@
                             ? `<span onclick="event.stopPropagation(); App.showPasswordResetModal('${x.madrasah_id}', '${x.name.replace(/'/g, "\\'")}');" title="Reset Password" style="cursor:pointer;margin-left:6px;font-size:1em">🔐</span>`
                             : '';
 
+                        const lvlClass = x.level ? `badge-${String(x.level).toLowerCase()}` : '';
+                        const lvlBadge = x.level ? `<span class="badge-level ${lvlClass}" style="font-size:0.6em;margin-left:5px">${x.level}</span>` : '';
+
                         return `<div class="card" style="margin:5px 0 10px 10px;border-left:4px solid var(--color-primary);cursor:pointer" onclick="AppEnumerator.router('madrasah-detail',{madrasah_id:'${x.madrasah_id}'})">
-                           <h4 style="margin:0">${x.name}</h4>
-                           <small>ID: ${x.madrasah_id}${resetBtn}</small>
-                           ${x.submission_count != null ? `<br><small>Synced: ${x.submission_count}</small>` : ''}
+                           <h4 style="margin:0;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                              <span>${x.name}</span>
+                              ${lvlBadge}
+                           </h4>
+                           <small style="display:block;margin-top:4px;opacity:0.8">NSM: ${x.nsm}${resetBtn}</small>
+                           ${x.submission_count != null ? `<small style="display:block;margin-top:2px;opacity:0.8">Synced: ${x.submission_count}</small>` : ''}
                         </div>`
                     }).join('');
 
@@ -703,15 +709,22 @@
                 }).join('');
             };
 
+            const stateBadge = m.state ? `<span class="badge-status ${m.state == 'Negeri' ? 'badge-negeri' : 'badge-swasta'}" style="font-size:0.55em;vertical-align:middle;margin-left:5px">${m.state}</span>` : '';
+            const lvlClass = m.level ? `badge-${String(m.level).toLowerCase()}` : '';
+            const levelBadge = m.level ? `<span class="badge-level ${lvlClass}" style="font-size:0.55em;vertical-align:middle;margin-left:5px">${m.level}</span>` : '';
+
             const info = `
                 <div class="card" style="margin-bottom:10px">
-                    <h2 style="margin:0 0 5px 0;color:var(--color-primary);font-size:1.4rem">
-                        ${m.name || 'Madrasah'}
-                        <span class="badge-status ${m.state == 'Negeri' ? 'badge-negeri' : 'badge-swasta'}" style="background:transparent;border:none;font-size:0.6em;vertical-align:middle;margin-left:5px">${m.state || '-'}</span>
+                    <h2 style="margin:0 0 5px 0;color:var(--color-primary);font-size:1.4rem;display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+                        <span>${m.name || 'Madrasah'}</span>
+                        <div style="display:inline-flex;gap:4px">
+                            ${stateBadge}
+                            ${levelBadge}
+                        </div>
                     </h2>
                     <div style="margin-bottom:8px">
                         <span style="font-size:0.9em;margin-right:8px;display:inline-flex;align-items:center;opacity:0.7">
-                            ID: ${m.madrasah_id}
+                            NSM: ${m.nsm}
                             ${App.state.user && App.state.user.role === 'madrasah' ? '<span onclick="App.showChangePassword()" style="cursor:pointer;background:transparent;padding:1px 4px;margin-left:5px;border:none;font-size:1.2em" title="Change Password">🔑</span>' : ''}
                         </span>
                     </div>

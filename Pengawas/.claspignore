@@ -1,0 +1,25 @@
+# Ignore all files by default
+**/*
+
+# Except Google Apps Script source files and manifest
+!appsscript.json
+!*.js
+!*.gs
+!*.html
+
+# Ignore package configuration and node modules
+node_modules/**
+package.json
+package-lock.json
+
+# Ignore Git directory and config
+.git/**
+.gitignore
+
+# Ignore Clasp config and ignore files
+.clasp.json
+.claspignore
+
+# Ignore Markdown documentation and local settings
+**/*.md
+.gemini/**

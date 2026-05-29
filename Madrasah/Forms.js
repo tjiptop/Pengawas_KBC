@@ -18,8 +18,8 @@
  */
 
 function getFormDefinitions() {
-    return {
-        'form_personil': `    # FORM 0.1. PERSONIL
+  return {
+    'form_personil': `    # FORM 0.1. PERSONIL
 title: 0.1. Data Personil
 group: 0. Data Madrasah
 submission_limit: 0
@@ -156,12 +156,12 @@ questions:
         width: "80px"
 `,
 
-        'form_observasi': `    # FORM 1.0. OBSERVASI FINAL
+    'form_observasi': `    # FORM 1.0. OBSERVASI FINAL
 title: 1.0. Observasi Akhir Penilaian
 group: 1. Observasi
 submission_limit: 0
 target_sheet: 1_0_Observasi
-allowed_roles: [district]
+allowed_roles: [madrasah, fasda]
 subordinate_visibility: list
 questions:  
   - type: header
@@ -370,7 +370,7 @@ questions:
     max_size: 10  # 10 MB limit per file
     accept: "all"
 `,
-        'form_observasi_kelas': `    # FORM 1.1. OBSERVASI KELAS
+    'form_observasi_kelas': `    # FORM 1.1. OBSERVASI KELAS
 title: 1.1. Observasi Ruang Kelas
 group: 1. Observasi
 submission_limit: 0
@@ -401,7 +401,7 @@ questions:
     rows: 6
 `,
 
-        'form_observasi_area_luar': `    # FORM 1.2. OBSERVASI Area luar / halaman / koridor / toilet / kantin
+    'form_observasi_area_luar': `    # FORM 1.2. OBSERVASI Area luar / halaman / koridor / toilet / kantin
 title: 1.2. Observasi Area luar / halaman / koridor / toilet / kantin
 group: 1. Observasi
 submission_limit: 0
@@ -432,7 +432,7 @@ questions:
     rows: 6
 `,
 
-        'form_observasi_ruang_guru': `    # FORM 1.3. OBSERVASI Ruang guru
+    'form_observasi_ruang_guru': `    # FORM 1.3. OBSERVASI Ruang guru
 title: 1.3. Observasi Ruang Guru
 group: 1. Observasi
 submission_limit: 0
@@ -463,7 +463,7 @@ questions:
     rows: 6
 `,
 
-        'form_observasi_ruang_kamad': `    # FORM 1.4. OBSERVASI ruang kepala madrasah
+    'form_observasi_ruang_kamad': `    # FORM 1.4. OBSERVASI ruang kepala madrasah
 title: 1.4. Observasi Ruang Kepala Madrasah
 group: 1. Observasi
 submission_limit: 0
@@ -494,7 +494,7 @@ questions:
     rows: 6
 `,
 
-        'form_observasi_area_umum': `    # FORM 1.5. OBSERVASI Area umum / kegiatan bersama (opsional)
+    'form_observasi_area_umum': `    # FORM 1.5. OBSERVASI Area umum / kegiatan bersama (opsional)
 title: 1.5. Observasi Area umum / kegiatan bersama (opsional)
 group: 1. Observasi
 submission_limit: 0
@@ -524,7 +524,7 @@ questions:
     label_size: medium
     rows: 6
 `,
-        'instrumen_angket_guru': `    ### 2.1. ANGKET GURU ###
+    'instrumen_angket_guru': `    ### 2.1. ANGKET GURU ###
 title: 2.1. Instrumen Angket Guru
 group: 2. Angket
 target_sheet: 2_1_Angket_Guru
@@ -754,7 +754,7 @@ questions:
     padding: medium
 `,
 
-        'instrumen_angket_kamad': `### 2.1. ANGKET KAMAD ###
+    'instrumen_angket_kamad': `### 2.1. ANGKET KAMAD ###
 title: 2.2. Instrumen Angket Kepala Madrasah
 group: 2. Angket
 target_sheet: 2_2_Angket_Kamad
@@ -969,7 +969,7 @@ questions:
     padding: medium
 `,
 
-        'instrumen_angket_ortu': `### 2.1. ANGKET ORTU ###
+    'instrumen_angket_ortu': `### 2.1. ANGKET ORTU ###
 title: 2.3. Instrumen Angket Orang Tua
 group: 2. Angket
 target_sheet: 2_2_Angket_Ortu
@@ -1119,7 +1119,7 @@ questions:
     background: "var(--color-bg-elevated)"
     padding: medium
 `,
-        'form_fgd_dewasa': `    # FORM 3.1. FGD GURU, KAMAD DAN ORANGTUA
+    'form_fgd_dewasa': `    # FORM 3.1. FGD GURU, KAMAD DAN ORANGTUA
 title: 3.1. Instrumen FGD KBC di Madrasah
 group: 3. FGD
 submission_limit: 0
@@ -1330,7 +1330,7 @@ questions:
     accept: "all"
 `,
 
-        'instrumen_wawancara_guru': `### 4.1. WAWANCARA GURU ###
+    'instrumen_wawancara_guru': `### 4.1. WAWANCARA GURU ###
 title: 4.1. Instrumen Wawancara Mendalam Guru
 group: 4. Wawancara Mendalam
 target_sheet: 4_1_Wawancara_Guru
@@ -1588,7 +1588,7 @@ questions:
     accept: "all"
 `,
 
-        'instrumen_wawancara_kamad': `### 4.2. WAWANCARA KEPALA MADRASAH ###
+    'instrumen_wawancara_kamad': `### 4.2. WAWANCARA KEPALA MADRASAH ###
 title: 4.2. Instrumen Wawancara Mendalam Kepala Madrasah
 group: 4. Wawancara Mendalam
 target_sheet: 4_2_Wawancara_Kepala_Madrasah
@@ -1849,7 +1849,7 @@ questions:
     accept: "all"
 `,
 
-        'instrumen_wawancara_ortu': `### 4.2. WAWANCARA ORANG TUA ###
+    'instrumen_wawancara_ortu': `### 4.2. WAWANCARA ORANG TUA ###
 title: 4.3. Instrumen Wawancara Mendalam Orang Tua
 group: 4. Wawancara Mendalam
 target_sheet: 4_3_Wawancara_Orang_Tua
@@ -2046,7 +2046,7 @@ questions:
 `
 
 
-    };
+  };
 }
 
 

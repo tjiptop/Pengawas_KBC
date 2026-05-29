@@ -6,7 +6,7 @@
 // Global constant for default sheet schema
 const CORE_SCHEMA = {
     'Users': ['username', 'password', 'full_name', 'role', 'scope', 'assigned_madrasahs', 'status'],
-    'Madrasahs': ['madrasah_id', 'name', 'state', 'address', 'village', 'subdistrict', 'district', 'province'],
+    'Madrasahs': ['nsm', 'name', 'state', 'level', 'address', 'village', 'subdistrict', 'district', 'province', 'village_id'],
     'Forms': ['form_id', 'form_name', 'yaml_definition'],
     'Submissions': ['submission_id', 'madrasah_id', 'form_id', 'username', 'timestamp', 'data_json'],
     'PasswordResets': ['token', 'madrasah_id', 'created_at', 'expires_at', 'created_by', 'used'],
@@ -50,6 +50,73 @@ function initApplication() {
             sheet.appendRow(CORE_SCHEMA[sheetName]);
         }
 
+        // Safe, in-place migration for existing Madrasahs sheet
+        if (sheetName === 'Madrasahs' && sheet.getLastRow() > 0) {
+            const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toLowerCase());
+            
+            // 1. Rename madrasah_id to nsm
+            const idIdx = currentHeaders.indexOf('madrasah_id');
+            if (idIdx !== -1) {
+                sheet.getRange(1, idIdx + 1).setValue('nsm');
+                currentHeaders[idIdx] = 'nsm';
+                stats.migrated++;
+            }
+            
+            // 2. Insert level between state and address
+            if (!currentHeaders.includes('level')) {
+                const stateIdx = currentHeaders.indexOf('state');
+                const addressIdx = currentHeaders.indexOf('address');
+                
+                let insertAfterCol = -1;
+                if (stateIdx !== -1) {
+                    insertAfterCol = stateIdx + 1; // Column index (1-based) of 'state'
+                } else if (addressIdx !== -1) {
+                    insertAfterCol = addressIdx; // Column index before 'address'
+                } else {
+                    insertAfterCol = sheet.getLastColumn();
+                }
+                
+                sheet.insertColumnAfter(insertAfterCol);
+                const newColIdx = insertAfterCol + 1;
+                sheet.getRange(1, newColIdx).setValue('level');
+                
+                const lastRow = sheet.getLastRow();
+                if (lastRow > 1) {
+                    const nameColIdx = currentHeaders.indexOf('name') !== -1 ? currentHeaders.indexOf('name') + 1 : 2;
+                    const adjustedNameColIdx = (nameColIdx > insertAfterCol) ? nameColIdx + 1 : nameColIdx;
+                    
+                    const nameValues = sheet.getRange(2, adjustedNameColIdx, lastRow - 1, 1).getValues();
+                    const levelValues = nameValues.map(row => {
+                        const name = String(row[0]).toUpperCase();
+                        let lvl = 'MI';
+                        if (name.includes('MTS')) lvl = 'MTs';
+                        else if (name.includes('MA')) lvl = 'MA';
+                        return [lvl];
+                    });
+                    
+                    sheet.getRange(2, newColIdx, lastRow - 1, 1).setValues(levelValues);
+                }
+                
+                currentHeaders.splice(insertAfterCol, 0, 'level');
+                stats.migrated++;
+            }
+            
+            // 3. Append village_id at the end
+            if (!currentHeaders.includes('village_id')) {
+                const lastCol = sheet.getLastColumn();
+                sheet.insertColumnAfter(lastCol);
+                const newColIdx = lastCol + 1;
+                sheet.getRange(1, newColIdx).setValue('village_id');
+                
+                const lastRow = sheet.getLastRow();
+                if (lastRow > 1) {
+                    const emptyValues = Array(lastRow - 1).fill(['']);
+                    sheet.getRange(2, newColIdx, lastRow - 1, 1).setValues(emptyValues);
+                }
+                stats.migrated++;
+            }
+        }
+
         // Dummy Data Injection (Fallback if empty)
         if (sheet.getLastRow() <= 1) {
             if (sheetName === 'Users') {
@@ -63,9 +130,9 @@ function initApplication() {
             }
             if (sheetName === 'Madrasahs') {
                 const madrasahs = [
-                    ['60715326', 'MI Nurul Islam Kota Citrodiwangsan', 'Swasta', 'JL. ALUN-ALUN BARAT 02', 'CITRODIWANGSAN', 'LUMAJANG', 'Lumajang', 'Jawa Timur'],
-                    ['60715327', 'MI Al-Ghozali Gambiran Rogotrunan', 'Swasta', 'JL. BONDOYUDO NO.8 GAMBIRAN', 'ROGOTRUNAN', 'LUMAJANG', 'Lumajang', 'Jawa Timur'],
-                    ['70031701', 'MI Ash Shomadiyah', 'Swasta', 'JL KH AGUS SALIM NO.44 KINGKING', 'KINGKING', 'TUBAN', 'Tuban', 'Jawa Timur'],
+                    ['60715326', 'MI Nurul Islam Kota Citrodiwangsan', 'Swasta', 'MI', 'JL. ALUN-ALUN BARAT 02', 'CITRODIWANGSAN', 'LUMAJANG', 'Lumajang', 'Jawa Timur', '3508080001'],
+                    ['60715327', 'MI Al-Ghozali Gambiran Rogotrunan', 'Swasta', 'MI', 'JL. BONDOYUDO NO.8 GAMBIRAN', 'ROGOTRUNAN', 'LUMAJANG', 'Lumajang', 'Jawa Timur', '3508080002'],
+                    ['70031701', 'MI Ash Shomadiyah', 'Swasta', 'MI', 'JL KH AGUS SALIM NO.44 KINGKING', 'KINGKING', 'TUBAN', 'Tuban', 'Jawa Timur', '3523120001'],
                 ];
                 madrasahs.forEach(r => sheet.appendRow(r));
             }

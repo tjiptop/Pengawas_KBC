@@ -22,9 +22,9 @@ function buildMadrasahIndex(madrasahs) {
     };
 
     madrasahs.forEach(m => {
-        const id = String(m.madrasah_id || '');
-        const district = String(m.district || '');
-        const province = String(m.province || '');
+        const id = String(m.madrasah_id || '').trim();
+        const district = String(m.district || '').trim().toLowerCase();
+        const province = String(m.province || '').trim().toLowerCase();
 
         // By ID lookup
         index.byId[id] = m;
@@ -139,14 +139,17 @@ function buildUserIndex(users) {
  */
 function normalizeMadrasahData(rawMadrasahs) {
     return rawMadrasahs.map(m => ({
-        madrasah_id: m.madrasah_id || m.id || '',
+        madrasah_id: m.nsm || m.madrasah_id || m.id || '',
+        nsm: m.nsm || m.madrasah_id || m.id || '',
         name: m.name || m.nama || '',
         state: m.state || m.status || '',
+        level: m.level || '',
         address: m.address || m.alamat || '',
         village: m.village || m.vilage || m.desa || m.kelurahan || '',
         subdistrict: m.subdistrict || m.subditrict || m.kecamatan || '',
         district: m.district || m.distict || m.kabupaten || m.kota || '',
-        province: m.province || m.provinsi || ''
+        province: m.province || m.provinsi || '',
+        village_id: m.village_id || m.villageid || ''
     }));
 }
 
@@ -200,7 +203,7 @@ const DataService = {
     getMadrasahsByDistrict(district) {
         const madrasahs = this.getMadrasahs();
         const index = buildMadrasahIndex(madrasahs);
-        return index.byDistrict[String(district)] || [];
+        return index.byDistrict[String(district || '').trim().toLowerCase()] || [];
     },
 
     /**
@@ -209,7 +212,7 @@ const DataService = {
     getMadrasahsByProvince(province) {
         const madrasahs = this.getMadrasahs();
         const index = buildMadrasahIndex(madrasahs);
-        return index.byProvince[String(province)] || [];
+        return index.byProvince[String(province || '').trim().toLowerCase()] || [];
     },
 
     /**

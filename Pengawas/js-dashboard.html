@@ -1,0 +1,217 @@
+<script>
+const DashboardViews = {
+    Main: (user) => {
+        let photoCardHtml = user['Foto URL'] ?
+            `<img src="${user['Foto URL']}" style="width:60px;height:60px;border-radius:14px;object-fit:cover;flex-shrink:0;" onerror="this.outerHTML='<div style=\\'width:60px;height:60px;border-radius:14px;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:1.5em;color:white;font-weight:700;flex-shrink:0;\\'>${(user['Nama']||'?').charAt(0).toUpperCase()}</div>'">` :
+            `<div style="width:60px;height:60px;border-radius:14px;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:1.5em;color:white;font-weight:700;flex-shrink:0;">${(user['Nama']||'?').charAt(0).toUpperCase()}</div>`;
+
+        return `
+        <!-- HEADER: Burger kiri + Judul -->
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:4px;">
+                <div class="menu-dropdown">
+                    <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('dashboard-menu').classList.toggle('show')" title="Menu">☰</button>
+                    <div id="dashboard-menu" class="menu-dropdown-content">
+                        <div class="menu-item" onclick="App.router('forms'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">📋</span>
+                            <span class="menu-item-text">Isi Instrumen</span>
+                        </div>
+                        <div class="menu-item" onclick="App.router('sasaran'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">🏫</span>
+                            <span class="menu-item-text">Kelola Sasaran</span>
+                        </div>
+                        <div class="menu-item" onclick="App.router('profile'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">✏️</span>
+                            <span class="menu-item-text">Edit Profil</span>
+                        </div>
+                        <div class="menu-item" onclick="DashboardManager.generateSK(); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">📄</span>
+                            <span class="menu-item-text">Download SK</span>
+                        </div>
+                        <div class="menu-item" onclick="DashboardManager.init(); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">🔄</span>
+                            <span class="menu-item-text">Refresh Data</span>
+                        </div>
+                        <div class="menu-item" onclick="App.toggleDarkMode(); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon" id="dark-mode-icon">${App.state.darkMode ? '☀️' : '🌙'}</span>
+                            <span class="menu-item-text" id="dark-mode-label">${App.state.darkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+                        </div>
+                        <div class="menu-item" style="color:var(--color-danger);" onclick="App.logout()">
+                            <span class="menu-item-icon">⏏</span>
+                            <span class="menu-item-text">Logout</span>
+                        </div>
+                    </div>
+                </div>
+                <h1>Dashboard Pengawas</h1>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="content" style="padding-top:16px;">
+
+            <!-- Profile Card -->
+            <div style="background:linear-gradient(135deg,var(--color-primary) 0%,var(--color-primary-dark) 100%);border-radius:16px;padding:18px;margin-bottom:16px;color:white;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.08);pointer-events:none;"></div>
+                <div style="position:absolute;bottom:-30px;right:30px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;"></div>
+                <div style="display:flex;gap:14px;align-items:center;position:relative;">
+                    ${photoCardHtml}
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:1rem;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user['Nama'] || 'Nama Belum Diisi'}</div>
+                        <div style="font-size:0.78rem;opacity:0.85;margin-bottom:6px;">NIP: ${user['NIP']} · Gol. ${user['Golongan'] || '-'}</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <span style="background:rgba(255,255,255,0.2);border-radius:8px;padding:2px 10px;font-size:0.72rem;font-weight:600;">${user['Kabupaten'] || '-'}</span>
+                            <span style="background:rgba(255,255,255,0.2);border-radius:8px;padding:2px 10px;font-size:0.72rem;font-weight:600;">${user['Jenjang'] || '-'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stat Cards -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                <div style="background:var(--color-bg-elevated);border:1px solid var(--color-border-light);border-radius:12px;padding:14px;display:flex;align-items:center;gap:10px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(52,168,83,0.12);display:flex;align-items:center;justify-content:center;font-size:1.2em;flex-shrink:0;">🏫</div>
+                    <div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--color-secondary);line-height:1;" id="stat-sasaran-count">—</div>
+                        <div style="font-size:0.7rem;color:var(--color-text-light);font-weight:500;margin-top:2px;">Madrasah Binaan</div>
+                    </div>
+                </div>
+                <div style="background:var(--color-bg-elevated);border:1px solid var(--color-border-light);border-radius:12px;padding:14px;display:flex;align-items:center;gap:10px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(26,115,232,0.12);display:flex;align-items:center;justify-content:center;font-size:1.2em;flex-shrink:0;">📋</div>
+                    <div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--color-primary);line-height:1;" id="stat-forms-count">—</div>
+                        <div style="font-size:0.7rem;color:var(--color-text-light);font-weight:500;margin-top:2px;">Instrumen Terisi</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Madrasah Binaan -->
+            <div style="background:var(--color-bg-elevated);border:1px solid var(--color-border-light);border-radius:16px;overflow:hidden;margin-bottom:16px;">
+                <div style="padding:14px 16px;border-bottom:1px solid var(--color-border-light);display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:0.88rem;font-weight:700;color:var(--color-text);">🏫 Madrasah Binaan</div>
+                    <button onclick="App.router('sasaran')" style="background:none;border:none;color:var(--color-primary);font-size:0.78rem;font-weight:600;cursor:pointer;padding:0;">Kelola →</button>
+                </div>
+                <div id="dash-sasaran-list" style="min-height:60px;">
+                    <div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.82em;">Memuat data...</div>
+                </div>
+            </div>
+
+        </div>
+        `;
+    }
+};
+
+const DashboardManager = {
+    init() {
+        App.loading(true, 'Memuat data...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            App.state.madrasahSasaran = res || [];
+            const countEl = document.getElementById('stat-sasaran-count');
+            if (countEl) countEl.textContent = res ? res.length : 0;
+            this.renderSasaranList();
+            this.loadFormsSummary();
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message || 'Gagal memuat data.', 'Gagal');
+        }).getSasaran(App.state.user['NIP']);
+    },
+
+    renderSasaranList() {
+        const container = document.getElementById('dash-sasaran-list');
+        if (!container) return;
+        const data = App.state.madrasahSasaran;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = `
+                <div style="padding:20px;text-align:center;">
+                    <p style="margin:0 0 10px;font-size:0.82em;color:var(--color-text-light);">Belum ada madrasah sasaran.</p>
+                </div>`;
+            return;
+        }
+
+        let html = data.slice(0, 5).map((item, idx) => `
+            <div style="padding:12px 16px;${idx < Math.min(data.length,5)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;gap:12px;align-items:center;">
+                <div style="width:28px;height:28px;background:rgba(26,115,232,0.1);color:var(--color-primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;flex-shrink:0;">${idx+1}</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nama}</div>
+                    <div style="font-size:0.74em;color:var(--color-text-light);margin-top:1px;">NSM: ${item.nsm}</div>
+                </div>
+            </div>
+        `).join('');
+
+        if (data.length > 5) {
+            html += `<div style="padding:10px 16px;text-align:center;color:var(--color-text-light);font-size:0.78em;">+${data.length - 5} madrasah lainnya</div>`;
+        }
+        container.innerHTML = html;
+    },
+
+    loadFormsSummary() {
+        google.script.run
+            .withSuccessHandler(res => {
+                const formsCountEl = document.getElementById('stat-forms-count');
+                const container = document.getElementById('dash-forms-summary');
+                
+                if (res && res.success && res.data) {
+                    // Update stat count
+                    if (formsCountEl) formsCountEl.textContent = res.data.length;
+                    
+                    // Render history list if container exists
+                    if (container) {
+                        if (res.data.length > 0) {
+                            const history = res.data.slice(0, 3);
+                            let html = history.map((item, idx) => {
+                                const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
+                                    day: '2-digit', month: 'short', year: 'numeric'
+                                }) : '-';
+                                return `
+                                <div style="padding:12px 16px;${idx < Math.min(history.length,3)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;justify-content:space-between;align-items:center;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.formId.replace(/_/g,' ')}</div>
+                                        <div style="font-size:0.74em;color:var(--color-text-light);margin-top:1px;">${item.nsmMadrasah || '-'} · ${date}</div>
+                                    </div>
+                                    <span style="font-size:0.7em;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;flex-shrink:0;margin-left:8px;">${item.status}</span>
+                                </div>`;
+                            }).join('');
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<div style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;">Belum ada instrumen terisi</div>';
+                        }
+                    }
+                } else if (container) {
+                    container.innerHTML = '<p style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;margin:0;">Belum ada riwayat.</p>';
+                }
+            })
+            .withFailureHandler(() => {
+                const container = document.getElementById('dash-forms-summary');
+                if (container) container.innerHTML = '<p style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;margin:0;">Gagal memuat riwayat.</p>';
+            })
+            .apiGetSubmissionHistory(App.state.user['NIP'], null);
+    },
+
+    generateSK() {
+        if (!App.state.madrasahSasaran || App.state.madrasahSasaran.length === 0) {
+            return App.alert('Anda belum memiliki madrasah sasaran. Silakan kelola sasaran terlebih dahulu.', 'Peringatan');
+        }
+        App.loading(true, 'Memproses SK... Mohon tunggu beberapa saat...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.alert('SK berhasil di-generate! Klik OK untuk membuka PDF.', 'Berhasil', () => {
+                    window.open(res.data.url, '_blank');
+                });
+            } else {
+                App.alert(res.error || res.message || 'Gagal generate SK.', 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).generateSK(App.state.user['NIP']);
+    }
+};
+
+// Tutup dropdown saat klik di luar
+document.addEventListener('click', () => {
+    const menu = document.getElementById('dashboard-menu');
+    if (menu) menu.classList.remove('show');
+});
+</script>

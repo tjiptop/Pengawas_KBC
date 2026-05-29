@@ -1,0 +1,211 @@
+<script>
+const DashboardViews = {
+    Main: (user) => {
+        let photoHtml = user['Foto URL'] ?
+            `<img src="${user['Foto URL']}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid var(--color-primary);">` :
+            `<div style="width:90px; height:90px; border-radius:50%; background:var(--color-bg-hover); display:flex; align-items:center; justify-content:center; font-size:2em; border:3px solid var(--color-border);">👤</div>`;
+
+        return `
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div class="menu-dropdown">
+                    <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('dashboard-menu').classList.toggle('show')">⋮</button>
+                    <div id="dashboard-menu" class="menu-dropdown-content">
+                        <div class="menu-item" onclick="App.router('profile'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">✏️</span>
+                            <span class="menu-item-text">Edit Profil</span>
+                        </div>
+                        <div class="menu-item" onclick="App.router('sasaran'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">🏫</span>
+                            <span class="menu-item-text">Kelola Sasaran</span>
+                        </div>
+                        <div class="menu-item" onclick="DashboardManager.init(); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">🔄</span>
+                            <span class="menu-item-text">Refresh Data</span>
+                        </div>
+                        <div class="menu-item" onclick="App.toggleDarkMode(); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon" id="dark-mode-icon">${App.state.darkMode ? '☀️' : '🌙'}</span>
+                            <span class="menu-item-text" id="dark-mode-label">${App.state.darkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+                        </div>
+                    </div>
+                </div>
+                <h1>Dashboard Pengawas</h1>
+            </div>
+            <button class="logout-btn" onclick="App.logout()">Logout</button>
+        </div>
+
+        <div class="content">
+            <!-- Profil Card -->
+            <div class="card" style="display:flex; gap:16px; align-items:center; margin-bottom:16px; padding:18px;">
+                ${photoHtml}
+                <div style="flex:1;">
+                    <h2 style="margin:0 0 4px 0; color:var(--color-primary); font-size:1.1em;">${user['Nama'] || 'Nama Belum Diisi'}</h2>
+                    <p style="margin:0; color:#666; font-size:0.85em;">NIP: ${user['NIP']} | Gol: ${user['Golongan'] || '-'}</p>
+                    <p style="margin:3px 0 0 0; font-size:0.82em; color:#888;">${user['Kabupaten'] || '-'}, ${user['Provinsi'] || '-'} · ${user['Jenjang'] || '-'}</p>
+                </div>
+            </div>
+
+            <!-- Quick Action Grid -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                <button class="quick-action-card" onclick="App.router('forms')">
+                    <span style="font-size:1.8em;">📋</span>
+                    <span>Isi Instrumen</span>
+                </button>
+                <button class="quick-action-card" onclick="App.router('sasaran')">
+                    <span style="font-size:1.8em;">🏫</span>
+                    <span>Kelola Sasaran</span>
+                </button>
+                <button class="quick-action-card" onclick="DashboardManager.generateSK()">
+                    <span style="font-size:1.8em;">📄</span>
+                    <span>Download SK</span>
+                </button>
+                <button class="quick-action-card" onclick="App.router('profile')">
+                    <span style="font-size:1.8em;">✏️</span>
+                    <span>Edit Profil</span>
+                </button>
+            </div>
+
+            <!-- Ringkasan Instrumen Pengawasan -->
+            <div class="card" style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="margin:0; font-size:0.95em;">📊 Riwayat Pengisian Instrumen</h3>
+                    <button class="btn" style="padding:5px 10px; font-size:0.8em;" onclick="App.router('forms')">Lihat Semua</button>
+                </div>
+                <div id="dash-forms-summary">
+                    <div style="text-align:center; padding:15px; color:#999; font-size:0.85em;">Memuat...</div>
+                </div>
+            </div>
+
+            <!-- Sasaran List -->
+            <div class="card" style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="margin:0; font-size:0.95em;">🏫 Madrasah Binaan</h3>
+                    <button class="btn" style="padding:5px 10px; font-size:0.8em;" onclick="App.router('sasaran')">Kelola</button>
+                </div>
+                <div id="dash-sasaran-list">
+                    <div style="text-align:center; padding:15px; color:#999; font-size:0.85em;">Memuat data...</div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+        .quick-action-card {
+            background: var(--color-bg-elevated);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 16px 10px;
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            cursor: pointer; font-size: 0.85em; font-weight: 600; color: var(--color-text);
+            transition: all 0.15s; text-align: center;
+        }
+        .quick-action-card:hover {
+            background: var(--color-bg-hover);
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        </style>
+        `;
+    }
+};
+
+const DashboardManager = {
+    init() {
+        App.loading(true, 'Memuat data...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            App.state.madrasahSasaran = res || [];
+            this.renderSasaranList();
+            this.loadFormsSummary();
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message || 'Gagal memuat data.', 'Gagal');
+        }).getSasaran(App.state.user['NIP']);
+    },
+
+    renderSasaranList() {
+        const container = document.getElementById('dash-sasaran-list');
+        if (!container) return;
+        const data = App.state.madrasahSasaran;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#999; margin:0; font-size:0.85em;">Belum ada madrasah sasaran. Klik Kelola.</p>';
+            return;
+        }
+
+        let html = data.slice(0, 5).map((item, idx) => `
+            <div style="padding:8px 0; border-bottom:1px solid var(--color-border); display:flex; gap:10px; align-items:center;">
+                <div style="width:22px; height:22px; background:var(--color-bg-hover); color:var(--color-primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.75em; font-weight:bold; flex-shrink:0;">${idx+1}</div>
+                <div style="flex:1; min-width:0;">
+                    <strong style="display:block; font-size:0.88em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.nama}</strong>
+                    <small style="color:#888; font-size:0.78em;">NSM: ${item.nsm}</small>
+                </div>
+            </div>
+        `).join('');
+
+        if (data.length > 5) {
+            html += `<p style="text-align:center; color:#888; font-size:0.82em; margin:8px 0 0;">+${data.length - 5} lainnya</p>`;
+        }
+
+        container.innerHTML = html;
+    },
+
+    loadFormsSummary() {
+        const container = document.getElementById('dash-forms-summary');
+        if (!container) return;
+
+        google.script.run
+            .withSuccessHandler(res => {
+                if (res.success && res.data && res.data.length > 0) {
+                    const history = res.data.slice(0, 3);
+                    let html = history.map(item => {
+                        const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
+                            day: '2-digit', month: 'short', year: 'numeric'
+                        }) : '-';
+                        return `
+                        <div style="padding:8px 0; border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong style="display:block; font-size:0.85em;">${item.formId.replace(/_/g,' ')}</strong>
+                                <small style="color:#888; font-size:0.78em;">${item.nsmMadrasah || '-'} · ${date}</small>
+                            </div>
+                            <span style="font-size:0.72em;padding:2px 7px;border-radius:8px;background:#d4edda;color:#155724;">${item.status}</span>
+                        </div>`;
+                    }).join('');
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="text-align:center;color:#999;font-size:0.85em;margin:0;">Belum ada instrumen yang diisi. <a href="#" onclick="App.router(\'forms\');return false;" style="color:var(--color-primary);">Mulai isi →</a></p>';
+                }
+            })
+            .withFailureHandler(() => {
+                container.innerHTML = '<p style="text-align:center;color:#999;font-size:0.82em;margin:0;">Gagal memuat riwayat.</p>';
+            })
+            .apiGetSubmissionHistory(App.state.user['NIP'], null);
+    },
+
+    generateSK() {
+        if (!App.state.madrasahSasaran || App.state.madrasahSasaran.length === 0) {
+            return App.alert('Anda belum memiliki madrasah sasaran. Silakan kelola sasaran terlebih dahulu.', 'Peringatan');
+        }
+        App.loading(true, 'Memproses SK... Mohon tunggu beberapa saat...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.alert('SK berhasil di-generate! Klik OK untuk membuka PDF.', 'Berhasil', () => {
+                    window.open(res.data.url, '_blank');
+                });
+            } else {
+                App.alert(res.error || res.message || 'Gagal generate SK.', 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).generateSK(App.state.user['NIP']);
+    }
+};
+
+// Tutup dropdown saat klik di luar
+document.addEventListener('click', () => {
+    const menu = document.getElementById('dashboard-menu');
+    if (menu) menu.classList.remove('show');
+});
+</script>

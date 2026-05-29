@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <title>Aplikasi Pengawas KBC</title>
+    <?!= include('css'); ?>
+</head>
+
+<body>
+    <div id="app" class="app-container">
+        <!-- Content injected by JS -->
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-text" style="margin-top:1rem;color:#555;font-weight:600;">Loading...</p>
+    </div>
+
+    <!-- Dependencies -->
+    <!-- JS-YAML for parsing form definitions -->
+    <?!= include('js-yaml'); ?>
+
+    <!-- Modular JavaScript Files (in dependency order) -->
+    <script>
+      console.log("Sizes:");
+      console.log("js-core:", <?= include('js-core').length ?>);
+      console.log("js-auth:", <?= include('js-auth').length ?>);
+      console.log("js-profile:", <?= include('js-profile').length ?>);
+      console.log("js-sasaran:", <?= include('js-sasaran').length ?>);
+      console.log("js-dashboard:", <?= include('js-dashboard').length ?>);
+    </script>
+    <?!= include('js-core'); ?>
+    <?!= include('js-auth'); ?>
+    <?!= include('js-profile'); ?>
+    <?!= include('js-sasaran'); ?>
+    <?!= include('js-dashboard'); ?>
+    <?!= include('js-forms'); ?>
+    <?!= include('js-form-engine'); ?>
+</body>
+
+</html>

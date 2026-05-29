@@ -1,0 +1,403 @@
+<script>
+// ============================================================
+// FORMS VIEW & MANAGER
+// Halaman daftar dan pengisian form instrumen pengawasan
+// ============================================================
+
+const FormsViews = {
+  Main: () => `
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="menu-btn" onclick="App.router('dashboard')" style="font-size:1.2em;background:none;border:none;cursor:pointer;color:var(--color-text);">←</button>
+        <h1>Instrumen Pengawasan</h1>
+      </div>
+      <button class="logout-btn" onclick="App.logout()">Logout</button>
+    </div>
+    <div class="content">
+      <!-- Tab: Daftar Form / Riwayat -->
+      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--color-border);">
+        <button id="tab-forms" class="form-tab active" onclick="FormsManager.switchTab('forms')">📋 Form Tersedia</button>
+        <button id="tab-history" class="form-tab" onclick="FormsManager.switchTab('history')">🕐 Riwayat</button>
+      </div>
+
+      <!-- Panel: Form tersedia -->
+      <div id="panel-forms">
+        <div id="forms-list-container">
+          <div style="text-align:center;padding:30px;color:#999;">Memuat daftar form...</div>
+        </div>
+      </div>
+
+      <!-- Panel: Riwayat -->
+      <div id="panel-history" style="display:none;">
+        <div id="history-list-container">
+          <div style="text-align:center;padding:30px;color:#999;">Memuat riwayat...</div>
+        </div>
+      </div>
+
+      <!-- Panel: Form renderer (saat form sedang diisi) -->
+      <div id="panel-form-fill" style="display:none;">
+        <div id="form-fill-container"></div>
+      </div>
+    </div>
+  `
+};
+
+const FormsManager = {
+  state: {
+    activeTab: 'forms',
+    forms: [],
+    history: [],
+    currentForm: null,
+    selectedMadrasah: null
+  },
+
+  init() {
+    this.loadForms();
+    this.loadHistory();
+  },
+
+  switchTab(tab) {
+    this.state.activeTab = tab;
+    document.getElementById('panel-forms').style.display = tab === 'forms' ? '' : 'none';
+    document.getElementById('panel-history').style.display = tab === 'history' ? '' : 'none';
+    document.getElementById('panel-form-fill').style.display = 'none';
+
+    document.getElementById('tab-forms').classList.toggle('active', tab === 'forms');
+    document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  },
+
+  loadForms() {
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          this.state.forms = res.data || [];
+          this.renderFormsList();
+        } else {
+          document.getElementById('forms-list-container').innerHTML =
+            `<p style="color:#c0392b;text-align:center;">Gagal memuat form: ${res.error}</p>`;
+        }
+      })
+      .withFailureHandler(err => {
+        document.getElementById('forms-list-container').innerHTML =
+          `<p style="color:#c0392b;text-align:center;">Error: ${err.message}</p>`;
+      })
+      .apiGetAvailableForms();
+  },
+
+  renderFormsList() {
+    const container = document.getElementById('forms-list-container');
+    const forms = this.state.forms;
+
+    if (!forms || forms.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:#999;">
+          <div style="font-size:3em;margin-bottom:10px;">📭</div>
+          <p>Belum ada form instrumen yang tersedia.</p>
+        </div>`;
+      return;
+    }
+
+    // Kelompokkan per group
+    const groups = {};
+    forms.forEach(f => {
+      const g = f.group || 'Lainnya';
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(f);
+    });
+
+    let html = '';
+    for (const groupName in groups) {
+      html += `<h4 style="color:var(--color-primary);margin:20px 0 10px;font-size:0.9em;text-transform:uppercase;letter-spacing:1px;">${groupName}</h4>`;
+      groups[groupName].forEach(form => {
+        html += `
+          <div class="card form-card" onclick="FormsManager.startForm('${form.id}')" style="cursor:pointer;margin-bottom:12px;display:flex;align-items:center;gap:15px;padding:16px 18px;">
+            <div style="font-size:2em;min-width:40px;text-align:center;">${form.icon || '📋'}</div>
+            <div style="flex:1;">
+              <strong style="display:block;font-size:0.95em;margin-bottom:3px;">${form.title}</strong>
+              ${form.description ? `<small style="color:#888;">${form.description}</small>` : ''}
+            </div>
+            <div style="color:var(--color-primary);font-size:1.2em;">›</div>
+          </div>`;
+      });
+    }
+
+    container.innerHTML = html;
+  },
+
+  loadHistory() {
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          this.state.history = res.data || [];
+          this.renderHistory();
+        }
+      })
+      .withFailureHandler(() => {})
+      .apiGetSubmissionHistory(App.state.user['NIP'], null);
+  },
+
+  renderHistory() {
+    const container = document.getElementById('history-list-container');
+    const history = this.state.history;
+
+    if (!history || history.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:#999;">
+          <div style="font-size:3em;margin-bottom:10px;">📂</div>
+          <p>Belum ada riwayat pengisian form.</p>
+        </div>`;
+      return;
+    }
+
+    let html = history.map(item => {
+      const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }) : '-';
+      const formTitle = (this.state.forms.find(f => f.id === item.formId) || {}).title || item.formId;
+      return `
+        <div class="card" style="margin-bottom:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;">
+            <strong style="display:block;font-size:0.9em;">${formTitle}</strong>
+            <small style="color:#888;">${item.nsmMadrasah || '-'} &bull; ${date}</small>
+          </div>
+          <span style="font-size:0.75em;padding:3px 8px;border-radius:10px;background:${item.status === 'final' ? '#d4edda' : '#fff3cd'};color:${item.status === 'final' ? '#155724' : '#856404'};">
+            ${item.status || 'draft'}
+          </span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+  },
+
+  startForm(formId) {
+    // Pilih madrasah sasaran dahulu jika ada lebih dari 1
+    const sasaran = App.state.madrasahSasaran || [];
+
+    if (sasaran.length === 0) {
+      App.alert('Anda belum memiliki madrasah sasaran. Silakan kelola sasaran terlebih dahulu.', 'Perhatian');
+      return;
+    }
+
+    if (sasaran.length === 1) {
+      this.openForm(formId, sasaran[0]);
+    } else {
+      this.showMadrasahPicker(formId, sasaran);
+    }
+  },
+
+  showMadrasahPicker(formId, sasaranList) {
+    const container = document.getElementById('forms-list-container');
+    let options = sasaranList.map((m, i) => `
+      <div class="card form-card" onclick="FormsManager.openForm('${formId}', ${JSON.stringify(m).replace(/'/g, '&apos;')})"
+           style="cursor:pointer;margin-bottom:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+        <div style="width:28px;height:28px;background:var(--color-bg-hover);color:var(--color-primary);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:bold;">${i+1}</div>
+        <div>
+          <strong style="display:block;font-size:0.9em;">${m.nama}</strong>
+          <small style="color:#888;">NSM: ${m.nsm}</small>
+        </div>
+      </div>`).join('');
+
+    container.innerHTML = `
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px;">
+          <button onclick="FormsManager.renderFormsList()" style="background:none;border:none;cursor:pointer;font-size:1.1em;color:var(--color-primary);">← Kembali</button>
+          <h3 style="margin:0;">Pilih Madrasah Sasaran</h3>
+        </div>
+        ${options}
+      </div>`;
+  },
+
+  openForm(formId, madrasah) {
+    this.state.currentForm = formId;
+    this.state.selectedMadrasah = madrasah;
+
+    // Tampilkan panel form fill
+    document.getElementById('panel-forms').style.display = 'none';
+    document.getElementById('panel-history').style.display = 'none';
+    document.getElementById('panel-form-fill').style.display = '';
+
+    const container = document.getElementById('form-fill-container');
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px;">
+        <button onclick="FormsManager.cancelForm()" style="background:none;border:none;cursor:pointer;font-size:1.1em;color:var(--color-primary);">← Kembali</button>
+        <div>
+          <h3 style="margin:0;font-size:1em;" id="form-fill-title">Memuat form...</h3>
+          <small style="color:#888;">${madrasah.nama}</small>
+        </div>
+      </div>
+      <div id="form-engine-mount"></div>
+      <div id="form-submit-area" style="margin-top:20px;display:none;">
+        <button class="btn btn-primary" style="width:100%;padding:14px;font-size:1em;" onclick="FormsManager.submitForm()">
+          ✅ Kirim Formulir
+        </button>
+      </div>`;
+
+    // Load form definition dari server
+    App.loading(true, 'Memuat form...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.renderFormEngine(res.data.yaml, res.data.id);
+        } else {
+          container.innerHTML = `<p style="color:#c0392b;">Gagal memuat form: ${res.error}</p>`;
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        container.innerHTML = `<p style="color:#c0392b;">Error: ${err.message}</p>`;
+      })
+      .apiGetFormDefinition(formId);
+  },
+
+  renderFormEngine(yamlStr, formId) {
+    // Parse YAML dan render menggunakan FormEngine yang sudah tersedia
+    try {
+      if (typeof FormEngine === 'undefined') {
+        throw new Error('FormEngine belum dimuat. Pastikan js-form-engine.html di-include.');
+      }
+
+      // Update title
+      const parsed = jsyaml.load(yamlStr);
+      const titleEl = document.getElementById('form-fill-title');
+      if (titleEl) titleEl.textContent = parsed.title || formId;
+
+      // Mount FormEngine ke container
+      const mount = document.getElementById('form-engine-mount');
+      if (typeof FormEngine !== 'undefined' && FormEngine.render) {
+        FormEngine.render(mount, parsed);
+      } else {
+        // Fallback: render manual sederhana
+        this.renderFormManual(mount, parsed);
+      }
+
+      document.getElementById('form-submit-area').style.display = '';
+    } catch (e) {
+      document.getElementById('form-engine-mount').innerHTML =
+        `<p style="color:#c0392b;">Gagal render form: ${e.message}</p>`;
+      console.error('FormEngine error:', e);
+    }
+  },
+
+  // Fallback renderer manual jika FormEngine tidak tersedia
+  renderFormManual(container, parsed) {
+    const questions = parsed.questions || [];
+    let html = '';
+
+    questions.forEach(q => {
+      if (q.type === 'header') {
+        html += `<h${q.level || 3} style="color:var(--color-primary);margin:20px 0 8px;">${q.text || ''}</h${q.level || 3}>`;
+      } else if (q.type === 'note') {
+        html += `<p style="font-size:0.85em;color:#666;margin:2px 0;">${q.label || ''}</p>`;
+      } else if (q.type === 'spacer') {
+        html += `<div style="height:${q.height || '20px'};${q.line ? 'border-bottom:1px solid var(--color-border);' : ''}"></div>`;
+      } else if (q.type === 'text_block') {
+        html += `<div style="padding:12px;background:var(--color-bg-elevated);border-radius:8px;margin:10px 0;"><p style="margin:0;font-size:0.85em;color:var(--color-primary);font-weight:bold;">${q.content || ''}</p></div>`;
+      } else if (q.type === 'text') {
+        html += `<div class="form-group" style="margin-bottom:15px;">
+          <label style="display:block;font-size:0.9em;font-weight:600;margin-bottom:5px;">${q.label || ''} ${q.required ? '<span style="color:#e74c3c;">*</span>' : ''}</label>
+          <input type="text" name="${q.name}" ${q.readonly ? 'readonly' : ''} ${q.required ? 'required' : ''} class="form-input" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:8px;font-size:0.9em;box-sizing:border-box;background:var(--color-bg);">
+        </div>`;
+      } else if (q.type === 'textarea') {
+        html += `<div class="form-group" style="margin-bottom:15px;">
+          <label style="display:block;font-size:0.9em;font-weight:600;margin-bottom:5px;">${q.label || ''}</label>
+          <textarea name="${q.name}" rows="${q.rows || 3}" placeholder="${q.placeholder || ''}" class="form-input" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:8px;font-size:0.9em;box-sizing:border-box;background:var(--color-bg);resize:vertical;"></textarea>
+        </div>`;
+      } else if (q.type === 'radio') {
+        const opts = (q.options || []).map(opt =>
+          `<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;font-size:0.9em;">
+            <input type="radio" name="${q.name}" value="${opt}"> ${opt}
+          </label>`).join('');
+        html += `<div class="form-group" style="margin-bottom:15px;">
+          <label style="display:block;font-size:0.9em;font-weight:600;margin-bottom:8px;">${q.label || ''} ${q.required ? '<span style="color:#e74c3c;">*</span>' : ''}</label>
+          <div style="padding-left:5px;">${opts}</div>
+        </div>`;
+      } else if (q.type === 'likert_scale') {
+        const opts = (q.options || []).map((opt, i) =>
+          `<label style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;flex:1;text-align:center;">
+            <input type="radio" name="${q.name}" value="${opt}">
+            <span style="font-size:0.75em;color:#555;">${opt}</span>
+          </label>`).join('');
+        html += `<div class="form-group" style="margin-bottom:20px;padding:15px;background:var(--color-bg-elevated);border-radius:10px;">
+          <p style="font-size:${q.label_size === 'medium' ? '0.9em' : '0.85em'};font-weight:500;margin:0 0 12px;line-height:1.5;">${q.label || ''}</p>
+          <div style="display:flex;gap:5px;justify-content:space-between;">${opts}</div>
+        </div>`;
+      }
+    });
+
+    container.innerHTML = `<form id="dynamic-form" style="padding-bottom:20px;">${html}</form>`;
+  },
+
+  cancelForm() {
+    this.state.currentForm = null;
+    this.state.selectedMadrasah = null;
+    this.switchTab('forms');
+  },
+
+  submitForm() {
+    const formId = this.state.currentForm;
+    const madrasah = this.state.selectedMadrasah;
+
+    if (!formId || !madrasah) return;
+
+    // Kumpulkan data dari form
+    let formData = {};
+    const form = document.getElementById('dynamic-form');
+
+    if (form) {
+      // Collect semua input/textarea
+      const inputs = form.querySelectorAll('input:not([type=radio]):not([type=checkbox]), textarea, select');
+      inputs.forEach(el => {
+        if (el.name) formData[el.name] = el.value;
+      });
+
+      // Collect radio buttons (ambil yang checked)
+      const radios = form.querySelectorAll('input[type=radio]:checked');
+      radios.forEach(el => {
+        if (el.name) formData[el.name] = el.value;
+      });
+
+      // Collect checkboxes
+      const checkboxes = form.querySelectorAll('input[type=checkbox]');
+      const checkboxGroups = {};
+      checkboxes.forEach(el => {
+        if (el.name) {
+          if (!checkboxGroups[el.name]) checkboxGroups[el.name] = [];
+          if (el.checked) checkboxGroups[el.name].push(el.value);
+        }
+      });
+      Object.assign(formData, checkboxGroups);
+    } else if (typeof FormEngine !== 'undefined' && FormEngine.getData) {
+      // Jika FormEngine tersedia, ambil data dari sana
+      formData = FormEngine.getData();
+    }
+
+    const payload = {
+      nip: App.state.user['NIP'],
+      formId: formId,
+      nsmMadrasah: madrasah.nsm,
+      data: formData
+    };
+
+    App.loading(true, 'Mengirim formulir...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          App.alert(`Form berhasil dikirim! ID: ${res.data.submissionId}`, 'Berhasil');
+          // Refresh history dan kembali ke list
+          this.loadHistory();
+          this.cancelForm();
+          this.switchTab('history');
+        } else {
+          App.alert(res.error || 'Gagal mengirim form.', 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert(err.message || 'Terjadi kesalahan sistem.', 'Error');
+      })
+      .apiSubmitForm(payload);
+  }
+};
+</script>

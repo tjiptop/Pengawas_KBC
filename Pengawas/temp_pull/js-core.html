@@ -1,0 +1,171 @@
+<script>
+// ============================================================
+// CORE APP — State, Router, Alert Modal, Dark Mode
+// ============================================================
+
+const App = {
+  state: {
+    user: null,
+    view: 'login',
+    madrasahSasaran: [],
+    darkMode: localStorage.getItem('pengawas_dark') === 'true'
+  },
+
+  init() {
+    // Terapkan dark mode dari preferensi tersimpan
+    this.applyDarkMode(this.state.darkMode);
+
+    const storedUser = localStorage.getItem('pengawas_user');
+    if (storedUser) {
+      try {
+        this.state.user = JSON.parse(storedUser);
+        this.router('dashboard');
+      } catch (e) {
+        this.router('login');
+      }
+    } else {
+      this.router('login');
+    }
+  },
+
+  router(view, params = {}) {
+    this.state.view = view;
+    const el = document.getElementById('app');
+    window.scrollTo(0, 0);
+
+    if (view === 'login') {
+      el.innerHTML = AuthViews.Login();
+    } else if (view === 'set_password') {
+      el.innerHTML = AuthViews.SetPassword(params.nip);
+    } else if (view === 'profile') {
+      try {
+        el.innerHTML = ProfileViews.Form(this.state.user || {});
+        setTimeout(() => ProfileManager.updateKabupaten(), 0);
+      } catch(e) {
+        el.innerHTML = '<div class="content"><div class="card"><p style="color:red;font-weight:bold;">Terjadi kesalahan saat memuat form profil:</p><pre style="background:#f4f4f4;padding:10px;border-radius:5px;overflow:auto;font-size:12px;">' + e.message + '\n' + e.stack + '</pre><button class="btn" onclick="App.router(\'dashboard\')" style="margin-top:15px;">Kembali</button></div></div>';
+        console.error('Profile view error:', e);
+      }
+    } else if (view === 'sasaran') {
+      el.innerHTML = SasaranViews.Main();
+      SasaranManager.init();
+    } else if (view === 'forms') {
+      el.innerHTML = FormsViews.Main();
+      // Load sasaran kalau belum ada di state
+      const afterSasaran = () => {
+        FormsManager.init();
+      };
+      if (!this.state.madrasahSasaran || this.state.madrasahSasaran.length === 0) {
+        google.script.run
+          .withSuccessHandler(res => {
+            this.state.madrasahSasaran = res || [];
+            afterSasaran();
+          })
+          .withFailureHandler(() => afterSasaran())
+          .getSasaran(this.state.user['NIP']);
+      } else {
+        afterSasaran();
+      }
+    } else if (view === 'dashboard') {
+      if (!this.state.user || !this.state.user['Nama']) {
+        this.router('profile');
+        return;
+      }
+      el.innerHTML = DashboardViews.Main(this.state.user);
+      DashboardManager.init();
+    }
+  },
+
+  loading(show, text = 'Loading...') {
+    const el = document.getElementById('loading');
+    document.getElementById('loading-text').innerText = text;
+    el.style.display = show ? 'flex' : 'none';
+  },
+
+  // === MODAL ALERT (menggantikan browser alert()) ===
+  alert(msg, title = 'Info', onClose) {
+    // Hapus modal lama jika ada
+    const old = document.getElementById('app-alert-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'app-alert-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.5);animation:fadeIn 0.15s ease;
+    `;
+
+    const icons = { 'Info': 'ℹ️', 'Berhasil': '✅', 'Gagal': '❌', 'Error': '⚠️', 'Peringatan': '⚠️' };
+    const icon = icons[title] || 'ℹ️';
+
+    modal.innerHTML = `
+      <div style="
+        background:var(--color-bg);border-radius:16px;padding:28px 24px;
+        max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);
+        animation:slideUp 0.2s ease;
+      ">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:2.5em;margin-bottom:8px;">${icon}</div>
+          <h3 style="margin:0 0 10px;font-size:1.1em;color:var(--color-text);">${title}</h3>
+          <p style="margin:0;font-size:0.9em;color:#666;line-height:1.5;">${msg}</p>
+        </div>
+        <button id="app-alert-ok" class="btn btn-primary" style="width:100%;padding:12px;font-size:0.95em;">OK</button>
+      </div>`;
+
+    document.body.appendChild(modal);
+
+    const close = () => {
+      modal.remove();
+      if (typeof onClose === 'function') onClose();
+    };
+
+    document.getElementById('app-alert-ok').onclick = close;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+  },
+
+  // === DARK MODE ===
+  toggleDarkMode() {
+    this.state.darkMode = !this.state.darkMode;
+    localStorage.setItem('pengawas_dark', this.state.darkMode);
+    this.applyDarkMode(this.state.darkMode);
+  },
+
+  applyDarkMode(dark) {
+    if (dark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    // Update icon jika toggle button sudah ada di DOM
+    const btn = document.getElementById('dark-mode-toggle');
+    if (btn) btn.textContent = dark ? '☀️' : '🌙';
+  },
+
+  logout() {
+    localStorage.removeItem('pengawas_user');
+    this.state.user = null;
+    this.state.madrasahSasaran = [];
+    this.router('login');
+  }
+};
+
+// Tambahkan style animasi modal ke head
+const _modalStyle = document.createElement('style');
+_modalStyle.textContent = `
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+  @keyframes slideUp { from { transform:translateY(20px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+  .form-tab {
+    padding: 10px 18px; background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; font-size: 0.9em; font-weight: 600; color: #999; transition: all 0.2s;
+  }
+  .form-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .form-tab:hover { color: var(--color-text); }
+  .form-card { transition: transform 0.15s, box-shadow 0.15s; }
+  .form-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+`;
+document.head.appendChild(_modalStyle);
+
+// Initialize App on Load
+window.addEventListener('load', () => {
+  App.init();
+});
+</script>

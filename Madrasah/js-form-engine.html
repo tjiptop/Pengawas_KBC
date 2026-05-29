@@ -1,0 +1,1727 @@
+<script>
+    /**
+     * FORM ENGINE - RENDERING & VALIDATION MODULE
+     * Core form rendering logic for all field types
+     * Extracted from js-shared.html
+     */
+
+    const FormEngine = {
+        // FILE ACCEPT PATTERNS (Client-side mirror of Code.js FILE_ACCEPT)
+        FILE_ACCEPT: {
+            images: '.jpg,.jpeg,.png,.gif,.webp,.bmp',
+            audio: '.mp3,.wav,.ogg,.m4a,.amr,.flac,.webm',
+            videos: '.mp4,.webm,.avi,.mov,.mkv,.mpeg,.mpg',
+            documents: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv',
+            pdf: '.pdf',
+            word: '.doc,.docx',
+            excel: '.xls,.xlsx',
+            powerpoint: '.ppt,.pptx',
+            office: '.doc,.docx,.xls,.xlsx,.ppt,.pptx',
+            all: '.jpg,.jpeg,.png,.gif,.webp,.bmp,.mp3,.wav,.ogg,.m4a,.amr,.flac,.webm,.mp4,.avi,.mov,.mkv,.mpeg,.mpg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv'
+        },
+
+        // Helper to resolve accept patterns
+        getFileAcceptString(acceptValue) {
+            if (!acceptValue) return '';
+            if (acceptValue.trim().startsWith('.')) return acceptValue;
+
+            const categories = acceptValue.split(',').map(c => c.trim().toLowerCase());
+            const extensions = new Set();
+
+            categories.forEach(category => {
+                const pattern = this.FILE_ACCEPT[category];
+                if (pattern) {
+                    pattern.split(',').forEach(ext => extensions.add(ext));
+                } else {
+                    if (category.startsWith('.')) extensions.add(category);
+                }
+            });
+
+            return Array.from(extensions).join(',');
+        },
+
+        data: {},
+        def: null,
+        onSubmit: null,
+        madrasahContext: null,
+        hasUnsavedChanges: false, // Track if form has unsaved changes
+
+        init(containerId, formDefYaml, initialData, submitCallback, formId, madrasahContext) {
+            const el = document.getElementById(containerId);
+            this.onSubmit = submitCallback;
+            this.madrasahContext = madrasahContext || null;
+            this.hasUnsavedChanges = false; // Reset on init
+
+            // Performance optimization properties
+            this.runLogicTimer = null;
+            this.runLogicPending = false;
+
+            // Mobile detection - mobile devices need longer debounce
+            this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            this.debounceDelay = this.isMobile ? 300 : 50; // 300ms for mobile (2x increase), 50ms for desktop
+
+            // Field categorization for performance
+            this.passiveFields = new Set();  // Fields that don't trigger logic
+            this.activeFields = new Set();   // Fields with dependencies
+
+            try {
+                this.def = jsyaml.load(formDefYaml);
+                this.data = initialData || {};
+
+                // Pre-parse and cache relevant expressions for performance
+                this.def.questions.forEach(q => {
+                    if (q.relevant) {
+                        q._relevantParsed = this.parseRelevant(q.relevant);
+                        try {
+                            q._relevantFn = new Function('data', `return ${q._relevantParsed}`);
+                        } catch (e) {
+                            console.error('Error compiling relevant expression for', q.name, ':', e);
+                            q._relevantFn = null;
+                        }
+                    }
+                });
+
+                // Categorize fields by performance impact
+                this.def.questions.forEach(q => {
+                    if (!q.name) return;
+
+                    const isPassive =
+                        !q.calculate &&  // No calculation
+                        !q.relevant &&   // No conditional visibility
+                        !this.def.questions.some(other => {
+                            // Not referenced by other fields
+                            const rel = other.relevant || '';
+                            const calc = other.calculate || '';
+                            return rel.includes(q.name) || calc.includes(q.name);
+                        });
+
+                    if (isPassive) {
+                        this.passiveFields.add(q.name);
+                    } else {
+                        this.activeFields.add(q.name);
+                    }
+                });
+
+                let html = `<h2>${this.def.title}</h2><div id="sf-container"><form id="sf">` +
+                    this.def.questions.map((q, i) => this.render(q, i)).join('') +
+                    `<div class="form-group" style="margin-top:20px"><button class="btn">Submit</button></div></form></div>`;
+
+                // Delegation form injection
+                if (this.def.enable_delegation === true) {
+                    html += `<div id="delegate-area"></div>`;
+                }
+
+                el.innerHTML = html;
+                this.bindEvents();
+                this.bindEvents();
+                this.runLogic(true); // Run immediately on init
+
+                // Process Lookups (Async) after initial render and logic
+                if (this.processLookups) this.processLookups();
+
+                // Generic Auto-Trigger System
+                this.def.questions.forEach(q => {
+                    // Support both new (auto_start) and legacy (auto_scan, autostart, auto) properties
+                    if (q.auto_start || q.auto_scan || q.autostart || (q.type === 'gps' && q.auto)) {
+                        this.triggerAutoStart(q);
+                    }
+                });
+
+                document.getElementById('sf').onsubmit = (e) => {
+                    e.preventDefault();
+                    if (this.validate() && this.onSubmit) this.onSubmit({ ...this.data });
+                };
+            } catch (e) { el.innerHTML = `<p style="color:red">${e.message}</p>`; }
+        },
+
+        render(q, i) {
+            const req = q.required ? 'required' : '';
+            const read = q.readonly ? 'readonly' : '';
+            let val = this.data[q.name];
+
+            // Default Value
+            if (val === undefined || val === null) {
+                if (q.type === 'table' || q.type === 'table_col_fix') {
+                    this.data[q.name] = [];
+                    val = [];
+                } else {
+                    val = this.evalDefault(q.default);
+                    if (val !== undefined && val !== null) this.data[q.name] = val;
+                }
+            }
+
+            const widthStyle = q.width ? `style="width:${q.width}"` : '';
+            let inp = '';
+
+            if (q.type === 'hidden') {
+                inp = `<input type="hidden" name="${q.name}" id="f-${q.name}" value="${val || ''}">`;
+                // Hidden fields don't need label/wrapper adjustments usually, but the main render loop allows returning just 'inp' 
+                // However, the main render loop wraps everything in a form-group div usually? 
+                // Let's check how render returns.
+                // The render function returns a string. Usually it wraps `inp` in a label/div.
+                // For hidden, we should return JUST the input, or a hidden div.
+                return inp;
+
+            } else if (q.type === 'text' || q.type === 'email' || q.type === 'password' || q.type === 'tel' || q.type === 'url') {
+                const minLen = q.minlength ? `minlength="${q.minlength}"` : '';
+                const maxLen = q.maxlength ? `maxlength="${q.maxlength}"` : '';
+                const placeholder = q.placeholder ? `placeholder="${q.placeholder}"` : '';
+
+                // Check if speech input is enabled
+                if (q.speech_input || q.voice_input) {
+                    inp = `
+                        <div class="input-group" style="display:flex">
+                            <input type="${q.type}" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${minLen} ${maxLen} ${req} ${read} ${placeholder} value="${val || ''}" style="border-top-right-radius:0;border-bottom-right-radius:0;flex:1">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" id="mic-${q.name}" type="button" style="border-top-left-radius:0;border-bottom-left-radius:0;" onclick="FormEngine.listen('${q.name}')">🎙️</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    inp = `<input type="${q.type}" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${minLen} ${maxLen} ${req} ${read} ${placeholder} value="${val || ''}">`;
+                }
+
+            } else if (['date', 'time', 'datetime'].includes(q.type)) {
+                let inputType = q.type === 'datetime' ? 'datetime-local' : q.type;
+                inp = `<input type="${inputType}" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${req} ${read} value="${val || ''}">`;
+
+            } else if (q.type === 'integer') {
+                const min = q.min !== undefined ? `min="${q.min}"` : '';
+                const max = q.max !== undefined ? `max="${q.max}"` : '';
+                const step = q.step !== undefined ? `step="${q.step}"` : 'step="1"';
+                const placeholder = q.placeholder ? `placeholder="${q.placeholder}"` : '';
+                inp = `<input type="number" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${step} inputmode="numeric" ${min} ${max} ${req} ${read} ${placeholder} value="${val || ''}" style="text-align: right">`;
+            } else if (q.type === 'float') {
+                const min = q.min !== undefined ? `min="${q.min}"` : '';
+                const max = q.max !== undefined ? `max="${q.max}"` : '';
+                const step = q.step !== undefined ? `step="${q.step}"` : 'step="any"';
+                const placeholder = q.placeholder ? `placeholder="${q.placeholder}"` : '';
+                inp = `<input type="number" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${step} ${min} ${max} ${req} ${read} ${placeholder} value="${val || ''}" style="text-align: right">`;
+
+            } else if (q.type == 'select') {
+                const opt = (q.options || []).map(o => `<option value="${o}" ${o == val ? 'selected' : ''}>${o}</option>`).join('');
+                const placeholder = q.placeholder || 'Select...';
+                inp = `<select name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${req}><option value="">${placeholder}</option>${opt}</select>`;
+
+            } else if (q.type == 'lookup') {
+                let options = [];
+                if (q.source === 'madrasahs' && App.state.madrasahs) {
+                    options = App.state.madrasahs;
+                } else if (App.state.tokenContext && App.state.tokenContext.madrasahs) {
+                    options = App.state.tokenContext.madrasahs || [];
+                }
+                if (q.filter && options.length > 0) {
+                    try {
+                        const user = App.state.user || {};
+                        const filterFn = new Function('item', 'user', `return ${q.filter}`);
+                        options = options.filter(item => filterFn(item, user));
+                    } catch (e) {
+                        console.error('Lookup filter error:', e);
+                    }
+                }
+                const keyField = q.key || 'id';
+                const labelField = q.label_field || 'name';
+                const opts = options.map(item => {
+                    const key = item[keyField];
+                    const label = item[labelField] || key;
+                    const selected = key === val ? 'selected' : '';
+                    return `<option value="${key}" ${selected}>${label}</option>`;
+                }).join('');
+                const placeholder = q.placeholder || 'Pilih...';
+                inp = `<select name="${q.name}" id="f-${q.name}" class="form-control" ${req}><option value="">${placeholder}</option>${opts}</select>`;
+
+            } else if (q.type == 'textarea') {
+                const rows = q.rows || 4;
+                const placeholder = q.placeholder || '';
+
+                // Check if speech input is enabled
+                if (q.speech_input || q.voice_input) {
+                    inp = `
+                        <textarea name="${q.name}" id="f-${q.name}" class="form-control" rows="${rows}" ${req} ${read} placeholder="${placeholder}">${val || ''}</textarea>
+                        <button class="btn btn-outline-secondary" id="mic-${q.name}" type="button" style="margin-top:5px;" onclick="FormEngine.listen('${q.name}')">🎙️ Voice Input</button>
+                    `;
+                } else {
+                    inp = `<textarea name="${q.name}" id="f-${q.name}" class="form-control" rows="${rows}" ${req} ${read} placeholder="${placeholder}">${val || ''}</textarea>`;
+                }
+
+            } else if (q.type == 'range') {
+                const min = q.min || 0;
+                const max = q.max || 100;
+                const now = val !== undefined ? val : (q.default !== undefined ? q.default : min);
+                inp = `<div style="display:flex;align-items:center;gap:10px">
+                         <input type="range" name="${q.name}" id="f-${q.name}" class="form-control" min="${min}" max="${max}" step="${q.step || 1}" value="${now}" oninput="document.getElementById('out-${q.name}').innerText=this.value">
+                         <span id="out-${q.name}" style="font-weight:bold;min-width:30px;text-align:center">${now}</span>
+                       </div>`;
+
+            } else if (q.type == 'checkbox') {
+                if (q.options && q.options.length > 0) {
+                    if (!Array.isArray(val)) val = [];
+                    inp = (q.options || []).map(o => {
+                        const isChecked = val.includes(o) ? 'checked' : '';
+                        return `<label style="display:block;padding:8px 0;cursor:pointer">
+                                  <input type="checkbox" name="${q.name}" value="${o}" ${isChecked} style="width:18px;height:18px;margin-right:8px;vertical-align:middle;cursor:pointer"> 
+                                  <span style="vertical-align:middle">${o}</span>
+                                </label>`;
+                    }).join('');
+
+                    if (q.allow_custom) {
+                        const standardOptions = new Set(q.options || []);
+                        const customVals = val.filter(v => !standardOptions.has(v));
+                        const customText = customVals.join(', ');
+                        const customLabel = q.custom_label || 'Other (specify multiple separated by comma)';
+
+                        inp += `<div style="margin-top:10px">
+                            <label style="font-size:0.9em;color:var(--color-text-secondary);margin-bottom:4px;display:block">${customLabel}</label>
+                            <textarea id="custom-${q.name}" data-custom-for="${q.name}" class="form-control" rows="2" placeholder="e.g. Option A, Option B" style="font-size:0.9em">${customText}</textarea>
+                        </div>`;
+                    }
+                } else {
+                    const chk = (val === true || val === 'true') ? 'checked' : '';
+                    const width = q.width || 'auto';
+                    const widthStyle = width !== 'auto' ? `max-width:${width};` : '';
+                    inp = `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--color-bg-elevated);padding:10px;border:1px solid var(--color-border);border-radius:4px;${widthStyle}">
+                              <input type="checkbox" name="${q.name}" id="f-${q.name}" ${chk} style="width:20px;height:20px;cursor:pointer"> 
+                              <span>${q.placeholder || 'Yes'}</span>
+                            </label>`;
+                }
+
+            } else if (q.type == 'radio') {
+                inp = (q.options || []).map(o => {
+                    return `<label style="display:block;padding:5px 0;cursor:pointer"><input type="radio" name="${q.name}" value="${o}" ${o === val ? 'checked' : ''}> ${o}</label>`;
+                }).join('');
+
+            } else if (q.type == 'button_group') {
+                const options = q.options || [];
+                // Standardized properties: button_height (priority), button_font_size, button_color
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const heightStyle = heightVal ? `height:${heightVal};display:flex;align-items:center;justify-content:center;` : '';
+                const fontSize = q.button_font_size || q.font_size || '0.95em';
+                const customBtnColor = q.button_color || '';
+
+                inp = `<div class="button-group" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+                    ${options.map(o => {
+                    const isActive = o === val ? 'active' : '';
+                    const colorStyle = isActive
+                        ? (customBtnColor ? `background:${customBtnColor};border-color:${customBtnColor};` : 'background:var(--color-primary);border-color:var(--color-primary);')
+                        : 'background:var(--color-bg-elevated);border-color:var(--color-border);';
+
+                    return `<button type="button" 
+                                   class="button-group-option ${isActive}" 
+                                   data-name="${q.name}" 
+                                   data-value="${o}"
+                                   onclick="FormEngine.selectButton('${q.name}', '${o}', this)"
+                                   style="flex:1;min-width:80px;padding:10px 16px;border:2px solid;border-radius:6px;${colorStyle}color:${isActive ? 'white' : 'var(--color-text)'};font-weight:${isActive ? '600' : '500'};cursor:pointer;transition:all 0.2s;font-size:${fontSize};${heightStyle}"
+                                   onmouseover="if(!this.classList.contains('active')) { this.style.borderColor='${customBtnColor || 'var(--color-primary)'}'; this.style.background='var(--color-bg-hover)'; }"
+                                   onmouseout="if(!this.classList.contains('active')) { this.style.borderColor='var(--color-border)'; this.style.background='var(--color-bg-elevated)'; }">
+                               ${o}
+                            </button>`;
+                }).join('')}
+                    <input type="hidden" name="${q.name}" id="f-${q.name}" value="${val || ''}" ${req}>
+                </div>`;
+
+            } else if (q.type == 'segmented_control') {
+                const options = q.options || [];
+                const isInline = q.inline === true;
+                // Standardized properties: button_font_size (priority), button_height, button_color
+                const fontSize = q.button_font_size || q.font_size || '0.95em';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const btnPadding = heightVal ? '0 20px' : '10px 20px';
+                const heightStyle = heightVal ? `height:${heightVal};` : '';
+                const customColor = q.button_color || ''; // Custom active state color
+
+                const segmentedButtons = `<div class="segmented-control" style="display:inline-flex;border:2px solid var(--color-border);border-radius:8px;overflow:hidden;margin-top:${isInline ? '0' : '8px'};background:var(--color-bg-elevated)">
+                    ${options.map((o, idx) => {
+                    const isActive = o === val ? 'active' : '';
+                    const borderLeft = idx > 0 ? 'border-left:1px solid var(--color-border);' : '';
+                    const activeColor = customColor || 'var(--color-primary)';
+                    return `<button type="button" 
+                                   class="segmented-option ${isActive}" 
+                                   data-name="${q.name}" 
+                                   data-value="${o}"
+                                   onclick="FormEngine.selectSegment('${q.name}', '${o}', this)"
+                                   style="${borderLeft}flex:1;padding:${btnPadding};${heightStyle}background:${isActive ? activeColor : 'transparent'};color:${isActive ? 'white' : 'var(--color-text)'};font-weight:${isActive ? '600' : '500'};cursor:pointer;transition:all 0.25s;border:none;font-size:${fontSize};white-space:nowrap"
+                                   onmouseover="if(!this.classList.contains('active')) { this.style.background='var(--color-bg-hover)'; }"
+                                   onmouseout="if(!this.classList.contains('active')) { this.style.background='transparent'; }">
+                               ${o}
+                            </button>`;
+                }).join('')}
+                    <input type="hidden" name="${q.name}" id="f-${q.name}" value="${val || ''}" ${req}>
+                </div>`;
+
+                if (isInline) {
+                    return `<div class="form-group" id="w-${q.name}">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap">
+                                <label style="margin:0;flex-shrink:0">${q.label}${q.required ? ' <span style="color:red">*</span>' : ''}</label>
+                                <div style="margin-left:auto;max-width:100%">
+                                    ${segmentedButtons}
+                                </div>
+                            </div>
+                        </div>`;
+                } else {
+                    inp = segmentedButtons;
+                }
+
+            } else if (q.type == 'image') {
+                const buttonColor = q.button_color || '';
+                const buttonWidth = q.button_width || 'auto';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const fontSize = q.button_font_size || '1em';
+
+                let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
+                if (buttonColor) {
+                    buttonStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    buttonStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
+                const prevHtml = val ? ('<img src="' + val + '" style="max-width:100%;border-radius:4px;margin-top:5px;border:1px solid var(--color-border)">') : '';
+                inp = '<input type="file" id="f-' + q.name + '-file" accept="image/*" capture style="display:none" onchange="FormEngine.img(\'' + q.name + '\',this)">' +
+                    '<button type="button" class="' + buttonClass + '" style="' + buttonStyle + '" onclick="document.getElementById(\'f-' + q.name + '-file\').click()">📷 Photo</button>' +
+                    '<input type="hidden" name="' + q.name + '" id="f-' + q.name + '" value="' + (val || '') + '">' +
+                    '<div id="prev-' + q.name + '">' + prevHtml + '</div>';
+
+            } else if (q.type == 'multi_image') {
+                if (!Array.isArray(val)) val = [];
+                const maxImages = q.max_images || CONFIG.UI.MULTI_IMAGE_DEFAULT_MAX;
+
+                let slots = '';
+                for (let i = 0; i < maxImages; i++) {
+                    const imgUrl = val[i] || '';
+                    let preview = '';
+
+                    if (imgUrl) {
+                        // Check if it's base64 (always show) or server URL (check online status)
+                        if (imgUrl.startsWith('data:image')) {
+                            // Base64: Always display
+                            preview = `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;transition:opacity 0.2s;" onclick="FormEngine.showImagePreview('${imgUrl}')" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">`;
+                        } else if (!App.state.isOnline) {
+                            // Server URL but offline: Show offline placeholder
+                            preview = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f5f5f5;">
+                                <div style="text-align:center;font-size:0.7em;color:#666">
+                                    <div style="font-size:1.5em">🌐</div>
+                                    <div>Offline</div>
+                                </div>
+                            </div>`;
+                        } else {
+                            // Server URL and online: Display normally
+                            preview = `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;transition:opacity 0.2s;" onclick="FormEngine.showImagePreview('${imgUrl}')" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">`;
+                        }
+                    } else {
+                        preview = `<div style="color:var(--color-text-secondary);font-size:0.8em;">Slot ${i + 1}</div>`;
+                    }
+
+                    slots += `
+                        <div style="position:relative;width:80px;height:80px;border:2px dashed var(--color-border);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;margin:2px;background:var(--color-bg);">
+                            ${preview}
+                            ${imgUrl ? `<button type="button" onclick="FormEngine.removeMultiImg('${q.name}',${i})" style="position:absolute;top:-5px;right:-5px;background:red;color:white;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:12px;line-height:1;z-index:10;">×</button>` : ''}
+                        </div>`;
+                }
+
+                const buttonColor = q.button_color || '';
+                const buttonWidth = q.button_width || 'auto';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const fontSize = q.button_font_size || '1em';
+
+                let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
+                if (buttonColor) {
+                    buttonStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    buttonStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
+                inp = `
+                    <input type="file" id="f-${q.name}-files" accept="image/*" multiple style="display:none" onchange="FormEngine.multiImg('${q.name}',this)">
+                    <button type="button" class="${buttonClass}" style="${buttonStyle}" onclick="document.getElementById('f-${q.name}-files').click()" ${val.length >= maxImages ? 'disabled' : ''}>
+                        📷 Add Photo (${val.length}/${maxImages})
+                    </button>
+                    <div id="prev-${q.name}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${slots}</div>
+                `;
+
+            } else if (q.type == 'file') {
+                const buttonColor = q.button_color || '';
+                const buttonWidth = q.button_width || 'auto';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const fontSize = q.button_font_size || '1em';
+
+                let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
+                if (buttonColor) {
+                    buttonStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    buttonStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
+
+                let fileSize = 0;
+                let fileName = 'File Attached';
+
+                if (val) {
+                    if (typeof val === 'object' && val.data) {
+                        // New format: {name, size, type, data}
+                        fileSize = val.size ? Math.round(val.size / 1024) : Math.round((val.data.length * 0.75) / 1024);
+                        fileName = val.name || 'File Attached';
+                    } else if (typeof val === 'string') {
+                        // Old format: Base64 string
+                        fileSize = Math.round((val.length * 0.75) / 1024);
+                    }
+                }
+
+                const prevHtml = val ? (`<div style="margin-top:5px;font-size:0.9em">📄 ${fileName} (${fileSize} KB)</div>`) : '';
+                const acceptValue = q.accept ? this.getFileAcceptString(q.accept) : '';
+                const acceptAttr = acceptValue ? ('accept="' + acceptValue + '"') : '';
+                inp = '<input type="file" id="f-' + q.name + '-doc" ' + acceptAttr + ' style="display:none" onchange="FormEngine.doc(\'' + q.name + '\',this)">' +
+                    '<button type="button" class="' + buttonClass + '" style="' + buttonStyle + '" onclick="document.getElementById(\'f-' + q.name + '-doc\').click()">📎 Attach File</button>' +
+                    '<div id="prev-' + q.name + '">' + prevHtml + '</div>';
+
+
+            } else if (q.type == 'multi_file') {
+                if (!Array.isArray(val)) val = [];
+                // Default max_files to 5 if not specified
+                const maxFiles = q.max_files || 5;
+
+                let fileListHtml = '';
+                for (let i = 0; i < val.length; i++) {
+                    const fileData = val[i] || '';
+                    let fileDisplay = '';
+
+                    // Check if it's an object (New Format or Server URL Object)
+                    if (typeof fileData === 'object' && (fileData.data || fileData.url)) {
+                        const name = fileData.name || `Document ${i + 1}`;
+                        let sizeKB = 0;
+
+                        if (fileData.size) sizeKB = Math.round(fileData.size / 1024);
+                        else if (fileData.data) sizeKB = Math.round((fileData.data.length * 0.75) / 1024);
+
+                        // Standardized file type icons
+                        let typeIcon = '📄';
+                        if (name.match(/\.pdf$/i)) typeIcon = '📕';
+                        else if (name.match(/\.(doc|docx)$/i)) typeIcon = '📘';
+                        else if (name.match(/\.(xls|xlsx|csv)$/i)) typeIcon = '📗';
+                        else if (name.match(/\.(ppt|pptx)$/i)) typeIcon = '📙';
+                        else if (name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) typeIcon = '🖼️';
+                        else if (name.match(/\.(mp3|wav|ogg|m4a|flac)$/i)) typeIcon = '🎵';
+                        else if (name.match(/\.(mp4|avi|mov|wmv|mkv)$/i)) typeIcon = '🎬';
+                        else if (name.match(/\.(zip|rar|7z|tar|gz)$/i)) typeIcon = '📦';
+                        else if (name.match(/\.(txt|md)$/i)) typeIcon = '📝';
+
+                        fileDisplay = `${typeIcon} ${name} (${sizeKB > 0 ? sizeKB + ' KB' : 'Saved'})`;
+                    }
+                    // Check if it's base64/data URI (Old Format string)
+                    else if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+                        // Estimate size from base64 length
+                        const sizeKB = Math.round((fileData.length * 0.75) / 1024);
+                        fileDisplay = `📄 Document ${i + 1} (${sizeKB} KB)`;
+                    }
+                    // It's a URL (likely from server string)
+                    else if (fileData) {
+                        fileDisplay = `<a href="${fileData}" target="_blank" style="text-decoration:none;color:inherit">📄 Document ${i + 1} (Saved)</a>`;
+                    }
+
+                    fileListHtml += `
+                        <div style="display:flex;align-items:center;justify-content:between;background:var(--color-bg-elevated);border:1px solid var(--color-border);padding:8px 12px;margin-bottom:5px;border-radius:4px;">
+                            <div style="flex-grow:1;font-size:0.9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:10px;">
+                                ${fileDisplay}
+                            </div>
+                            <button type="button" onclick="FormEngine.removeMultiDoc('${q.name}',${i})" style="background:transparent;border:none;color:#dc3545;font-size:1.2em;cursor:pointer;padding:0 5px;">×</button>
+                        </div>`;
+                }
+
+                if (val.length === 0) {
+                    fileListHtml = `<div style="color:var(--color-text-secondary);font-style:italic;font-size:0.85em;margin-top:5px;">No files attached</div>`;
+                }
+
+                const buttonColor = q.button_color || '';
+                const buttonWidth = q.button_width || 'auto';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const fontSize = q.button_font_size || '1em';
+                const acceptValue = q.accept ? this.getFileAcceptString(q.accept) : '';
+                const acceptAttr = acceptValue ? ('accept="' + acceptValue + '"') : '';
+
+                let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
+                if (buttonColor) {
+                    buttonStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    buttonStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
+
+                inp = `
+                    <input type="file" id="f-${q.name}-docs" ${acceptAttr} multiple style="display:none" onchange="FormEngine.multiDoc('${q.name}',this)">
+                    <button type="button" class="${buttonClass}" style="${buttonStyle}" onclick="document.getElementById('f-${q.name}-docs').click()" ${val.length >= maxFiles ? 'disabled' : ''}>
+                        📎 Attach Files (${val.length}/${maxFiles})
+                    </button>
+                    <div id="prev-${q.name}" style="margin-top:10px;">${fileListHtml}</div>
+                `;
+
+            } else if (q.type == 'audio') {
+                const agc = q.agc !== undefined ? q.agc : true;
+                const quality = q.quality || 'medium';
+                const buttonColor = q.button_color || '';
+                const buttonWidth = q.button_width || 'auto';
+                const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
+                const fontSize = q.button_font_size || '1em';
+
+                let prevHtml = '';
+                if (val) {
+                    const fileSize = val.startsWith('data:audio') ? `${(val.length * 0.75 / 1024 / 1024).toFixed(2)} MB` : 'Drive file';
+                    prevHtml = `
+                        <audio controls src="${val}" style="width:100%;margin-bottom:4px"></audio>
+                        <div style="font-size:0.75em;color:#666">
+                            🎙️ ${fileSize} | Quality: ${quality.toUpperCase()} | AGC: ${agc ? 'ON' : 'OFF'}
+                        </div>
+                    `;
+                }
+
+                let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
+                if (buttonColor) {
+                    buttonStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    buttonStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
+
+                inp = `<input type="hidden" id="f-${q.name}" name="${q.name}" data-agc="${agc}" data-quality="${quality}" value="${val || ''}">
+                       <button type="button" class="${buttonClass}" id="btn-rec-${q.name}" style="${buttonStyle}" onclick="FormEngine.rec('${q.name}')">🎙 Record</button>
+                       <div id="prev-aud-${q.name}" style="margin-top:10px">${prevHtml}</div>`;
+
+            } else if (q.type == 'gps') {
+                const buttonColor = q.button_color || '';
+                const heightVal = q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : (q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : '');
+                let btnStyle = 'width:auto;';
+                if (buttonColor) {
+                    btnStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    btnStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                inp = `<div style="display:flex;gap:5px"><input name="${q.name}" id="f-${q.name}" class="form-control" placeholder="-7.xxx, 112.xxx" ${widthStyle} ${req} value="${val || ''}"><button type="button" class="btn" style="${btnStyle}" onclick="FormEngine.gps('${q.name}')">📍</button></div>`;
+
+            } else if (q.type == 'qrcode_scan') {
+                const buttonColor = q.button_color || '';
+                const heightVal = q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : (q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : '');
+                const fontSize = q.button_font_size || '1em';
+
+                let btnStyle = `font-size:${fontSize};border-top-left-radius:0;border-bottom-left-radius:0;`;
+                if (buttonColor) {
+                    btnStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
+                }
+                if (heightVal) {
+                    btnStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
+                }
+
+                inp = `
+                    <div class="input-group" style="display:flex">
+                        <input type="text" name="${q.name}" id="f-${q.name}" class="form-control" ${req} value="${val || ''}" placeholder="${q.placeholder || 'Scan result...'}" style="border-top-right-radius:0;border-bottom-right-radius:0;flex:1">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" style="${btnStyle}" onclick="FormEngine.openScannerModal('${q.name}')">📷 Scan</button>
+                        </div>
+                    </div>
+                `;
+
+            } else if (q.type == 'qrcode_generator') {
+                const size = q.size || 128;
+                const align = q.align || 'center';
+                const label = q.label ? `<label style="display:block;margin-bottom:5px;font-weight:600">${q.label}</label>` : '';
+
+                // Use a unique ID for the container
+                inp = `
+                    <div class="form-group" style="text-align:${align};margin-bottom:15px">
+                        ${label}
+                        <input type="hidden" name="${q.name}" id="f-${q.name}" value="${val || ''}">
+                        <div id="qr-${q.name}" class="qrcode-container" data-val="${val || ''}" data-size="${size}" style="display:inline-block;padding:10px;background:white;border-radius:4px;border:1px solid #ddd"></div>
+                        ${val ? '' : '<div style="color:#777;font-size:0.85em;font-style:italic;margin-top:5px">No data to generate QR Code</div>'}
+                    </div>
+                `;
+                // Trigger QR generation after render (using timeout is simple hack, but better to call explicit function if possible. 
+                // We'll rely on a global update or the fact that reRenderField calls are usually followed by logical updates)
+                setTimeout(() => { FormEngine.generateQRCode(q.name, val, size); }, 100);
+
+            } else if (q.type == 'boolean') {
+                const placeholder = q.placeholder || 'Select...';
+                inp = `<select name="${q.name}" id="f-${q.name}" class="form-control" ${req}><option value="">${placeholder}</option><option value="Yes" ${val === 'Yes' ? 'selected' : ''}>Yes</option><option value="No" ${val === 'No' ? 'selected' : ''}>No</option></select>`;
+
+            } else if (q.type == 'note') {
+                const align = q.align || 'left';
+                const size = q.label_size || q.size || 'normal'; // Prioritize label_size if set
+                const weight = q.weight || 'normal';
+                const color = q.color || '';
+                const margin = q.margin || 'small';
+
+                const sizeMap = { small: '0.85em', normal: '1em', large: '1.2em', xlarge: '1.5em' };
+                const fontSize = sizeMap[size] || '1em';
+                const fontWeight = weight === 'bold' ? '600' : 'normal';
+                const fontStyle = q.style === 'italic' ? 'italic' : 'normal';
+
+                const marginMap = { none: '0', small: '10px 0', medium: '15px 0', large: '20px 0' };
+                const marginValue = marginMap[margin] !== undefined ? marginMap[margin] : '10px 0';
+
+                const wrapperMargin = margin === 'none' ? 'margin-bottom:0;' : '';
+                const indentStyle = q.indent ? `margin-left:${q.indent * 20}px;` : '';
+
+                let content = q.label;
+                if (Array.isArray(content)) {
+                    content = content.join('<br>');
+                }
+
+                const colorStyle = color ? `color:${color};` : '';
+
+                return `<div class="form-group" style="${wrapperMargin}${indentStyle}">
+                    <p style="text-align:${align}; font-size:${fontSize}; font-weight:${fontWeight}; font-style:${fontStyle}; ${colorStyle} margin:${marginValue}">
+                        ${content}
+                    </p>
+                </div>`;
+
+            } else if (q.type == 'header') {
+                const level = q.level || 2;
+                const align = q.align || 'left';
+                const style = q.style || 'normal';
+                const color = q.color || '';
+                const margin = q.margin || 'medium';
+
+                const marginMap = { none: '0', small: '10px 0', medium: '20px 0', large: '30px 0' };
+                const marginValue = marginMap[margin] || '20px 0';
+
+                let fontWeight = 'normal';
+                let fontStyle = 'normal';
+                if (style === 'bold' || style === 'bold-italic') fontWeight = '600';
+                if (style === 'italic' || style === 'bold-italic') fontStyle = 'italic';
+
+                const indentStyle = q.indent ? `margin-left:${q.indent * 20}px;` : '';
+
+                const colorStyle = color ? `color:${color};` : '';
+
+                return `<div class="form-header" style="text-align:${align}; margin:${marginValue}; ${indentStyle}">
+                    <h${level} style="${colorStyle} font-weight:${fontWeight}; font-style:${fontStyle}; margin:0">
+                        ${q.text || q.label}
+                    </h${level}>
+                </div>`;
+
+            } else if (q.type == 'text_block') {
+                const align = q.align || 'left';
+                const size = q.label_size || q.size || 'normal'; // Prioritize label_size if set
+                const style = q.style || 'normal';
+                const color = q.color || '';
+                const background = q.background || '';
+                const padding = q.padding || 'none';
+                const borderLeft = q.border_left || false;
+
+                const sizeMap = { small: '0.85em', normal: '1em', large: '1.15em', xlarge: '1.3em' };
+                const fontSize = sizeMap[size] || '1em';
+                const paddingMap = { none: '0', small: '8px 12px', medium: '12px 16px', large: '16px 20px' };
+                const paddingValue = paddingMap[padding] || '0';
+                const fontStyle = style === 'italic' ? 'italic' : 'normal';
+                const fontWeight = style === 'bold' ? '600' : 'normal';
+                const borderStyle = borderLeft ? 'border-left:4px solid var(--color-primary);' : '';
+                const bgStyle = background ? `background:${background};` : '';
+                const indentStyle = q.indent ? `margin-left:${q.indent * 20}px;` : '';
+
+                const colorStyle = color ? `color:${color};` : '';
+
+                return `<div class="form-group" style="${indentStyle}">
+                    <div class="text-block" style="text-align:${align}; ${bgStyle}${borderStyle}padding:${paddingValue}; border-radius:6px; margin:15px 0">
+                        <p style="font-size:${fontSize}; font-style:${fontStyle}; font-weight:${fontWeight}; ${colorStyle} margin:0; line-height:1.6">
+                            ${q.content || q.label}
+                        </p>
+                    </div>
+                </div>`;
+
+            } else if (q.type == 'image_display') {
+                const src = q.src || '';
+                const alt = q.alt || 'Image';
+                const align = q.align || 'center';
+                const width = q.width || 'auto';
+                const maxWidth = q.max_width || '100%';
+                const borderRadius = q.border_radius || 8;
+                const margin = q.margin || 'medium';
+
+                const marginMap = { none: '0', small: '10px 0', medium: '20px 0', large: '30px 0' };
+                const marginValue = marginMap[margin] || '20px 0';
+
+                const widthStyle = width !== 'auto' ? `width:${width}px;` : '';
+                const maxWidthStyle = typeof maxWidth === 'number' ? `max-width:${maxWidth}px;` : `max-width:${maxWidth};`;
+                const indentStyle = q.indent ? `margin-left:${q.indent * 20}px;` : '';
+
+                return `<div class="form-group" style="${indentStyle}">
+                    <div class="image-display" style="text-align:${align}; margin:${marginValue}">
+                        <img src="${src}" alt="${alt}" 
+                             style="${widthStyle}${maxWidthStyle}height:auto; border-radius:${borderRadius}px; box-shadow:0 2px 8px rgba(0,0,0,0.1)"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                        <div style="display:none; padding:20px; background:var(--color-bg-elevated); border-radius:8px; color:var(--color-text-secondary)">
+                            ⚠️ Image failed to load
+                        </div>
+                    </div>
+                </div>`;
+
+            } else if (q.type == 'spacer') {
+                const height = q.height || '20px';
+                const heightVal = typeof height === 'number' ? height + 'px' : height;
+                const line = q.line ? 'border-bottom:1px solid var(--color-border);' : '';
+                const margin = q.line ? '10px 0' : '0';
+
+                return `<div style="height:${heightVal};${line}margin:${margin};width:100%"></div>`;
+
+            } else if (q.type == 'calculate') {
+                const calcStyle = `background:#eee; ${q.width ? 'width:' + q.width : ''}`;
+                inp = `<input name="${q.name}" id="f-${q.name}" class="form-control" readonly style="${calcStyle}" value="${val || ''}">`;
+
+            } else if (q.type == 'likert_scale') {
+                const options = q.options || [];
+                const radioName = `${q.name}`;
+
+                inp = `<div class="rating-group likert-container">
+                    ${options.map((option, idx) => {
+                    const isChecked = val === option ? 'checked' : '';
+                    const activeClass = isChecked ? 'active' : '';
+                    return `
+                        <label class="rating-option likert-option ${activeClass}" onclick="FormEngine.selectLikert('${radioName}', '${option}', this)">
+                            <input type="radio" name="${radioName}" value="${option}" ${isChecked} ${req} style="display:none">
+                            <span class="likert-text">${option}</span>
+                        </label>`;
+                }).join('')}
+                </div>`;
+
+            } else if (q.type == 'star_rating') {
+                const maxStars = q.max_stars || 5;
+                const currentRating = val || 0;
+
+                inp = `<div class="rating-container star-container" data-field="${q.name}" data-max="${maxStars}" style="display:flex;align-items:center;gap:10px">
+                    <div style="display:flex;gap:4px">
+                        ${Array.from({ length: maxStars }, (_, i) => i + 1).map(star => {
+                    const filled = star <= currentRating ? 'filled' : '';
+                    return `<span class="star-item ${filled}" data-value="${star}" 
+                                    onclick="FormEngine.setStar('${q.name}', ${star})"
+                                    style="cursor:pointer;font-size:2rem;line-height:1;transition:transform 0.2s;color:${filled ? '#ffc107' : '#e0e0e0'}">★</span>`;
+                }).join('')}
+                    </div>
+                    <input type="hidden" name="${q.name}" id="f-${q.name}" value="${currentRating}" ${req}>
+                    <span class="star-rating-value" style="font-weight:600;color:var(--color-text-secondary);font-size:0.9em">${currentRating > 0 ? currentRating : ''}</span>
+                </div>`;
+
+            } else if (q.type == 'smiley_rating') {
+                const smileys = [
+                    { value: 1, emoji: '😠', label: 'Sangat Buruk' },
+                    { value: 2, emoji: '😟', label: 'Buruk' },
+                    { value: 3, emoji: '😐', label: 'Netral' },
+                    { value: 4, emoji: '🙂', label: 'Baik' },
+                    { value: 5, emoji: '😍', label: 'Sangat Baik' }
+                ];
+                const currentValue = val || 0;
+
+                inp = `<div class="rating-container smiley-container" data-field="${q.name}" style="display:flex;gap:15px;flex-wrap:wrap">
+                    ${smileys.map(smiley => {
+                    const selected = currentValue == smiley.value ? 'selected' : '';
+                    const opacity = selected ? '1' : '0.5';
+                    const scale = selected ? '1.1' : '1';
+                    return `
+                        <div class="smiley-item ${selected}" 
+                             data-value="${smiley.value}" 
+                             onclick="FormEngine.setSmiley('${q.name}', ${smiley.value})"
+                             style="display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:all 0.2s;opacity:${opacity};transform:scale(${scale})">
+                            <div class="smiley-icon" style="font-size:2.5rem;line-height:1;margin-bottom:5px">${smiley.emoji}</div>
+                            <div class="smiley-label" style="font-size:0.75rem;color:var(--color-text-secondary);text-align:center;max-width:60px;line-height:1.2">${smiley.label}</div>
+                        </div>`;
+                }).join('')}
+                    <input type="hidden" name="${q.name}" id="f-${q.name}" value="${currentValue}" ${req}>
+                </div>`;
+
+            } else if (q.type == 'table') {
+                const cols = q.columns || [];
+                const rows = (Array.isArray(val) ? val : []);
+
+                // Header styling properties
+                const headerFontSize = q.header_font_size || '1em';
+                const headerFontWeight = q.header_font_bold === false ? 'normal' : 'bold';
+                const headerAlign = q.header_align || 'center';
+                const headerStyle = `font-size:${headerFontSize};font-weight:${headerFontWeight};text-align:${headerAlign}`;
+
+                const thead = cols.map(c => `<th style="${headerStyle}">${c.label}</th>`).join('') + `<th style="width:80px;${headerStyle}">Action</th>`;
+                const tbody = rows.map((r, rowIdx) => this.renderTableRow(q.name, rowIdx, cols, r)).join('');
+
+                inp = `<div class="table-responsive" style="overflow-x:auto">
+                        <table class="table" id="tbl-${q.name}" style="width:100%;border-collapse:collapse;margin:0;border:1px solid var(--color-border);border-bottom:none;border-radius:4px 4px 0 0">
+                            <thead><tr style="background:var(--color-bg-hover)">${thead}</tr></thead>
+                            <tbody>${tbody}</tbody>
+                        </table>
+                       </div>
+                       <button type="button" class="back-btn" style="width:100%;font-size:0.9em;margin:0;border-radius:0 0 4px 4px;border-top:1px solid var(--color-border)" onclick="FormEngine.tableAddRow('${q.name}')">+ Add Row</button>`;
+
+            } else if (q.type == 'table_col_fix') {
+                const cols = q.columns || [];
+                const items = q.items || [];
+
+                if (!val || !Array.isArray(val) || val.length !== items.length) {
+                    this.data[q.name] = items.map(item => ({ row_label: item }));
+                    val = this.data[q.name];
+                }
+
+                // Header styling properties
+                const headerFontSize = q.header_font_size || '1em';
+                const headerFontWeight = q.header_font_bold === false ? 'normal' : 'bold';
+                const headerAlign = q.header_align || 'center';
+                const headerStyle = `font-size:${headerFontSize};font-weight:${headerFontWeight};text-align:${headerAlign}`;
+
+                const label = q.first_col_label || 'Item';
+                const thead = `<th style="${headerStyle}">${label}</th>` + cols.map(c => `<th style="${headerStyle}">${c.label}</th>`).join('');
+                const tbody = val.map((r, rowIdx) => {
+                    r.row_label = items[rowIdx];
+                    return this.renderTableRow(q.name, rowIdx, cols, r, true);
+                }).join('');
+
+                inp = `<div class="table-responsive" style="overflow-x:auto">
+                         <table class="table" id="tbl-${q.name}" style="width:100%;border-collapse:collapse;margin-top:5px;border:1px solid var(--color-border);border-radius:4px">
+                             <thead><tr style="background:var(--color-bg-hover)">${thead}</tr></thead>
+                             <tbody>${tbody}</tbody>
+                         </table>
+                        </div>`;
+            }
+
+            // Standardized label rendering with label_size support
+            // Map label_size to CSS variables for consistency
+            const labelSizeMap = {
+                'small': 'var(--font-size-sm)',      // 0.875rem
+                'normal': 'var(--font-size-base)',   // 1rem (default)
+                'medium': 'var(--font-size-lg)',     // 1.125rem
+                'large': 'var(--font-size-xl)',      // 1.25rem
+                'xlarge': 'var(--font-size-2xl)'     // 1.5rem
+            };
+
+            const labelSize = q.label_size || 'normal';
+            const fontSize = labelSizeMap[labelSize] || labelSizeMap['normal'];
+            const labelStyle = `style="font-size:${fontSize}"`;
+
+            const indentVal = q.indent ? (q.indent * 20) : 0;
+            const indentStyleProp = indentVal ? `margin-left:${indentVal}px;` : '';
+
+            // Description / Help Text
+            let descHtml = '';
+            if (q.description) {
+                const descText = Array.isArray(q.description) ? q.description.join('<br>') : q.description;
+                descHtml = `<p class="form-text text-muted" style="font-size:0.85em; color:var(--color-text-secondary); margin-top:-2px; margin-bottom:8px">${descText}</p>`;
+            }
+
+            if (q.inline) {
+                // Build label with optional TTS speaker
+                let labelHtml = `${q.label} ${req ? '*' : ''}`;
+                if (q.speech_label || q.voice_label) {
+                    labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+                }
+
+                return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px">
+                    <div style="flex-shrink:0;max-width:60%">
+                        <label ${labelStyle} style="margin:0;display:block">${labelHtml}</label>
+                        ${descHtml}
+                    </div>
+                    <div style="flex-grow:1;display:flex;justify-content:flex-end;width:auto">${inp}</div>
+                </div>`;
+            }
+
+            // Build label with optional TTS speaker
+            let labelHtml = `${q.label} ${req ? '*' : ''}`;
+            if (q.speech_label || q.voice_label) {
+                labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+            }
+
+            return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
+                <label ${labelStyle}>${labelHtml}</label>
+                ${descHtml}
+                ${inp}
+            </div>`;
+        },
+
+        renderTableRow(tableName, rowIdx, columns, rowData, isFixed = false) {
+            const cells = columns.map(c => {
+                let cellVal = rowData[c.name] || '';
+                let inputHtml = '';
+
+                // Column width styling
+                const colWidth = c.width ? `width:${c.width};` : '';
+                const minWidth = c.width ? '' : 'min-width:100px;'; // Only use min-width if no explicit width
+
+                if (c.type === 'select') {
+                    const opts = (c.options || []).map(o => `<option value="${o}" ${o == cellVal ? 'selected' : ''}>${o}</option>`).join('');
+                    inputHtml = `<select class="form-control tbl-inp" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}"><option value="">Select...</option>${opts}</select>`;
+                } else if (['integer', 'float'].includes(c.type)) {
+                    const step = c.step !== undefined ? c.step : (c.type === 'integer' ? '1' : 'any');
+                    const min = c.min !== undefined ? `min="${c.min}"` : '';
+                    const max = c.max !== undefined ? `max="${c.max}"` : '';
+                    inputHtml = `<input type="number" class="form-control tbl-inp" step="${step}" ${min} ${max} value="${cellVal}" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}" style="text-align: right">`;
+                } else if (c.type === 'date') {
+                    inputHtml = `<input type="date" class="form-control tbl-inp" value="${cellVal}" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}">`;
+                } else {
+                    inputHtml = `<input type="text" class="form-control tbl-inp" value="${cellVal}" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}">`;
+                }
+                return `<td style="padding:5px;border-bottom:1px solid var(--color-border-light);${colWidth}${minWidth}">${inputHtml}</td>`;
+            }).join('');
+
+            const fixedLabel = isFixed ? `<td style="padding:5px;border-bottom:1px solid var(--color-border-light)"><div style="padding:6px 10px;background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:8px;font-weight:600;text-align:center;color:var(--color-text);min-width:50px;font-size:var(--font-size-sm)">${rowData.row_label || ''}</div></td>` : '';
+            const deleteBtn = isFixed ? '' : `<td style="padding:5px;border-bottom:1px solid var(--color-border-light)"><button type="button" class="back-btn" style="padding:4px 8px;font-size:0.85em;width:auto;min-width:60px" onclick="FormEngine.tableRemoveRow('${tableName}', ${rowIdx})">Delete</button></td>`;
+
+            return `<tr>${fixedLabel}${cells}${deleteBtn}</tr>`;
+        },
+
+        reRenderField(q) {
+            const wrapper = document.getElementById('w-' + q.name);
+            if (wrapper) {
+                wrapper.outerHTML = this.render(q);
+            }
+        },
+
+        bindEvents(container) {
+            const el = container || document.getElementById('sf');
+            if (!el) return;
+
+            // PERFORMANCE FIX: Filter events to only process actual form fields
+            // This prevents unnecessary handleInput calls from passive elements like type:note
+            // Input events with debounced logic
+            el.addEventListener('input', (e) => {
+                // Process regular form fields with name attribute OR table cells with data-table OR custom inputs
+                if ((e.target.name && e.target.matches('input, select, textarea')) ||
+                    (e.target.dataset.table && e.target.matches('input, select, textarea')) ||
+                    (e.target.dataset.customFor)) {
+                    this.handleInput(e.target);
+                }
+            });
+
+            el.addEventListener('change', (e) => {
+                // Process regular form fields with name attribute OR table cells with data-table OR custom inputs
+                if ((e.target.name && e.target.matches('input, select, textarea')) ||
+                    (e.target.dataset.table && e.target.matches('input, select, textarea')) ||
+                    (e.target.dataset.customFor)) {
+                    this.handleInput(e.target);
+                }
+            });
+
+            // Mobile table scroll indicators
+            const tableContainers = el.querySelectorAll('.table-responsive');
+            tableContainers.forEach(container => {
+                container.addEventListener('scroll', () => {
+                    // Detect if scrolled to end
+                    const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5;
+                    if (isAtEnd) {
+                        container.classList.add('scrolled-end');
+                    } else {
+                        container.classList.remove('scrolled-end');
+                    }
+                });
+            });
+        },
+
+        handleInput(target) {
+            if (target.dataset.table) {
+                const t = target.dataset.table;
+                const r = parseInt(target.dataset.row);
+                const c = target.dataset.col;
+                if (this.data[t] && this.data[t][r]) {
+                    let value = target.value;
+                    if (typeof value === 'string' && value.length > 0) {
+                        value = Security.sanitizeHtml(value);
+                        value = Security.sanitizeFormulaInjection(value);
+                    }
+                    this.data[t][r][c] = value;
+                    // Track changes in table
+                    this.hasUnsavedChanges = true;
+                }
+            } else if (target.dataset.customFor) {
+                // Handling custom text input for checkboxes
+                const name = target.dataset.customFor;
+                const fieldDef = this.def.questions.find(q => q.name === name);
+
+                if (fieldDef && fieldDef.type === 'checkbox') {
+                    // Get standard checked options
+                    const checkboxes = document.querySelectorAll(`input[name="${name}"]:checked`);
+                    const checkedValues = Array.from(checkboxes).map(cb => cb.value);
+
+                    // Get custom values from textarea
+                    const customRaw = target.value;
+                    const customValues = customRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+                    // Merge and unique
+                    const merged = [...new Set([...checkedValues, ...customValues])];
+                    this.data[name] = merged;
+                    this.hasUnsavedChanges = true;
+                    if (!this.passiveFields.has(name)) this.runLogic();
+                }
+
+            } else if (target.name) {
+                let value;
+
+                if (target.type === 'checkbox') {
+                    const fieldDef = this.def.questions.find(q => q.name === target.name);
+                    if (fieldDef && fieldDef.options && fieldDef.options.length > 0) {
+                        const checkboxes = document.querySelectorAll(`input[name="${target.name}"]:checked`);
+                        let checkedValues = Array.from(checkboxes).map(cb => cb.value);
+
+                        // Check if we need to merge with custom input
+                        if (fieldDef.allow_custom) {
+                            const customInput = document.getElementById(`custom-${target.name}`);
+                            if (customInput) {
+                                const customRaw = customInput.value;
+                                const customValues = customRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                                checkedValues = [...new Set([...checkedValues, ...customValues])];
+                            }
+                        }
+
+                        value = checkedValues;
+                    } else {
+                        value = target.checked;
+                    }
+                } else if (target.type === 'radio') {
+                    if (target.checked) value = target.value;
+                    else return;
+                } else {
+                    value = target.value;
+                }
+
+                const fieldDef = this.def.questions.find(q => q.name === target.name);
+                if (fieldDef && typeof value === 'string' && value.length > 0) {
+                    const skipTypes = ['image', 'audio', 'file', 'multi_image'];
+                    const isHiddenField = target.type === 'hidden';
+
+                    if (!skipTypes.includes(fieldDef.type) || !isHiddenField) {
+                        value = Security.sanitizeHtml(value);
+                        value = Security.sanitizeFormulaInjection(value);
+                    }
+                }
+
+                this.data[target.name] = value;
+
+                // Track that changes have been made
+                this.hasUnsavedChanges = true;
+
+                if (target.type === 'range') {
+                    const out = document.getElementById('out-' + target.name);
+                    if (out) out.innerText = value;
+                }
+
+                // PERFORMANCE FIX: Only run logic if field has dependencies
+                // Passive fields (simple text inputs with no dependencies) skip runLogic entirely
+                if (!this.passiveFields.has(target.name)) {
+                    this.runLogic();
+                }
+                // Passive fields: no runLogic call = instant response on mobile!
+            }
+        },
+
+        parseRelevant(relevantExpr) {
+            if (!relevantExpr) return relevantExpr;
+
+            if (relevantExpr.includes('$')) {
+                relevantExpr = relevantExpr.replace(/\$(\w+)/g, "data['$1']");
+            }
+
+            relevantExpr = relevantExpr.replace(/data\.(\w+)/g, "data['$1']");
+
+            return relevantExpr;
+        },
+
+        runLogic(immediate = false) {
+            // PERFORMANCE FIX: Debounce with requestAnimationFrame
+            if (immediate) {
+                this._executeRunLogic();
+                return;
+            }
+
+            clearTimeout(this.runLogicTimer);
+            this.runLogicTimer = setTimeout(() => {
+                if (!this.runLogicPending) {
+                    this.runLogicPending = true;
+                    requestAnimationFrame(() => {
+                        this._executeRunLogic();
+                        this.runLogicPending = false;
+                    });
+                }
+            }, this.debounceDelay || 50); // Mobile-aware: 150ms for mobile, 50ms for desktop
+        },
+
+        _executeRunLogic() {
+            this.def.questions.forEach(q => {
+                if (!q.name) return;
+
+                // PERFORMANCE FIX: Use cached compiled function instead of eval
+                if (q._relevantFn) {
+                    try {
+                        const el = document.getElementById('w-' + q.name);
+                        if (el) {
+                            const shouldShow = q._relevantFn(this.data);
+                            const displayValue = shouldShow ? 'block' : 'none';
+                            // Only update DOM if value changed (prevents unnecessary reflows)
+                            if (el.style.display !== displayValue) {
+                                el.style.display = displayValue;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Relevant logic error for field', q.name, ':', e);
+                    }
+                } else if (q.relevant) {
+                    // Fallback for expressions that failed to compile
+                    try {
+                        const el = document.getElementById('w-' + q.name);
+                        const data = this.data;
+                        let relevantExpr = this.parseRelevant(q.relevant);
+                        if (el) {
+                            const shouldShow = eval(relevantExpr);
+                            const displayValue = shouldShow ? 'block' : 'none';
+                            // Only update DOM if value changed
+                            if (el.style.display !== displayValue) {
+                                el.style.display = displayValue;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Relevant logic error for field', q.name, ':', e);
+                    }
+                }
+
+                if (q.type === 'calculate' && q.calculate) {
+                    try {
+                        const data = this.data;
+                        const res = eval(q.calculate);
+                        const input = document.getElementById('f-' + q.name);
+                        if (input) {
+                            // Support Text Concatenation: Allow strings or numbers
+                            const isValid = (typeof res === 'string') || isFinite(res);
+
+                            if (isValid) {
+                                // Only update if value changed (prevents cursor jump in inputs)
+                                if (input.value != res) {
+                                    input.value = res;
+                                    this.data[q.name] = res;
+                                }
+                            } else {
+                                if (input.value !== '') {
+                                    input.value = '';
+                                    this.data[q.name] = '';
+                                }
+                            }
+                        }
+                    } catch (e) { }
+                }
+            });
+        },
+
+        validate() {
+            for (let q of this.def.questions) {
+                if (!q.name) continue;
+                const el = document.getElementById('w-' + q.name);
+                if (!el || el.style.display == 'none') continue;
+
+                const val = this.data[q.name];
+                if (q.regex && val && !new RegExp(q.regex).test(val)) { Utils.alert(`Invalid format: ${q.label}`); return false; }
+                if (q.required && (val === undefined || val === '' || val === null)) { Utils.alert(`Required: ${q.label}`); return false; }
+
+                if ((q.type === 'integer' || q.type === 'float') && val !== '' && val !== undefined && val !== null) {
+                    const num = Number(val);
+                    if (q.min !== undefined && num < q.min) { Utils.alert(`${q.label} cannot be less than ${q.min}`); return false; }
+                    if (q.max !== undefined && num > q.max) { Utils.alert(`${q.label} cannot be more than ${q.max}`); return false; }
+                }
+            }
+            return true;
+        },
+
+        openScannerModal(fieldName) {
+            // Check if modal exists
+            if (!document.getElementById('scanner-modal')) {
+                const modalHtml = `
+                    <div id="scanner-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:none;align-items:center;justify-content:center;">
+                        <div style="background:white;padding:20px;border-radius:8px;width:90%;max-width:500px;position:relative;display:flex;flex-direction:column;max-height:90vh;">
+                            <h5 style="margin-top:0;">Scan QR/Barcode</h5>
+                            <div id="reader" style="width:100%;flex-grow:1;overflow:hidden;background:#000;"></div>
+                            <button onclick="FormEngine.stopScanner()" class="btn btn-secondary" style="margin-top:10px;width:100%" type="button">Close</button>
+                        </div>
+                    </div>`;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            }
+
+            const modal = document.getElementById('scanner-modal');
+            modal.style.display = 'flex';
+
+            this.currentScanField = fieldName;
+
+            // Safety check: if instance exists, stop it first
+            if (this.html5QrCode) {
+                this.html5QrCode.stop().then(() => {
+                    this.html5QrCode.clear();
+                    this.html5QrCode = null;
+                    this._startScanner();
+                }).catch(err => {
+                    console.warn("Failed to stop previous scanner instance:", err);
+                    this.html5QrCode = null;
+                    this._startScanner();
+                });
+            } else {
+                this._startScanner();
+            }
+        },
+
+        _startScanner() {
+            // REMOVED setTimeout to preserve User Gesture for Mobile
+            try {
+                const readerEl = document.getElementById("reader");
+                if (!readerEl) return;
+                readerEl.innerHTML = ""; // Ensure empty
+
+                this.html5QrCode = new Html5Qrcode("reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+                this.html5QrCode.start({ facingMode: "environment" }, config,
+                    (decodedText, decodedResult) => {
+                        this.onScanSuccess(decodedText, decodedResult);
+                    },
+                    (errorMessage) => {
+                        // ignore frame errors
+                    })
+                    .catch(err => {
+                        console.error("Error starting camera: ", err);
+                        // On mobile, if we lost the gesture, this might fail.
+                        // We can alert or show a manual button.
+                        // alert("Error starting camera. Permissions?"); 
+                        // Instead of alerting, maybe simply stop.
+                        this.stopScanner();
+                    });
+            } catch (e) {
+                console.error("Scanner init error:", e);
+                // console.error("Scanner init error:", e);
+                this.html5QrCode = null;
+            }
+        },
+
+        onScanSuccess(decodedText, decodedResult) {
+            if (this.currentScanField) {
+                // CRITICAL: Save to data model FIRST (before any UI updates or async ops)
+                this.data[this.currentScanField] = decodedText;
+                this.hasUnsavedChanges = true;
+
+                // Then update UI element
+                const el = document.getElementById('f-' + this.currentScanField);
+                if (el) {
+                    el.value = decodedText;
+                    // FIX: Dispatch event with bubbling so global listener catches it
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+
+            // Get field definition
+            const q = this.def.questions.find(q => q.name === this.currentScanField);
+
+            // Trigger completion event (e.g., TTS feedback)
+            this.handleFieldComplete(this.currentScanField, decodedText);
+
+            // Handle auto-submit
+            if (q && (q.auto_submit || q.autosubmit)) {
+                // Ensure scanner is fully stopped BEFORE submitting
+                this.stopScanner().then(() => {
+                    this.handleAutoSubmit(q);
+                });
+            } else {
+                // Add small delay before stopping to ensure UI update
+                setTimeout(() => {
+                    this.stopScanner();
+                }, 100);
+            }
+        },
+
+        stopScanner() {
+            const modal = document.getElementById('scanner-modal');
+
+            return new Promise((resolve) => {
+                if (this.html5QrCode) {
+                    // Safeguard against hang: Force close after 800ms if stop() fails/hangs
+                    const stopPromise = this.html5QrCode.stop();
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject("Scanner stop timeout"), 800)
+                    );
+
+                    Promise.race([stopPromise, timeoutPromise])
+                        .then(() => {
+                            this._cleanupScanner(modal);
+                            resolve();
+                        }).catch(err => {
+                            console.warn("Scanner stopped with error or timeout:", err);
+                            this._cleanupScanner(modal);
+                            resolve(); // Resolve anyway to continue flow
+                        });
+                } else {
+                    if (modal) modal.style.display = 'none';
+                    resolve();
+                }
+            });
+        },
+
+        _cleanupScanner(modal) {
+            try {
+                if (this.html5QrCode) this.html5QrCode.clear();
+            } catch (e) {
+                console.warn("Scanner clear error:", e);
+            }
+            this.html5QrCode = null;
+            if (modal) modal.style.display = 'none';
+        },
+
+        generateQRCode(fieldName, text, size = 128) {
+            const container = document.getElementById('qr-' + fieldName);
+            if (!container) return;
+
+            container.innerHTML = ''; // Clear previous
+            if (!text) {
+                container.parentElement.style.display = 'none'; // Hide if empty? or show placeholder. Behaving like 'relevant' might be better. 
+                // Actually, let's just leave it empty or show placeholder message defined in render.
+                // If the logic above in render showed "No data", we might want to toggle that visibility.
+                // For now simplicity: just clear.
+                return;
+            }
+
+            try {
+                new QRCode(container, {
+                    text: String(text),
+                    width: size,
+                    height: size,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            } catch (e) {
+                console.error("QR Gen Error", e);
+                container.innerText = "Error generating QR";
+            }
+        },
+
+        evalDefault(def) {
+            if (!def) return def;
+            if (typeof def !== 'string') return def;
+            // Strict check: if it doesn't contain $, return as is (optimization)
+            if (!def.includes('$')) return def;
+
+            try {
+                const user = App.state.user || {};
+
+                // 1. Prepare Context Variables
+                let madrasah = null;
+                if (this.madrasahContext) {
+                    madrasah = this.madrasahContext;
+                } else if (user.role === 'madrasah' && App.state && App.state.madrasahs) {
+                    madrasah = App.state.madrasahs.find(m => m.madrasah_id === user.username);
+                }
+
+                const today = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const dateStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+                const timeStr = `${pad(today.getHours())}:${pad(today.getMinutes())}`;
+
+                // Map of all available variables
+                const vars = {
+                    '$user_fullname': user.full_name || '',
+                    '$user_username': user.username || '',
+                    '$today': dateStr,
+                    '$now': `${dateStr}T${timeStr}`,
+                    '$time': timeStr,
+                    '$madrasah_name': (madrasah && madrasah.name) || '',
+                    '$madrasah_id': (madrasah && madrasah.madrasah_id) || (user.role === 'madrasah' ? user.username : '') || '',
+                    '$madrasah_nsm': (madrasah && madrasah.nsm) || (user.role === 'madrasah' ? user.username : '') || '',
+                    '$madrasah_level': (madrasah && madrasah.level) || '',
+                    '$madrasah_province': (madrasah && madrasah.province) || '',
+                    '$madrasah_district': (madrasah && madrasah.district) || '',
+                    '$madrasah_sub_district': (madrasah && madrasah.subdistrict) || '',
+                    '$madrasah_village': (madrasah && madrasah.village) || '',
+                    '$madrasah_village_id': (madrasah && madrasah.village_id) || '',
+                    '$madrasah_address': (madrasah && madrasah.address) || ''
+                };
+
+                // 2. Perform Replacement
+                // If the definition IS exactly one variable, return the value directly (preserves types if we had non-string vars, though here they are all strings)
+                if (vars.hasOwnProperty(def)) {
+                    return vars[def];
+                }
+
+                // Otherwise, perform string interpolation
+                let result = def;
+                for (const [key, value] of Object.entries(vars)) {
+                    if (result.includes(key)) {
+                        // Global replace all occurrences
+                        result = result.split(key).join(value);
+                    }
+                }
+
+                return result;
+
+            } catch (e) {
+                console.warn('evalDefault error:', e);
+                return def;
+            }
+        },
+
+        tableAddRow(name) {
+            const q = this.def.questions.find(x => x.name == name);
+            if (!q) return;
+            if (!this.data[name]) this.data[name] = [];
+
+            // Initialize new row with all column names as empty strings
+            const newRow = {};
+            if (q.columns) {
+                q.columns.forEach(col => {
+                    newRow[col.name] = '';
+                });
+            }
+
+            this.data[name].push(newRow);
+            this.reRenderField(q);
+        },
+
+        tableRemoveRow(name, idx) {
+            const q = this.def.questions.find(x => x.name == name);
+            if (!this.data[name]) return;
+            this.data[name].splice(idx, 1);
+            this.reRenderField(q);
+        },
+
+        processLookups() {
+            if (!this.def || !this.def.questions) return;
+
+            const lookupFields = this.def.questions.filter(q => q.lookup && q.lookup.sheet && q.lookup.filter_col && q.lookup.filter_val && q.lookup.target_col);
+
+            if (lookupFields.length === 0) return;
+
+            lookupFields.forEach(q => {
+                const l = q.lookup;
+                // Resolve filter value (handle variables like $madrasah_id)
+                const filterVal = this.evalDefault(l.filter_val);
+
+                if (!filterVal && l.filter_val.includes('$')) {
+                    // console.warn(`Lookup skipped for ${q.name}: Filter value ('${l.filter_val}') resolved to empty.`);
+                    return;
+                }
+                const actualFilterVal = filterVal || l.filter_val;
+
+                const el = document.getElementById('f-' + q.name);
+                if (el && !el.value) { // Only lookup if empty (or maybe always? User said "get variable... can take data". Assume if empty or readonly)
+                    if (q.readonly) el.placeholder = "Loading...";
+                }
+
+                google.script.run
+                    .withSuccessHandler(result => {
+                        if (result && result.success) {
+                            const value = result.data;
+                            if (value !== null && value !== undefined) {
+                                this.data[q.name] = value;
+                                const fieldEl = document.getElementById('f-' + q.name);
+                                if (fieldEl) {
+                                    fieldEl.value = value;
+                                    fieldEl.dispatchEvent(new Event('change')); // Trigger logic
+                                }
+                            } else {
+                                const fieldEl = document.getElementById('f-' + q.name);
+                                if (fieldEl && q.readonly) fieldEl.placeholder = "Not found";
+                            }
+                        }
+                    })
+                    .apiLookup(l.sheet, l.filter_col, actualFilterVal, l.target_col);
+            });
+        },
+
+        // ===== SPEECH FEATURES =====
+        // Initialize Speech Recognition
+        initSpeech() {
+            // Check if SpeechRecognition is available
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (SpeechRecognition) {
+                this.recognition = new SpeechRecognition();
+                this.recognition.lang = 'id-ID'; // Indonesian
+                this.recognition.continuous = false;
+                this.recognition.interimResults = false;
+                this.recognition.maxAlternatives = 1;
+            } else {
+                console.warn('Speech Recognition not supported in this browser');
+                this.recognition = null;
+            }
+        },
+
+        // Text-to-Speech: Read text aloud
+        speak(text) {
+            if (!text) return;
+
+            // Check if Speech Synthesis is available
+            if (!window.speechSynthesis) {
+                Utils.alert('Text-to-Speech tidak didukung di browser ini');
+                return;
+            }
+
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'id-ID'; // Indonesian
+            utterance.rate = 0.9; // Slightly slower for clarity
+            utterance.pitch = 1;
+            utterance.volume = 1;
+
+            // Try to find Indonesian voice
+            const voices = window.speechSynthesis.getVoices();
+            const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+            if (indonesianVoice) {
+                utterance.voice = indonesianVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        },
+
+        // Speech-to-Text: Start listening for a specific field
+        listen(fieldId) {
+            if (!this.recognition) {
+                this.initSpeech();
+            }
+
+            if (!this.recognition) {
+                Utils.alert('Voice input tidak didukung di browser ini. Gunakan Chrome untuk hasil terbaik.');
+                return;
+            }
+
+            const inputEl = document.getElementById('f-' + fieldId);
+            const micBtn = document.getElementById('mic-' + fieldId);
+
+            if (!inputEl) return;
+
+            // Visual feedback: Change mic button color
+            if (micBtn) {
+                micBtn.style.background = '#dc3545'; // Red = recording
+                micBtn.innerHTML = '🎙️';
+            }
+
+            // Handle recognition result
+            this.recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+
+                // Append to existing value or replace
+                if (inputEl.tagName === 'TEXTAREA') {
+                    // For textarea, append with space
+                    inputEl.value = inputEl.value ? inputEl.value + ' ' + transcript : transcript;
+                } else {
+                    // For text input, append with space
+                    inputEl.value = inputEl.value ? inputEl.value + ' ' + transcript : transcript;
+                }
+
+                // Trigger change event
+                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+                // Reset mic button
+                if (micBtn) {
+                    micBtn.style.background = '';
+                    micBtn.innerHTML = '🎙️';
+                }
+
+                // Trigger completion event (e.g., TTS feedback)
+                this.handleFieldComplete(fieldId, transcript);
+
+                // Handle auto-submit
+                const fieldDef = this.def.questions.find(f => f.name === fieldId);
+                this.handleAutoSubmit(fieldDef);
+            };
+
+            // Handle errors
+            this.recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (micBtn) {
+                    micBtn.style.background = '';
+                    micBtn.innerHTML = '🎙️';
+                }
+
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    Utils.alert('Izin mikrofon ditolak. Silakan aktifkan di pengaturan browser.');
+                } else if (event.error === 'no-speech') {
+                    Utils.alert('Tidak ada suara terdeteksi. Silakan coba lagi.');
+                }
+            };
+
+            // Handle end of recognition
+            this.recognition.onend = () => {
+                if (micBtn) {
+                    micBtn.style.background = '';
+                    micBtn.innerHTML = '🎙️';
+                }
+            };
+
+            // Start recognition
+            try {
+                this.recognition.start();
+            } catch (e) {
+                console.error('Failed to start recognition:', e);
+                if (micBtn) {
+                    micBtn.style.background = '';
+                    micBtn.innerHTML = '🎙️';
+                }
+            }
+        },
+
+        // ===== GENERIC AUTO-TRIGGER SYSTEM =====
+        triggerAutoStart(q) {
+            // Skip if field already has value (except for note/display types)
+            const hasVal = this.data[q.name];
+            if (hasVal && q.type !== 'note' && !q.speech_label && !q.voice_label) return;
+
+            // Map field types to their auto-start actions
+            if (q.type === 'qrcode_scan') {
+                // QR Scanner: Open scanner modal
+                this.openScannerModal(q.name);
+            } else if (q.type === 'gps') {
+                // GPS: Get location
+                if (!this.data[q.name]) this.gps(q.name);
+            } else if ((q.type === 'text' || q.type === 'textarea') && (q.speech_input || q.voice_input)) {
+                // Voice Input: Auto-start mic (with delay to ensure render complete)
+                setTimeout(() => this.listen(q.name), 500);
+            } else if (q.speech_label || q.voice_label) {
+                // TTS: Auto-read label (works for any field type including note)
+                setTimeout(() => this.speak(q.label), 300);
+            }
+        },
+
+        handleAutoSubmit(fieldDef) {
+            if (!fieldDef) return;
+
+            // Check for auto_submit property (support both variants)
+            if (fieldDef.auto_submit || fieldDef.autosubmit) {
+                // Small delay to ensure all events complete
+                setTimeout(() => {
+                    if (this.validate() && this.onSubmit) {
+                        this.onSubmit({ ...this.data });
+                    }
+                }, 300);
+            }
+        },
+
+        handleFieldComplete(fieldName, value) {
+            const fieldDef = this.def.questions.find(f => f.name === fieldName);
+            if (!fieldDef || !fieldDef.on_complete) return;
+
+            const event = fieldDef.on_complete;
+
+            // Handle speak action
+            if (event.speak) {
+                let text = event.speak;
+
+                // Variable substitution
+                text = text.replace(/\$value/g, value || '');
+                text = text.replace(/\$label/g, fieldDef.label || '');
+                text = text.replace(/\$field/g, fieldName || '');
+
+                // Delay slightly to ensure UI has updated
+                setTimeout(() => this.speak(text), 200);
+            }
+
+            // Future: Handle other event actions (navigate, action, etc.)
+        }
+
+    };
+
+    // Expose to global scope
+    window.FormEngine = FormEngine;
+</script>

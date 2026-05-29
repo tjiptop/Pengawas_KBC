@@ -5,6 +5,30 @@
      * Extracted from js-shared.html
      */
 
+    const Utils = {
+        alert(msg, title = 'Perhatian') {
+            if (typeof App !== 'undefined' && App.alert) {
+                App.alert(msg, title);
+            } else {
+                alert(msg);
+            }
+        }
+    };
+
+    const Security = {
+        sanitizeHtml: function(str) {
+            if (!str || typeof str !== 'string') return str;
+            return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        },
+        sanitizeFormulaInjection: function(str) {
+            if (!str || typeof str !== 'string') return str;
+            if (/^[=+\-@]/.test(str)) {
+                return "'" + str;
+            }
+            return str;
+        }
+    };
+
     const FormEngine = {
         // FILE ACCEPT PATTERNS (Client-side mirror of Code.js FILE_ACCEPT)
         FILE_ACCEPT: {
@@ -149,8 +173,7 @@
                     if (val !== undefined && val !== null) this.data[q.name] = val;
                 }
             }
-
-            const widthStyle = q.width ? `style="width:${q.width}"` : '';
+            const widthStyle = q.width ? `style="width:${q.width}; max-width: 100%; box-sizing: border-box;"` : '';
             let inp = '';
 
             if (q.type === 'hidden') {
@@ -1402,14 +1425,24 @@
             if (!def.includes('$')) return def;
 
             try {
-                const user = App.state.user || {};
+                // Robust user retrieval from App state or direct local storage fallback
+                let user = App.state.user;
+                if (!user || (!user.Nama && !user.NIP && !user.full_name && !user.username)) {
+                    try {
+                        const stored = localStorage.getItem('pengawas_user');
+                        if (stored) user = JSON.parse(stored);
+                    } catch(e) {
+                        console.warn('Failed to parse localStorage user in evalDefault:', e);
+                    }
+                }
+                user = user || {};
 
                 // 1. Prepare Context Variables
                 let madrasah = null;
                 if (this.madrasahContext) {
                     madrasah = this.madrasahContext;
                 } else if (user.role === 'madrasah' && App.state && App.state.madrasahs) {
-                    madrasah = App.state.madrasahs.find(m => m.madrasah_id === user.username);
+                    madrasah = App.state.madrasahs.find(m => m.madrasah_id === (user.username || user.NIP));
                 }
 
                 const today = new Date();
@@ -1417,19 +1450,22 @@
                 const dateStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
                 const timeStr = `${pad(today.getHours())}:${pad(today.getMinutes())}`;
 
-                // Map of all available variables
+                // Map of all available variables with fully robust casing fallbacks
                 const vars = {
-                    '$user_fullname': user.full_name || '',
-                    '$user_username': user.username || '',
+                    '$user_fullname': user.full_name || user.Nama || user.Nama_Lengkap || user.nama || user.nama_lengkap || '',
+                    '$user_username': user.username || user.NIP || user.nip || '',
                     '$today': dateStr,
                     '$now': `${dateStr}T${timeStr}`,
                     '$time': timeStr,
                     '$madrasah_name': (madrasah && madrasah.name) || '',
                     '$madrasah_id': (madrasah && madrasah.madrasah_id) || (user.role === 'madrasah' ? user.username : '') || '',
+                    '$madrasah_nsm': (madrasah && madrasah.nsm) || (user.role === 'madrasah' ? user.username : '') || '',
+                    '$madrasah_level': (madrasah && madrasah.level) || '',
                     '$madrasah_province': (madrasah && madrasah.province) || '',
                     '$madrasah_district': (madrasah && madrasah.district) || '',
                     '$madrasah_sub_district': (madrasah && madrasah.subdistrict) || '',
                     '$madrasah_village': (madrasah && madrasah.village) || '',
+                    '$madrasah_village_id': (madrasah && madrasah.village_id) || '',
                     '$madrasah_address': (madrasah && madrasah.address) || ''
                 };
 
@@ -1522,6 +1558,246 @@
                     })
                     .apiLookup(l.sheet, l.filter_col, actualFilterVal, l.target_col);
             });
+        },
+
+        // ===== INTERACTIVE INPUT SELECTION HANDLERS =====
+        selectLikert(name, val, labelEl) {
+            if (!labelEl) return;
+            const container = labelEl.closest('.likert-container');
+            if (container) {
+                container.querySelectorAll('.likert-option').forEach(opt => {
+                    opt.classList.remove('active');
+                    const rad = opt.querySelector('input[type="radio"]');
+                    if (rad) rad.checked = false;
+                });
+            }
+            labelEl.classList.add('active');
+            const radio = labelEl.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+
+            this.data[name] = val;
+            this.hasUnsavedChanges = true;
+            this.runLogic();
+
+            const fieldDef = this.def.questions.find(f => f.name === name);
+            this.handleFieldComplete(name, val);
+            this.handleAutoSubmit(fieldDef);
+        },
+
+        selectSegment(name, val, el) {
+            if (!el) return;
+            const container = el.closest('.segmented-control');
+            if (container) {
+                const fieldDef = this.def.questions.find(q => q.name === name) || {};
+                const customColor = fieldDef.button_color || 'var(--color-primary)';
+                container.querySelectorAll('.segmented-option').forEach(opt => {
+                    if (opt === el) {
+                        opt.classList.add('active');
+                        opt.style.background = customColor;
+                        opt.style.color = 'white';
+                        opt.style.fontWeight = '600';
+                    } else {
+                        opt.classList.remove('active');
+                        opt.style.background = 'transparent';
+                        opt.style.color = 'var(--color-text)';
+                        opt.style.fontWeight = '500';
+                    }
+                });
+            }
+            const input = document.getElementById('f-' + name);
+            if (input) {
+                input.value = val;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            this.data[name] = val;
+            this.hasUnsavedChanges = true;
+            this.runLogic();
+
+            const fieldDef = this.def.questions.find(f => f.name === name);
+            this.handleFieldComplete(name, val);
+            this.handleAutoSubmit(fieldDef);
+        },
+
+        setStar(name, starVal) {
+            this.data[name] = starVal;
+            const input = document.getElementById('f-' + name);
+            if (input) {
+                input.value = starVal;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            const container = document.querySelector(`.star-container[data-field="${name}"]`);
+            if (container) {
+                container.querySelectorAll('.star-item').forEach(item => {
+                    const val = parseInt(item.dataset.value);
+                    if (val <= starVal) {
+                        item.classList.add('filled');
+                        item.style.color = '#ffc107';
+                    } else {
+                        item.classList.remove('filled');
+                        item.style.color = '#e0e0e0';
+                    }
+                });
+                const valLabel = container.querySelector('.star-rating-value');
+                if (valLabel) valLabel.textContent = starVal > 0 ? starVal : '';
+            }
+
+            this.hasUnsavedChanges = true;
+            this.runLogic();
+
+            const fieldDef = this.def.questions.find(f => f.name === name);
+            this.handleFieldComplete(name, starVal);
+            this.handleAutoSubmit(fieldDef);
+        },
+
+        setSmiley(name, smileyVal) {
+            this.data[name] = smileyVal;
+            const input = document.getElementById('f-' + name);
+            if (input) {
+                input.value = smileyVal;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            const container = document.querySelector(`.smiley-container[data-field="${name}"]`);
+            if (container) {
+                container.querySelectorAll('.smiley-item').forEach(item => {
+                    const val = parseInt(item.dataset.value);
+                    if (val === smileyVal) {
+                        item.classList.add('selected');
+                        item.style.opacity = '1';
+                        item.style.transform = 'scale(1.1)';
+                    } else {
+                        item.classList.remove('selected');
+                        item.style.opacity = '0.5';
+                        item.style.transform = 'scale(1)';
+                    }
+                });
+            }
+
+            this.hasUnsavedChanges = true;
+            this.runLogic();
+
+            const fieldDef = this.def.questions.find(f => f.name === name);
+            this.handleFieldComplete(name, smileyVal);
+            this.handleAutoSubmit(fieldDef);
+        },
+
+        // ===== FILE & IMAGE UPLOAD HANDLERS =====
+        doc(name, inputEl) {
+            if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileObj = {
+                    data: e.target.result,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type
+                };
+                this.data[name] = fileObj;
+                this.hasUnsavedChanges = true;
+                this.reRenderField(this.def.questions.find(q => q.name === name));
+                this.runLogic();
+            };
+            reader.readAsDataURL(file);
+        },
+
+        img(name, inputEl) {
+            if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.data[name] = e.target.result;
+                this.hasUnsavedChanges = true;
+                this.reRenderField(this.def.questions.find(q => q.name === name));
+                this.runLogic();
+            };
+            reader.readAsDataURL(file);
+        },
+
+        multiDoc(name, inputEl) {
+            if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+            const files = inputEl.files;
+            if (!Array.isArray(this.data[name])) this.data[name] = [];
+
+            const fieldDef = this.def.questions.find(q => q.name === name) || {};
+            const maxFiles = fieldDef.max_files || 5;
+            const currentCount = this.data[name].length;
+            const remainingSlots = maxFiles - currentCount;
+            const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
+            if (filesToProcess.length === 0) return;
+
+            let processedCount = 0;
+            filesToProcess.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const fileObj = {
+                        data: e.target.result,
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    };
+                    this.data[name].push(fileObj);
+                    processedCount++;
+                    if (processedCount === filesToProcess.length) {
+                        this.hasUnsavedChanges = true;
+                        this.reRenderField(fieldDef);
+                        this.runLogic();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+
+        multiImg(name, inputEl) {
+            if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+            const files = inputEl.files;
+            if (!Array.isArray(this.data[name])) this.data[name] = [];
+
+            const fieldDef = this.def.questions.find(q => q.name === name) || {};
+            const maxImages = fieldDef.max_images || 5;
+            const currentCount = this.data[name].length;
+            const remainingSlots = maxImages - currentCount;
+            const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
+            if (filesToProcess.length === 0) return;
+
+            let processedCount = 0;
+            filesToProcess.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.data[name].push(e.target.result);
+                    processedCount++;
+                    if (processedCount === filesToProcess.length) {
+                        this.hasUnsavedChanges = true;
+                        this.reRenderField(fieldDef);
+                        this.runLogic();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+
+        removeMultiDoc(name, idx) {
+            const q = this.def.questions.find(x => x.name == name);
+            if (this.data[name] && Array.isArray(this.data[name])) {
+                this.data[name].splice(idx, 1);
+                this.hasUnsavedChanges = true;
+                this.reRenderField(q);
+                this.runLogic();
+            }
+        },
+
+        removeMultiImg(name, idx) {
+            const q = this.def.questions.find(x => x.name == name);
+            if (this.data[name] && Array.isArray(this.data[name])) {
+                this.data[name].splice(idx, 1);
+                this.hasUnsavedChanges = true;
+                this.reRenderField(q);
+                this.runLogic();
+            }
         },
 
         // ===== SPEECH FEATURES =====

@@ -358,6 +358,11 @@ function getDataFresh(sheetName) {
                     obj[key] = row[i];
                 }
             });
+            if (sheetName === 'Madrasahs') {
+                if (obj.nsm !== undefined && obj.madrasah_id === undefined) {
+                    obj.madrasah_id = obj.nsm;
+                }
+            }
             return obj;
         });
 
@@ -1738,20 +1743,19 @@ function apiGeneratePasswordResetToken(madrasah_id, expiry_hours, requester_user
         }
 
         // Check if requester has access to this madrasah
-        const madrasahs = getData('Madrasahs');
-        const madrasah = madrasahs.find(m => String(m.madrasah_id) === String(madrasah_id));
+        const madrasah = DataService.getMadrasahById(madrasah_id);
 
         if (!madrasah) {
             return { success: false, message: 'Madrasah not found' };
         }
 
         // Access control: User role can only reset madrasah in their district scope
-        if (requester.role === 'district' && madrasah.district !== requester.scope) {
+        if (requester.role === 'district' && String(madrasah.district || '').trim().toLowerCase() !== String(requester.scope || '').trim().toLowerCase()) {
             return { success: false, message: 'You do not have access to this madrasah' };
         }
 
         // Admin and supervisor have full access
-        if (requester.role === 'province' && madrasah.province !== requester.scope) {
+        if (requester.role === 'province' && String(madrasah.province || '').trim().toLowerCase() !== String(requester.scope || '').trim().toLowerCase()) {
             return { success: false, message: 'You do not have access to this madrasah' };
         }
 
@@ -1941,10 +1945,10 @@ function apiExportExcel(username) {
                 return apiError('Province scope not defined for this user');
             }
             provinceMadrasahs = allMadrasahs.filter(m =>
-                String(m.province || '').toLowerCase() === String(provinceName).toLowerCase()
+                String(m.province || '').trim().toLowerCase() === String(provinceName).trim().toLowerCase()
             );
-            exportFolderName = provinceName;
-            scopeName = provinceName;
+            exportFolderName = provinceName.trim();
+            scopeName = provinceName.trim();
             console.log(`Excel export requested by ${username} (Province: ${provinceName}) - Found ${provinceMadrasahs.length} madrasahs`);
         }
 
@@ -2504,10 +2508,8 @@ function apiFetchEnumFasdaUsers(requesterUsername) {
         }
 
         // Get madrasahs in Province scope
-        const madrasahs = getData('Madrasahs');
-        const provinceMadrasahIds = madrasahs
-            .filter(m => m.province === requester.scope)
-            .map(m => m.madrasah_id);
+        const provinceMadrasahs = DataService.getMadrasahsByProvince(requester.scope);
+        const provinceMadrasahIds = provinceMadrasahs.map(m => m.madrasah_id || m.nsm);
 
         // Filter enum/fasda users that have at least one madrasah in this province
         const enumFasdaUsers = users.filter(u => {
@@ -2546,7 +2548,7 @@ function apiFetchEnumFasdaUsers(requesterUsername) {
         return {
             success: true,
             users: enumFasdaUsers,
-            madrasahs: madrasahs.filter(m => m.province === requester.scope)
+            madrasahs: provinceMadrasahs
         };
     } catch (e) {
         return { success: false, message: e.toString() };
@@ -2588,11 +2590,10 @@ function apiAddUser(userData, requesterUsername) {
             return { success: false, message: 'At least one madrasah must be assigned' };
         }
 
-        const madrasahs = getData('Madrasahs');
-        const provinceMadrasahs = madrasahs.filter(m => m.province === requester.scope);
+        const provinceMadrasahs = DataService.getMadrasahsByProvince(requester.scope);
 
         for (const id of assignedIds) {
-            if (!provinceMadrasahs.find(m => m.madrasah_id === id)) {
+            if (!provinceMadrasahs.find(m => String(m.madrasah_id || m.nsm) === String(id))) {
                 return { success: false, message: `Madrasah ${id} not in your province` };
             }
         }
@@ -2673,11 +2674,10 @@ function apiUpdateUser(username, updates, requesterUsername) {
                 return { success: false, message: 'At least one madrasah must be assigned' };
             }
 
-            const madrasahs = getData('Madrasahs');
-            const provinceMadrasahs = madrasahs.filter(m => m.province === requester.scope);
+            const provinceMadrasahs = DataService.getMadrasahsByProvince(requester.scope);
 
             for (const id of assignedIds) {
-                if (!provinceMadrasahs.find(m => m.madrasah_id === id)) {
+                if (!provinceMadrasahs.find(m => String(m.madrasah_id || m.nsm) === String(id))) {
                     return { success: false, message: `Madrasah ${id} not in your province` };
                 }
             }
