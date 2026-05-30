@@ -12,7 +12,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
 // Application Version
-const APP_VERSION = 'v2.2.0';
+const APP_VERSION = 'v2.2.1';
 
 // ============================================================
 // ENTRY POINT (Web App serving)

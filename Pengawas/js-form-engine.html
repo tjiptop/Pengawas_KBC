@@ -1828,7 +1828,7 @@
                 if (file.size > maxSizeBytes) {
                     App.alert(`File ${file.name} terlalu besar (Maksimal ${fieldDef.max_size || 5}MB sebelum kompresi)`, 'Gagal');
                     processedCount++;
-                    if (processedCount === filesToProcess.length) {
+                    if (processedCount === filesArray.length) {
                         App.loading(false);
                         this.reRenderField(fieldDef);
                     }
@@ -1858,7 +1858,7 @@
                         this.data[name].push(b64);
                         processedCount++;
 
-                        if (processedCount === filesToProcess.length) {
+                        if (processedCount === filesArray.length) {
                             App.loading(false);
                             this.hasUnsavedChanges = true;
                             this.reRenderField(fieldDef);
