@@ -478,18 +478,23 @@
 
                 const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
                 const isLimitReached = val.length >= maxImages;
+                const disabledAttr = isLimitReached ? 'disabled' : '';
+                const cameraInputId = 'f-' + q.name + '-camera';
+                const filesInputId = 'f-' + q.name + '-files';
+                const previewId = 'prev-' + q.name;
+
                 inp = `
-                    <input type="file" id="f-${q.name}-camera" accept="image/*" capture style="display:none" onchange="FormEngine.multiImg('${q.name}',this)">
-                    <input type="file" id="f-${q.name}-files" accept="image/*" multiple style="display:none" onchange="FormEngine.multiImg('${q.name}',this)">
+                    <input type="file" id="${cameraInputId}" accept="image/*" capture style="display:none" onchange="FormEngine.multiImg('${q.name}',this)">
+                    <input type="file" id="${filesInputId}" accept="image/*" multiple style="display:none" onchange="FormEngine.multiImg('${q.name}',this)">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                        <button type="button" class="${buttonClass}" style="${buttonStyle}margin-left:0;margin-right:0;" onclick="document.getElementById('f-${q.name}-camera').click()" ${isLimitReached ? 'disabled' : ''}>
+                        <button type="button" class="${buttonClass}" style="${buttonStyle}margin-left:0;margin-right:0;" onclick="document.getElementById('${cameraInputId}').click()" ${disabledAttr}>
                             📷 Ambil Foto (${val.length}/${maxImages})
                         </button>
-                        <button type="button" class="btn btn-secondary" style="${buttonStyle}margin-left:0;margin-right:0;" onclick="document.getElementById('f-${q.name}-files').click()" ${isLimitReached ? 'disabled' : ''}>
+                        <button type="button" class="btn btn-secondary" style="${buttonStyle}margin-left:0;margin-right:0;" onclick="document.getElementById('${filesInputId}').click()" ${disabledAttr}>
                             🖼️ Pilih Galeri
                         </button>
                     </div>
-                    <div id="prev-${q.name}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${slots}</div>
+                    <div id="${previewId}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${slots}</div>
                 `;
 
             } else if (q.type == 'file') {
