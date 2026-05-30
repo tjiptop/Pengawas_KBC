@@ -1,25 +1,4 @@
 <script>
-    // Central configuration fallback for Pengawas Form Engine
-    if (typeof window.CONFIG === 'undefined') {
-        window.CONFIG = {};
-    }
-    if (!window.CONFIG.FILE) {
-        window.CONFIG.FILE = {
-            IMAGE_MAX_DIMENSION: 1200,   // Max width/height in pixels
-            IMAGE_QUALITY: 0.6,          // JPEG quality (0.0 - 1.0)
-            IMAGE_MAX_SIZE_MB: 5,        // Max size before compression
-            AUDIO_MAX_SIZE_MB: 50,       // Max audio file size
-            AUDIO_MAX_DURATION_SEC: 7200, // Max recording duration (2 hours)
-            DOCUMENT_MAX_SIZE_MB: 10     // Max document file size
-        };
-    }
-    if (!window.CONFIG.UI) {
-        window.CONFIG.UI = {
-            MULTI_IMAGE_DEFAULT_MAX: 5,
-            MULTI_FILE_DEFAULT_MAX: 5
-        };
-    }
-
     /**
      * FORM ENGINE - RENDERING & VALIDATION MODULE
      * Core form rendering logic for all field types
@@ -428,7 +407,7 @@
 
             } else if (q.type == 'multi_image') {
                 if (!Array.isArray(val)) val = [];
-                const maxImages = q.max_images || CONFIG.UI.MULTI_IMAGE_DEFAULT_MAX;
+                const maxImages = q.max_images || 5;
 
                 let slots = '';
                 for (let i = 0; i < maxImages; i++) {
@@ -1740,7 +1719,7 @@
             if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
             const file = inputEl.files[0];
             const fieldDef = this.def.questions.find(q => q.name === name) || {};
-            const limit = (fieldDef.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+            const limit = (fieldDef.max_size || 5) * 1024 * 1024;
             if (file.size > limit) {
                 App.alert(`File terlalu besar (Maksimal ${fieldDef.max_size || 5}MB sebelum kompresi)`, 'Gagal');
                 inputEl.value = '';
@@ -1753,7 +1732,7 @@
                 const imgObj = new Image();
                 imgObj.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                    const MAX = 1200;
                     let w = imgObj.width, h = imgObj.height;
                     if (w > h) {
                         if (w > MAX) { h *= MAX / w; w = MAX; }
@@ -1766,7 +1745,7 @@
                     ctx.fillStyle = "#FFFFFF";
                     ctx.fillRect(0, 0, w, h);
                     ctx.drawImage(imgObj, 0, 0, w, h);
-                    const b64 = canvas.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+                    const b64 = canvas.toDataURL('image/jpeg', 0.6);
 
                     this.data[name] = b64;
                     this.hasUnsavedChanges = true;
@@ -1828,7 +1807,7 @@
 
             const fieldDef = this.def.questions.find(q => q.name === name) || {};
             const maxImages = fieldDef.max_images || 5;
-            const maxSizeBytes = (fieldDef.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+            const maxSizeBytes = (fieldDef.max_size || 5) * 1024 * 1024;
 
             const remaining = maxImages - this.data[name].length;
             if (remaining <= 0) {
@@ -1863,7 +1842,7 @@
                     const imgObj = new Image();
                     imgObj.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                        const MAX = 1200;
                         let w = imgObj.width, h = imgObj.height;
                         if (w > h) {
                             if (w > MAX) { h *= MAX / w; w = MAX; }
@@ -1876,7 +1855,7 @@
                         ctx.fillStyle = "#FFFFFF";
                         ctx.fillRect(0, 0, w, h);
                         ctx.drawImage(imgObj, 0, 0, w, h);
-                        const b64 = canvas.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+                        const b64 = canvas.toDataURL('image/jpeg', 0.6);
 
                         this.data[name].push(b64);
                         processedCount++;
