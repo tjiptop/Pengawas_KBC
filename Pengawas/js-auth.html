@@ -43,11 +43,11 @@ const AuthViews = {
             <p style="text-align: center; margin-bottom: 20px; font-size: 0.9em; color: #555;">Selamat datang! Silakan buat password untuk akun NIP <b>${nip}</b></p>
             <div class="form-group" style="margin-bottom: 15px;">
                 <label>Password Baru</label>
-                <input type="password" id="setup-pwd1" class="form-control" required>
+                <input type="password" id="setup-pwd1" class="form-control" placeholder="Minimal 6 karakter" minlength="6" required>
             </div>
             <div class="form-group" style="margin-bottom: 20px;">
                 <label>Konfirmasi Password</label>
-                <input type="password" id="setup-pwd2" class="form-control" required>
+                <input type="password" id="setup-pwd2" class="form-control" placeholder="Minimal 6 karakter" minlength="6" required>
             </div>
             <button class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="AuthManager.doSetPassword('${nip}')">Simpan Password</button>
         </div>
@@ -85,7 +85,7 @@ const AuthManager = {
         const p1 = document.getElementById('setup-pwd1').value;
         const p2 = document.getElementById('setup-pwd2').value;
 
-        if (!p1 || p1.length < 4) return App.alert('Password minimal 4 karakter', 'Error');
+        if (!p1 || p1.length < 6) return App.alert('Password minimal 6 karakter', 'Error');
         if (p1 !== p2) return App.alert('Konfirmasi password tidak cocok', 'Error');
 
         App.loading(true, 'Menyimpan password...');
