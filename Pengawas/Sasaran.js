@@ -56,36 +56,72 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       const data = sheet.getDataRange().getValues();
       const headers = data[0];
 
+      // NSM: header bisa 'nsm' atau 'NSM'
       let idxNSM = headers.findIndex(h => {
         const u = h.toString().toUpperCase();
-        return u === 'NSM' || (u.includes('NSM') && !u.includes('KODE') && !u.includes('ID'));
+        return u === 'NSM';
       });
-      let idxNPSN = headers.findIndex(h => h.toString().toUpperCase().includes('NPSN'));
+
+      // NPSN
+      let idxNPSN = headers.findIndex(h => h.toString().toUpperCase() === 'NPSN');
+
+      // Nama: bisa 'name', 'nama', 'nama_madrasah'
       let idxNama = headers.findIndex(h => {
         const u = h.toString().toUpperCase();
-        return u === 'NAMA' || u === 'NAMA_MADRASAH' || (u.includes('NAMA') && !u.includes('KAB') && !u.includes('KEC'));
+        return u === 'NAMA' || u === 'NAME' || u === 'NAMA_MADRASAH' || u === 'MADRASAH_NAME';
       });
-      
-      // Pencarian kolom Kabupaten yang aman dari kolom kode/ID
+      if (idxNama === -1) {
+        idxNama = headers.findIndex(h => {
+          const u = h.toString().toUpperCase();
+          return (u.includes('NAMA') || u.includes('NAME')) && !u.includes('SUB') && !u.includes('KAB') && !u.includes('KEC') && !u.includes('PROV');
+        });
+      }
+
+      // Kabupaten: exact match dulu, lalu fuzzy dengan exclude kode/ID
       let idxKab = headers.findIndex(h => {
         const u = h.toString().toUpperCase();
-        return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
+        return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA' || u === 'DISTRICT';
       });
       if (idxKab === -1) {
         idxKab = headers.findIndex(h => {
           const u = h.toString().toUpperCase();
           if (u.includes('KODE') || u.includes('CODE') || u.includes('ID') || u.includes('NO')) return false;
-          return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT';
+          return u.includes('KAB') || u.includes('KOTA') || u.includes('DISTRICT');
         });
       }
 
-      let idxKec = headers.findIndex(h => h.toString().toUpperCase().includes('SUB_DISTRICT') || h.toString().toUpperCase().includes('KECAMATAN') || h.toString().toUpperCase().includes('KEC'));
-      let idxJenjang = headers.findIndex(h => h.toString().toUpperCase().includes('JENJANG') || h.toString().toUpperCase().includes('BENTUK') || h.toString().toUpperCase() === 'LEVEL');
+      // Kecamatan: sub_district, kecamatan, kec
+      let idxKec = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u === 'SUB_DISTRICT' || u === 'KECAMATAN' || u === 'KEC' || u === 'SUBDISTRICT';
+      });
+      if (idxKec === -1) {
+        idxKec = headers.findIndex(h => {
+          const u = h.toString().toUpperCase();
+          return u.includes('SUB_DISTRICT') || u.includes('SUBDISTRICT') || u.includes('KECAMATAN');
+        });
+      }
+
+      // Jenjang: level, jenjang, bentuk
+      let idxJenjang = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u === 'LEVEL' || u === 'JENJANG' || u === 'BENTUK';
+      });
+      if (idxJenjang === -1) {
+        idxJenjang = headers.findIndex(h => {
+          const u = h.toString().toUpperCase();
+          return u.includes('LEVEL') || u.includes('JENJANG') || u.includes('BENTUK');
+        });
+      }
+
+      // Log hasil deteksi kolom
+      console.log(`[getSasaran] Kolom Detected - NSM:${idxNSM}, Nama:${idxNama}, Kab:${idxKab}, Kec:${idxKec}, Jenjang:${idxJenjang}`);
+      console.log(`[getSasaran] Headers: ${JSON.stringify(headers)}`);
 
       if (idxNSM === -1) idxNSM = 0;
-      if (idxNama === -1) idxNama = 1;
-      if (idxKab === -1) idxKab = 2;
-      if (idxJenjang === -1) idxJenjang = 3;
+      if (idxNama === -1) idxNama = 2; // Indeks 2 adalah 'name' berdasarkan diagnostik
+      if (idxKab === -1) idxKab = 8;   // Indeks 8 adalah 'district' berdasarkan diagnostik
+      if (idxJenjang === -1) idxJenjang = 4; // Indeks 4 adalah 'level' berdasarkan diagnostik
 
       allKabMadrasahs = [];
       for (let i = 1; i < data.length; i++) {
@@ -103,6 +139,8 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
           });
         }
       }
+      
+      console.log(`[getSasaran] allKabMadrasahs for "${cleanProfileKab}": ${allKabMadrasahs.length} rows`);
       
       try {
         putCacheChunked(safeCacheKey, JSON.stringify(allKabMadrasahs), 21600);
