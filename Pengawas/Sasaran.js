@@ -128,7 +128,7 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
         let kab = String(data[i][idxKab]).toLowerCase().trim();
         let cleanDbKab = cleanRegencyName_(kab);
 
-        if (!cleanProfileKab || cleanDbKab === cleanProfileKab) {
+        if (!cleanProfileKab || kabMatches_(cleanProfileKab, cleanDbKab)) {
           allKabMadrasahs.push({
             nsm: data[i][idxNSM],
             npsn: idxNPSN !== -1 ? data[i][idxNPSN] : '',
@@ -339,17 +339,44 @@ function getSasaranPageData(nip, kabupaten, jenjangStr) {
 }
 
 /**
- * Normalisasi nama kabupaten/kota untuk perbandingan yang robust (case-insensitive, remove prefixes, remove spaces/hyphens)
+ * Normalisasi nama kabupaten/kota — mempertahankan prefix "kota"/"kabupaten"
+ * agar Kota Malang ≠ Kabupaten Malang
+ * - kab. / kab  → kabupaten
+ * - Hapus karakter non-huruf/angka/spasi
+ * - Lowercase, trim
  * @param {string} name
- * @returns {string} Cleaned name
+ * @returns {string} Cleaned name, e.g. "kota malang", "kabupaten malang", "parepare"
  */
 function cleanRegencyName_(name) {
   if (!name) return '';
-  return String(name)
-    .toLowerCase()
-    .replace(/^kab\.\s+/i, '')
-    .replace(/^kabupaten\s+/i, '')
-    .replace(/^kota\s+/i, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+  let s = String(name).toLowerCase().trim();
+  // Normalisasi variasi 'kab.' dan 'kab ' menjadi 'kabupaten '
+  s = s.replace(/^kab\.\s*/i, 'kabupaten ');
+  s = s.replace(/^kab\s+/i, 'kabupaten ');
+  // Hapus karakter selain huruf, angka, dan spasi
+  s = s.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+/**
+ * Pencocokan kabupaten yang presisi — membedakan "kota X" vs "kabupaten X".
+ * Jika profil memiliki prefix (kota/kabupaten), harus cocok persis.
+ * Jika profil tidak memiliki prefix (misal hanya "parepare"), cocokkan bagian nama saja.
+ * @param {string} cleanProfile - hasil cleanRegencyName_ dari profil pengawas
+ * @param {string} cleanDb     - hasil cleanRegencyName_ dari database
+ * @returns {boolean}
+ */
+function kabMatches_(cleanProfile, cleanDb) {
+  if (!cleanProfile) return true;       // tidak ada filter → semua lolos
+  if (cleanDb === cleanProfile) return true; // cocok persis (termasuk prefix)
+
+  // Cek apakah profil punya prefix kota/kabupaten
+  const hasPrefix = cleanProfile.startsWith('kota ') || cleanProfile.startsWith('kabupaten ');
+  if (!hasPrefix) {
+    // Profil tanpa prefix: bandingkan hanya bagian nama (hapus prefix dari DB)
+    const dbName = cleanDb.replace(/^kota /, '').replace(/^kabupaten /, '');
+    return dbName === cleanProfile;
+  }
+  // Profil dengan prefix: wajib cocok persis (sudah dicek di atas, jadi false)
+  return false;
 }
