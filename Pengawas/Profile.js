@@ -14,7 +14,7 @@ function getProfile(nip) {
     
     const sheetProfil = ss.getSheetByName('Profil');
     if (sheetProfil) {
-      const dataProfil = sheetProfil.getDataRange().getValues();
+      const dataProfil = sheetProfil.getDataRange().getDisplayValues();
       const headersProfil = dataProfil[0] || [];
       for (let i = 1; i < dataProfil.length; i++) {
         if (String(dataProfil[i][0]).trim() == nipStr) {
@@ -133,7 +133,7 @@ function saveProfile(data) {
     const sheet = ss.getSheetByName('Profil');
     if (!sheet) return apiError('Sheet Profil tidak ditemukan.', 'SYS_ERROR');
     
-    const rows = sheet.getDataRange().getValues();
+    const rows = sheet.getDataRange().getDisplayValues();
     const headers = rows[0];
 
     // Auto-extract DOB dari NIP jika belum ada
