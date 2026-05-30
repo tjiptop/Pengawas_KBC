@@ -113,6 +113,19 @@ const SasaranManager = {
         google.script.run.withSuccessHandler(res => {
             App.loading(false);
             if (res && res.success) {
+                // Tampilkan diagnostics di alert untuk memudahkan debugging database
+                if (res.data && res.data.diagnostics) {
+                    const diag = res.data.diagnostics;
+                    const diagText = `
+                        <b>Sheets:</b> ${diag.sheets.join(', ')}<br>
+                        <b>Headers:</b> ${diag.headers.join(', ')}<br>
+                        <b>Indeks Kab:</b> ${diag.idxKab} (Header: ${diag.headers[diag.idxKab] || 'Tidak Ada'})<br>
+                        <b>Total Baris Ditemukan untuk "Pare":</b> ${diag.foundParepareCount}<br>
+                        <b>Sampel Baris Data:</b><br>
+                        <pre style="font-size:0.75em; background:#eee; padding:5px; border-radius:4px; max-height:80px; overflow:auto; text-align:left;">${JSON.stringify(diag.sampleRow, null, 2)}</pre>
+                    `;
+                    App.alert(diagText, 'Diagnostics Database Master');
+                }
                 this.selectedData = res.data.sasaran || [];
                 App.state.madrasahSasaran = this.selectedData;
                 this.allData = res.data.available || [];

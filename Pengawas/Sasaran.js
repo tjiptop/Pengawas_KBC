@@ -288,11 +288,49 @@ function saveSasaranList(nip, nsmListArray) {
  */
 function getSasaranPageData(nip, kabupaten, jenjangStr) {
   try {
+    const ss = getMasterDb_();
+    const sheets = ss.getSheets().map(s => s.getName());
+    const firstSheet = ss.getSheets()[0];
+    const headers = firstSheet ? firstSheet.getDataRange().getValues()[0] : [];
+    
+    let idxKab = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
+    });
+    if (idxKab === -1) {
+      idxKab = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        if (u.includes('KODE') || u.includes('CODE') || u.includes('ID') || u.includes('NO')) return false;
+        return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT';
+      });
+    }
+
+    const sampleRow = firstSheet && firstSheet.getLastRow() > 1 ? firstSheet.getDataRange().getValues()[1] : [];
+    
+    // Cari kabupaten Parepare di sheet pertama
+    let foundParepareCount = 0;
+    if (firstSheet) {
+      const vals = firstSheet.getDataRange().getValues();
+      for (let i = 1; i < vals.length; i++) {
+        if (idxKab !== -1 && String(vals[i][idxKab]).toLowerCase().includes('pare')) {
+          foundParepareCount++;
+        }
+      }
+    }
+
     const activeSasaran = getSasaran(nip);
     const availableMadrasah = getMadrasahForSasaran(kabupaten, jenjangStr, nip);
+    
     return apiSuccess({
       sasaran: activeSasaran,
-      available: availableMadrasah
+      available: availableMadrasah,
+      diagnostics: {
+        sheets: sheets,
+        headers: headers,
+        idxKab: idxKab,
+        sampleRow: sampleRow,
+        foundParepareCount: foundParepareCount
+      }
     });
   } catch (e) {
     return apiError('Gagal memuat data halaman sasaran: ' + e.toString(), 'SYSTEM_ERROR');
