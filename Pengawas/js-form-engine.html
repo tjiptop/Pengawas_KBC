@@ -1,19 +1,22 @@
 <script>
     // Central configuration fallback for Pengawas Form Engine
-    if (typeof CONFIG === 'undefined') {
-        window.CONFIG = {
-            FILE: {
-                IMAGE_MAX_DIMENSION: 1200,   // Max width/height in pixels
-                IMAGE_QUALITY: 0.6,          // JPEG quality (0.0 - 1.0)
-                IMAGE_MAX_SIZE_MB: 5,        // Max size before compression
-                AUDIO_MAX_SIZE_MB: 50,       // Max audio file size
-                AUDIO_MAX_DURATION_SEC: 7200, // Max recording duration (2 hours)
-                DOCUMENT_MAX_SIZE_MB: 10     // Max document file size
-            },
-            UI: {
-                MULTI_IMAGE_DEFAULT_MAX: 5,
-                MULTI_FILE_DEFAULT_MAX: 5
-            }
+    if (typeof window.CONFIG === 'undefined') {
+        window.CONFIG = {};
+    }
+    if (!window.CONFIG.FILE) {
+        window.CONFIG.FILE = {
+            IMAGE_MAX_DIMENSION: 1200,   // Max width/height in pixels
+            IMAGE_QUALITY: 0.6,          // JPEG quality (0.0 - 1.0)
+            IMAGE_MAX_SIZE_MB: 5,        // Max size before compression
+            AUDIO_MAX_SIZE_MB: 50,       // Max audio file size
+            AUDIO_MAX_DURATION_SEC: 7200, // Max recording duration (2 hours)
+            DOCUMENT_MAX_SIZE_MB: 10     // Max document file size
+        };
+    }
+    if (!window.CONFIG.UI) {
+        window.CONFIG.UI = {
+            MULTI_IMAGE_DEFAULT_MAX: 5,
+            MULTI_FILE_DEFAULT_MAX: 5
         };
     }
 
