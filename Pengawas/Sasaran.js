@@ -309,11 +309,17 @@ function getSasaranPageData(nip, kabupaten, jenjangStr) {
     
     // Cari kabupaten Parepare di sheet pertama
     let foundParepareCount = 0;
+    let parepareSampleDbValues = [];
+    let parepareCleanDbValues = [];
     if (firstSheet) {
       const vals = firstSheet.getDataRange().getValues();
       for (let i = 1; i < vals.length; i++) {
         if (idxKab !== -1 && String(vals[i][idxKab]).toLowerCase().includes('pare')) {
           foundParepareCount++;
+          if (parepareSampleDbValues.length < 5) {
+            parepareSampleDbValues.push(vals[i][idxKab]);
+            parepareCleanDbValues.push(cleanRegencyName_(vals[i][idxKab]));
+          }
         }
       }
     }
@@ -329,7 +335,12 @@ function getSasaranPageData(nip, kabupaten, jenjangStr) {
         headers: headers,
         idxKab: idxKab,
         sampleRow: sampleRow,
-        foundParepareCount: foundParepareCount
+        foundParepareCount: foundParepareCount,
+        cleanProfileKab: cleanRegencyName_(kabupaten),
+        parepareSampleDbValues: parepareSampleDbValues,
+        parepareCleanDbValues: parepareCleanDbValues,
+        availableCount: availableMadrasah.length,
+        allowedJenjangs: String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '')
       }
     });
   } catch (e) {
