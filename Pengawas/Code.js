@@ -10,7 +10,7 @@ const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
-const APP_VERSION = 'v2.1.11';
+const APP_VERSION = 'v2.1.12';
 
 // ============================================================
 // ENTRY POINT

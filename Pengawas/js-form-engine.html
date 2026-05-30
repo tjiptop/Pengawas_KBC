@@ -1,4 +1,22 @@
 <script>
+    // Central configuration fallback for Pengawas Form Engine
+    if (typeof CONFIG === 'undefined') {
+        window.CONFIG = {
+            FILE: {
+                IMAGE_MAX_DIMENSION: 1200,   // Max width/height in pixels
+                IMAGE_QUALITY: 0.6,          // JPEG quality (0.0 - 1.0)
+                IMAGE_MAX_SIZE_MB: 5,        // Max size before compression
+                AUDIO_MAX_SIZE_MB: 50,       // Max audio file size
+                AUDIO_MAX_DURATION_SEC: 7200, // Max recording duration (2 hours)
+                DOCUMENT_MAX_SIZE_MB: 10     // Max document file size
+            },
+            UI: {
+                MULTI_IMAGE_DEFAULT_MAX: 5,
+                MULTI_FILE_DEFAULT_MAX: 5
+            }
+        };
+    }
+
     /**
      * FORM ENGINE - RENDERING & VALIDATION MODULE
      * Core form rendering logic for all field types
@@ -1706,12 +1724,49 @@
         img(name, inputEl) {
             if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
             const file = inputEl.files[0];
+            const fieldDef = this.def.questions.find(q => q.name === name) || {};
+            const limit = (fieldDef.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+            if (file.size > limit) {
+                App.alert(`File terlalu besar (Maksimal ${fieldDef.max_size || 5}MB sebelum kompresi)`, 'Gagal');
+                inputEl.value = '';
+                return;
+            }
+
+            App.loading(true, "Memproses gambar...");
             const reader = new FileReader();
             reader.onload = (e) => {
-                this.data[name] = e.target.result;
-                this.hasUnsavedChanges = true;
-                this.reRenderField(this.def.questions.find(q => q.name === name));
-                this.runLogic();
+                const imgObj = new Image();
+                imgObj.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                    let w = imgObj.width, h = imgObj.height;
+                    if (w > h) {
+                        if (w > MAX) { h *= MAX / w; w = MAX; }
+                    } else {
+                        if (h > MAX) { w *= MAX / h; h = MAX; }
+                    }
+                    canvas.width = Math.floor(w);
+                    canvas.height = Math.floor(h);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(imgObj, 0, 0, w, h);
+                    const b64 = canvas.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+
+                    this.data[name] = b64;
+                    this.hasUnsavedChanges = true;
+                    
+                    const hiddenInput = document.getElementById('f-' + name);
+                    if (hiddenInput) hiddenInput.value = b64;
+
+                    const prev = document.getElementById('prev-' + name);
+                    if (prev) prev.innerHTML = `<img src="${b64}" style="max-width:100%;border-radius:4px;margin-top:5px;border:1px solid var(--color-border)">`;
+
+                    App.loading(false);
+                    this.reRenderField(fieldDef);
+                    this.runLogic();
+                };
+                imgObj.src = e.target.result;
             };
             reader.readAsDataURL(file);
         },
@@ -1758,26 +1813,71 @@
 
             const fieldDef = this.def.questions.find(q => q.name === name) || {};
             const maxImages = fieldDef.max_images || 5;
-            const currentCount = this.data[name].length;
-            const remainingSlots = maxImages - currentCount;
-            const filesToProcess = Array.from(files).slice(0, remainingSlots);
+            const maxSizeBytes = (fieldDef.max_size || CONFIG.FILE.IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
 
-            if (filesToProcess.length === 0) return;
+            const remaining = maxImages - this.data[name].length;
+            if (remaining <= 0) {
+                App.alert(`Maximum ${maxImages} gambar diperbolehkan`, 'Peringatan');
+                inputEl.value = '';
+                return;
+            }
+
+            const filesToProcess = Math.min(files.length, remaining);
+            if (files.length > remaining) {
+                App.alert(`Hanya tersisa ${remaining} slot. Memproses ${remaining} gambar pertama.`, 'Info');
+            }
+
+            App.loading(true, `Memproses ${filesToProcess} gambar...`);
 
             let processedCount = 0;
-            filesToProcess.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.data[name].push(e.target.result);
+            const filesArray = Array.from(files).slice(0, filesToProcess);
+
+            filesArray.forEach(file => {
+                if (file.size > maxSizeBytes) {
+                    App.alert(`File ${file.name} terlalu besar (Maksimal ${fieldDef.max_size || 5}MB sebelum kompresi)`, 'Gagal');
                     processedCount++;
                     if (processedCount === filesToProcess.length) {
-                        this.hasUnsavedChanges = true;
+                        App.loading(false);
                         this.reRenderField(fieldDef);
-                        this.runLogic();
                     }
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imgObj = new Image();
+                    imgObj.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX = CONFIG.FILE.IMAGE_MAX_DIMENSION;
+                        let w = imgObj.width, h = imgObj.height;
+                        if (w > h) {
+                            if (w > MAX) { h *= MAX / w; w = MAX; }
+                        } else {
+                            if (h > MAX) { w *= MAX / h; h = MAX; }
+                        }
+                        canvas.width = Math.floor(w);
+                        canvas.height = Math.floor(h);
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.fillRect(0, 0, w, h);
+                        ctx.drawImage(imgObj, 0, 0, w, h);
+                        const b64 = canvas.toDataURL('image/jpeg', CONFIG.FILE.IMAGE_QUALITY);
+
+                        this.data[name].push(b64);
+                        processedCount++;
+
+                        if (processedCount === filesToProcess.length) {
+                            App.loading(false);
+                            this.hasUnsavedChanges = true;
+                            this.reRenderField(fieldDef);
+                            this.runLogic();
+                        }
+                    };
+                    imgObj.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             });
+            inputEl.value = '';
         },
 
         removeMultiDoc(name, idx) {
