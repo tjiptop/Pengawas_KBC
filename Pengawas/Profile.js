@@ -151,18 +151,32 @@ function saveProfile(data) {
       }
     }
 
-    let rowData = headers.map(h => data[h] !== undefined ? data[h] : '');
+    // Trim headers to be extremely safe against trailing spaces in spreadsheet columns
+    let rowData = headers.map(h => {
+      let trimmedHeader = String(h).trim();
+      return data[trimmedHeader] !== undefined ? data[trimmedHeader] : '';
+    });
 
     if (rowIdx > -1) {
       // Preserve photo URL jika tidak di-overwrite
-      let existingPhoto = rows[rowIdx - 1][headers.indexOf('Foto URL')];
-      if (!data['Foto URL'] && existingPhoto) {
-        rowData[headers.indexOf('Foto URL')] = existingPhoto;
+      let photoIdx = headers.map(h => String(h).trim()).indexOf('Foto URL');
+      if (photoIdx > -1) {
+        let existingPhoto = rows[rowIdx - 1][photoIdx];
+        if (!data['Foto URL'] && existingPhoto) {
+          rowData[photoIdx] = existingPhoto;
+        }
       }
     } else {
-      // Append a blank row first to get the row index
-      sheet.appendRow(headers.map(() => ''));
-      rowIdx = sheet.getLastRow();
+      // Cari baris kosong pertama di kolom A mulai dari baris 2 untuk menghindari bug penulisan di baris terbawah
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]).trim() === '') {
+          rowIdx = i + 1;
+          break;
+        }
+      }
+      if (rowIdx === -1) {
+        rowIdx = rows.length + 1;
+      }
     }
 
     // Set number formats of the row to plain text to preserve leading zeros (like WA starting with 0)
