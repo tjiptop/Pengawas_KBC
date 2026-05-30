@@ -50,7 +50,7 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       }
     }
 
-    if (!allKabMadrasahs) {
+    if (!allKabMadrasahs || allKabMadrasahs.length === 0) {
       const ss = getMasterDb_();
       const sheet = ss.getSheets()[0];
       const data = sheet.getDataRange().getValues();
