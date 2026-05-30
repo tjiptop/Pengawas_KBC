@@ -3,8 +3,6 @@
  * Run function ini sekali saja untuk menyiapkan struktur Sheet dan Folder
  */
 
-const DB_ID = '1sIIdTzW_vBQJZoizefj_6tWBrHib1OOo2TbUPPZsDYw';
-
 function onOpen(e) {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('🛠️ Menu Pengawas')
@@ -13,7 +11,7 @@ function onOpen(e) {
 }
 
 function SetupAwal() {
-  const ss = SpreadsheetApp.openById(DB_ID);
+  const ss = getAppDb_();
   
   // 1. Setup Sheet Users
   setupSheet(ss, 'Users', ['NIP', 'Password', 'Status']);
@@ -27,7 +25,7 @@ function SetupAwal() {
   
   // 3. Setup Sheet Sasaran
   try {
-    const ssMaster = SpreadsheetApp.openById(MASTER_MADRASAH_DB_ID);
+    const ssMaster = getMasterDb_();
     const headersMaster = ssMaster.getSheets()[0].getDataRange().getValues()[0] || [];
     setupSheet(ss, 'Sasaran', ['NIP Pengawas', 'Waktu Simpan', ...headersMaster]);
   } catch(e) {
@@ -69,12 +67,19 @@ function SetupAwal() {
     ss.deleteSheet(sheet1);
   }
 
-  // 7. Sinkronisasi otomatis seluruh target sheet YAML forms
+  // 7. Sinkronisasi otomatis seluruh target sheet YAML forms Pengawas & Kamad
   try {
     syncPengawasFormSheets(ss);
-    Logger.log('Sinkronisasi target sheet YAML forms berhasil!');
+    Logger.log('Sinkronisasi target sheet YAML forms Pengawas berhasil!');
   } catch(e) {
-    Logger.log('Error sinkronisasi target sheet YAML: ' + e.toString());
+    Logger.log('Error sinkronisasi target sheet YAML Pengawas: ' + e.toString());
+  }
+
+  try {
+    syncMadrasahFormSheets(ss);
+    Logger.log('Sinkronisasi target sheet YAML forms Madrasah (Kamad) berhasil!');
+  } catch(e) {
+    Logger.log('Error sinkronisasi target sheet YAML Madrasah: ' + e.toString());
   }
   
   Logger.log('Setup Selesai!');
@@ -173,9 +178,84 @@ function syncPengawasFormSheets(ss) {
   });
 }
 
+/**
+ * Sinkronisasi otomatis target sheet dan sub-tabel YAML forms dari getMadrasahFormDefinitions
+ */
+function syncMadrasahFormSheets(ss) {
+  const forms = getMadrasahFormDefinitions();
+  const formIds = Object.keys(forms);
+  
+  formIds.forEach(formId => {
+    const yaml = forms[formId] || '';
+    const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
+    const targetSheetName = match ? match[2].trim() : null;
+    
+    if (targetSheetName) {
+      // 1. Dapatkan kolom-kolom pertanyaan dari YAML
+      const tableFields = extractTableFieldsFromYAML(yaml);
+      const nestedColumns = new Set();
+      tableFields.forEach(tf => {
+        tf.columns.forEach(col => nestedColumns.add(col));
+      });
+      
+      const desiredFields = ['timestamp', 'nsm', 'madrasah_nama', 'form_id', 'role'];
+      const fieldRegex = /name:\s*(['"]?)([^'"\n\r]+)\1/g;
+      let m;
+      while ((m = fieldRegex.exec(yaml)) !== null) {
+        const name = m[2].trim();
+        if (!desiredFields.includes(name) && !nestedColumns.has(name)) {
+          desiredFields.push(name);
+        }
+      }
+      
+      // 2. Setup sheet utama
+      setupSheet(ss, targetSheetName, desiredFields);
+      
+      // Jika ada perubahan kolom di YAML, sync target sheet (tambah kolom baru di kanan)
+      let tSheet = ss.getSheetByName(targetSheetName);
+      if (tSheet && tSheet.getLastRow() > 0) {
+        const currentHeaders = tSheet.getRange(1, 1, 1, tSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+        const missing = desiredFields.filter(f => !currentHeaders.includes(f));
+        if (missing.length > 0) {
+          tSheet.getRange(1, currentHeaders.length + 1, 1, missing.length).setValues([missing]);
+          tSheet.getRange(1, currentHeaders.length + 1, 1, missing.length)
+                .setFontWeight('bold')
+                .setBackground('#d9ead3');
+        }
+      }
+      
+      // 3. Setup sheet sub-tabel terpisah untuk field bertipe tabel
+      tableFields.forEach(tableField => {
+        const tableSheetName = `${targetSheetName}|${tableField.name}`;
+        const tableHeaders = ['submission_id', 'madrasah_id', 'timestamp'];
+        if (tableField.type === 'table_col_fix') {
+          const firstColName = tableField.firstColLabel || 'row_label';
+          tableHeaders.push(firstColName);
+        }
+        tableHeaders.push(...tableField.columns);
+        
+        setupSheet(ss, tableSheetName, tableHeaders);
+        
+        // Sync sub-sheet tabel jika ada kolom baru
+        let tblSheet = ss.getSheetByName(tableSheetName);
+        if (tblSheet && tblSheet.getLastRow() > 0) {
+          const currentHeaders = tblSheet.getRange(1, 1, 1, tblSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+          const missing = tableHeaders.filter(f => !currentHeaders.includes(f));
+          if (missing.length > 0) {
+            tblSheet.getRange(1, currentHeaders.length + 1, 1, missing.length).setValues([missing]);
+            tblSheet.getRange(1, currentHeaders.length + 1, 1, missing.length)
+                  .setFontWeight('bold')
+                  .setBackground('#d9ead3');
+          }
+        }
+      });
+    }
+  });
+}
+
 // --- Utility Functions for Settings ---
 function getSetting(key) {
-  const ss = SpreadsheetApp.openById(DB_ID);
+  const ss = getAppDb_();
   const sheet = ss.getSheetByName('Settings');
   if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
@@ -186,7 +266,7 @@ function getSetting(key) {
 }
 
 function updateSetting(key, value) {
-  const ss = SpreadsheetApp.openById(DB_ID);
+  const ss = getAppDb_();
   const sheet = ss.getSheetByName('Settings');
   if (!sheet) return;
   const data = sheet.getDataRange().getValues();
@@ -198,4 +278,3 @@ function updateSetting(key, value) {
   }
   sheet.appendRow([key, value]);
 }
-

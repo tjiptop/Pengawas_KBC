@@ -23,3 +23,5 @@ package-lock.json
 # Ignore Markdown documentation and local settings
 **/*.md
 .gemini/**
+temp_pull/**
+

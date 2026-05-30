@@ -109,25 +109,21 @@ const SasaranManager = {
 
         App.loading(true, 'Memuat data madrasah...');
         
-        // Fetch existing sasaran first
-        google.script.run.withSuccessHandler(resExisting => {
-            this.selectedData = resExisting || [];
-            App.state.madrasahSasaran = this.selectedData;
-            
-            // Then fetch all madrasah for tree
-            google.script.run.withSuccessHandler(resAll => {
-                App.loading(false);
-                this.allData = resAll || [];
+        // Fetch both existing sasaran and all available madrasahs in 1 batch API call
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res && res.success) {
+                this.selectedData = res.data.sasaran || [];
+                App.state.madrasahSasaran = this.selectedData;
+                this.allData = res.data.available || [];
                 this.renderTree('');
-            }).withFailureHandler(err => {
-                App.loading(false);
-                App.alert(err.message, 'Gagal memuat list madrasah');
-            }).getMadrasahForSasaran(kabupaten, jenjang, nip);
-
+            } else {
+                App.alert((res && res.error) || 'Terjadi kesalahan.', 'Gagal memuat data');
+            }
         }).withFailureHandler(err => {
             App.loading(false);
-            App.alert(err.message, 'Gagal memuat sasaran tersimpan');
-        }).getSasaran(nip);
+            App.alert(err.message, 'Gagal menghubungi server');
+        }).getSasaranPageData(nip, kabupaten, jenjang);
     },
 
     filterTree(keyword) {
