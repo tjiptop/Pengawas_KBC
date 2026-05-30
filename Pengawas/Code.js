@@ -10,7 +10,7 @@ const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 
-const APP_VERSION = 'v2.1.14';
+const APP_VERSION = 'v2.1.15';
 
 // ============================================================
 // ENTRY POINT
@@ -1614,6 +1614,38 @@ function kamadGetFormDefinition(formId, nsm) {
 }
 
 /**
+ * Helper: Archive a target sheet row to its dedicated Log sheet
+ */
+function archiveRowToLog(ss, targetSheetName, activeHeaders, rowValues) {
+  const logSheetName = targetSheetName + '_Log';
+  let logSheet = ss.getSheetByName(logSheetName);
+  if (!logSheet) {
+    logSheet = ss.insertSheet(logSheetName);
+    logSheet.appendRow(activeHeaders);
+    logSheet.getRange(1, 1, 1, activeHeaders.length).setFontWeight('bold').setBackground('#f4cccc');
+    logSheet.setFrozenRows(1);
+  }
+  
+  // Dynamic header sync in case columns drift
+  let logHeaders = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const missing = activeHeaders.filter(h => !logHeaders.includes(h));
+  if (missing.length > 0) {
+    const startCol = logHeaders.length + 1;
+    logSheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
+    logSheet.getRange(1, startCol, 1, missing.length).setFontWeight('bold').setBackground('#f4cccc');
+    logHeaders = [...logHeaders, ...missing];
+  }
+  
+  // Map rowValues based on header alignment
+  const logRow = logHeaders.map(h => {
+    const idx = activeHeaders.indexOf(h);
+    return idx !== -1 ? rowValues[idx] : '';
+  });
+  
+  logSheet.appendRow(logRow);
+}
+
+/**
  * Submit form oleh kamad
  */
 function kamadSubmitForm(payload) {
@@ -1661,51 +1693,86 @@ function kamadSubmitForm(payload) {
       return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
     });
 
-    // 🌟 Respect submission limit (0 or 1) by overwriting existing row
-    let overwritten = false;
-    if (limit === 0 || limit === 1) {
+    // 🌟 Respect submission limit (0, 1, or higher) and automatically archive older rows
+    if (limit >= 0) {
+      const activeLimit = limit === 0 ? 1 : limit;
       const nsmIdx = hdrs.indexOf('nsm');
+      const formIdIdx = hdrs.indexOf('form_id');
+
       if (nsmIdx !== -1 && sheet.getLastRow() > 1) {
-        const nsmValues = sheet.getRange(2, nsmIdx + 1, sheet.getLastRow() - 1, 1).getValues().flat();
-        const formIdIdx = hdrs.indexOf('form_id');
-        let existingRowIdx = -1;
-        if (formIdIdx !== -1) {
-          const formIdValues = sheet.getRange(2, formIdIdx + 1, sheet.getLastRow() - 1, 1).getValues().flat();
-          for (let i = 0; i < nsmValues.length; i++) {
-            if (String(nsmValues[i]).trim() === String(nsm).trim() && String(formIdValues[i]).trim() === String(formId).trim()) {
-              existingRowIdx = i;
-              break;
-            }
+        const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+        const matchingRows = [];
+        for (let i = 0; i < dataRange.length; i++) {
+          const rowValues = dataRange[i];
+          const rowNsm = String(rowValues[nsmIdx]).trim();
+          const rowFormId = formIdIdx !== -1 ? String(rowValues[formIdIdx]).trim() : '';
+
+          const nsmMatch = rowNsm === String(nsm).trim();
+          const formIdMatch = formIdIdx !== -1 ? rowFormId === String(formId).trim() : true;
+
+          if (nsmMatch && formIdMatch) {
+            matchingRows.push({
+              rowNum: i + 2,
+              values: rowValues
+            });
           }
-        } else {
-          existingRowIdx = nsmValues.findIndex(v => String(v).trim() === String(nsm).trim());
         }
 
-        if (existingRowIdx !== -1) {
-          const rowNum = existingRowIdx + 2;
-          sheet.getRange(rowNum, 1, 1, hdrs.length).setValues([row]);
-          overwritten = true;
+        if (matchingRows.length + 1 > activeLimit) {
+          const numToArchive = (matchingRows.length + 1) - activeLimit;
+          const rowsToArchive = matchingRows.slice(0, numToArchive);
+
+          // Archive detail rows
+          rowsToArchive.forEach(r => {
+            archiveRowToLog(ss, targetSheet, hdrs, r.values);
+          });
+
+          // Delete detail rows from active sheet in descending order of row index
+          const rowsToDelete = [...rowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+          rowsToDelete.forEach(r => {
+            sheet.deleteRow(r.rowNum);
+          });
+
+          // Move transaction records in KamadSubmissions to KamadSubmissions_Log
+          const log = getKamadSheet(ss, 'KamadSubmissions');
+          if (log.getLastRow() > 1) {
+            const logData = log.getRange(2, 1, log.getLastRow() - 1, log.getLastColumn()).getValues();
+            const logMatchingRows = [];
+            for (let i = 0; i < logData.length; i++) {
+              const rNsm = String(logData[i][1]).trim();
+              const rFormId = String(logData[i][2]).trim();
+              if (rNsm === String(nsm).trim() && rFormId === String(formId).trim()) {
+                logMatchingRows.push({
+                  rowNum: i + 2,
+                  values: logData[i]
+                });
+              }
+            }
+
+            if (logMatchingRows.length + 1 > activeLimit) {
+              const logNumToArchive = (logMatchingRows.length + 1) - activeLimit;
+              const logRowsToArchive = logMatchingRows.slice(0, logNumToArchive);
+
+              const subLogSheet = getKamadSheet(ss, 'KamadSubmissions_Log');
+              logRowsToArchive.forEach(r => {
+                subLogSheet.appendRow(r.values);
+              });
+
+              const logRowsToDelete = [...logRowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+              logRowsToDelete.forEach(r => {
+                log.deleteRow(r.rowNum);
+              });
+            }
+          }
         }
       }
     }
 
-    if (!overwritten) {
-      sheet.appendRow(row);
-    }
+    // Always append the new submission as the active one
+    sheet.appendRow(row);
 
     const log = getKamadSheet(ss, 'KamadSubmissions');
-    let logRowIdx = -1;
-    if ((limit === 0 || limit === 1) && log.getLastRow() > 1) {
-      const logValues = log.getRange(2, 1, log.getLastRow() - 1, 3).getValues();
-      logRowIdx = logValues.findIndex(r => String(r[1]).trim() === String(nsm).trim() && String(r[2]).trim() === String(formId).trim());
-    }
-
-    if (logRowIdx !== -1) {
-      log.getRange(logRowIdx + 2, 1).setValue(timestamp);
-      log.getRange(logRowIdx + 2, 5).setValue('final');
-    } else {
-      log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
-    }
+    log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
 
     return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
   } catch (e) {
