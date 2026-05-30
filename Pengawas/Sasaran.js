@@ -56,10 +56,29 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       const data = sheet.getDataRange().getValues();
       const headers = data[0];
 
-      let idxNSM = headers.findIndex(h => h.toString().toUpperCase() === 'NSM' || h.toString().toUpperCase().includes('NSM'));
+      let idxNSM = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u === 'NSM' || (u.includes('NSM') && !u.includes('KODE') && !u.includes('ID'));
+      });
       let idxNPSN = headers.findIndex(h => h.toString().toUpperCase().includes('NPSN'));
-      let idxNama = headers.findIndex(h => h.toString().toUpperCase().includes('NAMA') || h.toString().toUpperCase() === 'NAME');
-      let idxKab = headers.findIndex(h => h.toString().toUpperCase().includes('KAB') || h.toString().toUpperCase().includes('KOTA') || h.toString().toUpperCase() === 'DISTRICT');
+      let idxNama = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u === 'NAMA' || u === 'NAMA_MADRASAH' || (u.includes('NAMA') && !u.includes('KAB') && !u.includes('KEC'));
+      });
+      
+      // Pencarian kolom Kabupaten yang aman dari kolom kode/ID
+      let idxKab = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
+      });
+      if (idxKab === -1) {
+        idxKab = headers.findIndex(h => {
+          const u = h.toString().toUpperCase();
+          if (u.includes('KODE') || u.includes('CODE') || u.includes('ID') || u.includes('NO')) return false;
+          return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT';
+        });
+      }
+
       let idxKec = headers.findIndex(h => h.toString().toUpperCase().includes('SUB_DISTRICT') || h.toString().toUpperCase().includes('KECAMATAN') || h.toString().toUpperCase().includes('KEC'));
       let idxJenjang = headers.findIndex(h => h.toString().toUpperCase().includes('JENJANG') || h.toString().toUpperCase().includes('BENTUK') || h.toString().toUpperCase() === 'LEVEL');
 

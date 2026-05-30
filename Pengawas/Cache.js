@@ -94,7 +94,17 @@ function getMadrasahByNsm(nsm) {
     const idxNsm  = idx('NSM');
     const idxNama = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('NAMA') || u === 'NAME'; });
     const idxKec  = idx('KEC');
-    const idxKab = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT'; });
+    let idxKab = headers.findIndex(h => {
+      const u = h.toUpperCase();
+      return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
+    });
+    if (idxKab === -1) {
+      idxKab = headers.findIndex(h => {
+        const u = h.toUpperCase();
+        if (u.includes('KODE') || u.includes('CODE') || u.includes('ID') || u.includes('NO')) return false;
+        return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT';
+      });
+    }
     const idxProv = idx('PROV');
     const idxJenjang = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('JENJANG') || u === 'LEVEL'; });
 
