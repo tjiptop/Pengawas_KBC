@@ -29,15 +29,16 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
         }
     }
 
-    kabupaten = sanitizeHtml(String(kabupaten || '').toLowerCase().trim());
-    let cleanProfileKab = cleanRegencyName_(kabupaten);
+    // Exact match (case-insensitive, trim) — tidak ada normalisasi prefix
+    let profileKabLower = String(kabupaten || '').toLowerCase().trim();
+    kabupaten = sanitizeHtml(profileKabLower);
     
     let allowedJenjangs = String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '');
     
-    // Gunakan versi cache untuk bypass cache lama jika di-reset
+    // Cache key berdasarkan exact kabupaten dari profil
     const cache = CacheService.getScriptCache();
     let cacheVersion = cache.get('cache_version') || '1';
-    let safeCacheKey = 'kab_madrasah_v' + cacheVersion + '_' + cleanProfileKab.substring(0, 50);
+    let safeCacheKey = 'kab_madrasah_v' + cacheVersion + '_' + profileKabLower.replace(/[^a-z0-9]/g, '').substring(0, 50);
     
     let cachedDataStr = getCacheChunked(safeCacheKey);
     let allKabMadrasahs = null;
@@ -125,10 +126,10 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
 
       allKabMadrasahs = [];
       for (let i = 1; i < data.length; i++) {
-        let kab = String(data[i][idxKab]).toLowerCase().trim();
-        let cleanDbKab = cleanRegencyName_(kab);
-
-        if (!cleanProfileKab || kabMatches_(cleanProfileKab, cleanDbKab)) {
+        // EXACT MATCH: bandingkan langsung nilai district di DB dengan profil (case-insensitive, trim)
+        let dbKabLower = String(data[i][idxKab]).toLowerCase().trim();
+        
+        if (!profileKabLower || dbKabLower === profileKabLower) {
           allKabMadrasahs.push({
             nsm: data[i][idxNSM],
             npsn: idxNPSN !== -1 ? data[i][idxNPSN] : '',
@@ -140,7 +141,7 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
         }
       }
       
-      console.log(`[getSasaran] allKabMadrasahs for "${cleanProfileKab}": ${allKabMadrasahs.length} rows`);
+      console.log(`[getSasaran] Exact match "${profileKabLower}": ${allKabMadrasahs.length} rows`);
       
       try {
         putCacheChunked(safeCacheKey, JSON.stringify(allKabMadrasahs), 21600);
