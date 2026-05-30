@@ -7,6 +7,7 @@ function onOpen(e) {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('🛠️ Menu Pengawas')
     .addItem('▶️ Jalankan Setup Awal', 'SetupAwal')
+    .addItem('🔄 Reset Cache Madrasah', 'resetMasterCache')
     .addToUi();
 }
 

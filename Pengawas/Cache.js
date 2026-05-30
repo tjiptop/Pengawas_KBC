@@ -116,3 +116,55 @@ function getMadrasahByNsm(nsm) {
     return null;
   }
 }
+
+/**
+ * Mereset/menghapus cache data madrasah agar memuat ulang data terbaru dari Spreadsheet.
+ * Dapat dipanggil dari menu Spreadsheet atau secara programmatic.
+ * @returns {object} status success/error
+ */
+function resetMasterCache() {
+  try {
+    const cache = CacheService.getScriptCache();
+    
+    // 1. Hapus cache master madrasah
+    const chunkCountStr = cache.get('master_madrasah_rows_chunks');
+    if (chunkCountStr) {
+      const chunks = parseInt(chunkCountStr);
+      let keys = ['master_madrasah_rows_chunks'];
+      for (let i = 0; i < chunks; i++) {
+        keys.push('master_madrasah_rows_' + i);
+      }
+      cache.removeAll(keys);
+    } else {
+      // Fallback: hapus langsung key utamanya jika tidak pakai chunks
+      cache.remove('master_madrasah_rows');
+    }
+    
+    // 2. Naikkan versi cache untuk membatalkan seluruh cache kabupaten lama (cache busting)
+    try {
+      let currentVersion = parseInt(cache.get('cache_version') || '1');
+      cache.put('cache_version', String(currentVersion + 1), 2592000); // Aktif 30 hari
+      console.log('Cache version bumped to ' + (currentVersion + 1));
+    } catch (e) {
+      console.warn('Gagal menaikkan versi cache:', e);
+    }
+    
+    // 3. Berikan pesan sukses
+    console.log('Master Madrasah cache cleared successfully.');
+    
+    // Jika dipanggil dari Spreadsheet UI, tampilkan alert dialog
+    try {
+      const ui = SpreadsheetApp.getUi();
+      if (ui) {
+        ui.alert('Berhasil', 'Cache data madrasah telah di-reset! Aplikasi akan memuat data terbaru dari Spreadsheet.', ui.ButtonSet.OK);
+      }
+    } catch(e) {
+      // Tidak dipanggil dari konteks container-bound Spreadsheet, abaikan
+    }
+    
+    return { success: true, message: 'Cache data madrasah berhasil di-reset.' };
+  } catch(e) {
+    console.log('Error resetMasterCache: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}

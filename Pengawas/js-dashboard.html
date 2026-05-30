@@ -84,6 +84,7 @@ const DashboardViews = {
 
 const DashboardManager = {
     init() {
+        this.currentPage = 1;
         App.loading(true, 'Memuat data...');
         google.script.run.withSuccessHandler(res => {
             App.loading(false);
@@ -111,7 +112,18 @@ const DashboardManager = {
             return;
         }
 
-        let html = data.slice(0, 5).map((item, idx) => {
+        const itemsPerPage = 5;
+        const totalPages = Math.ceil(data.length / itemsPerPage);
+        
+        // Ensure current page is valid
+        if (!this.currentPage || this.currentPage < 1) this.currentPage = 1;
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+
+        const startIndex = (this.currentPage - 1) * itemsPerPage;
+        const pageData = data.slice(startIndex, startIndex + itemsPerPage);
+
+        let html = pageData.map((item, idx) => {
+            const globalIdx = startIndex + idx;
             const statusBadge = item.kamad_aktif ? 
                 `<span style="font-size:0.7rem;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;white-space:nowrap;">✅ Aktif</span>` :
                 `<span style="font-size:0.7rem;padding:2px 8px;border-radius:6px;background:#fff3cd;color:#856404;font-weight:600;white-space:nowrap;">⚠️ Belum Aktif</span>`;
@@ -144,10 +156,10 @@ const DashboardManager = {
             return `
             <div 
                 onclick="DashboardManager.viewMadrasahAsKamad('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
-                style="padding:12px 16px;${idx < Math.min(data.length,5)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;gap:12px;align-items:center;justify-content:space-between;cursor:pointer;"
+                style="padding:12px 16px;${idx < pageData.length-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;gap:12px;align-items:center;justify-content:space-between;cursor:pointer;"
                 class="binaan-item"
             >
-                <div style="width:28px;height:28px;background:rgba(26,115,232,0.1);color:var(--color-primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;flex-shrink:0;">${idx+1}</div>
+                <div style="width:28px;height:28px;background:rgba(26,115,232,0.1);color:var(--color-primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;flex-shrink:0;">${globalIdx+1}</div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nama}</div>
                     <div style="font-size:0.74em;color:var(--color-text-light);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -163,10 +175,32 @@ const DashboardManager = {
             `;
         }).join('');
 
-        if (data.length > 5) {
-            html += `<div style="padding:10px 16px;text-align:center;color:var(--color-text-light);font-size:0.78em;">+${data.length - 5} madrasah lainnya</div>`;
+        if (totalPages > 1) {
+            html += `
+            <div style="padding:10px 16px;border-top:1px solid var(--color-border-light);display:flex;justify-content:space-between;align-items:center;background:var(--color-bg-elevated);">
+                <button onclick="event.stopPropagation(); DashboardManager.changePage(-1);" 
+                        style="background:none;border:none;color:var(--color-primary);font-size:1.2rem;font-weight:700;cursor:pointer;padding:2px 10px;border-radius:6px;" 
+                        ${this.currentPage === 1 ? 'disabled style="color:var(--color-text-light);cursor:default;"' : ''}
+                        title="Halaman Sebelumnya">
+                    &lsaquo;
+                </button>
+                <span style="font-size:0.78rem;color:var(--color-text-light);font-weight:600;">
+                    Halaman ${this.currentPage} dari ${totalPages} (${data.length} Madrasah)
+                </span>
+                <button onclick="event.stopPropagation(); DashboardManager.changePage(1);" 
+                        style="background:none;border:none;color:var(--color-primary);font-size:1.2rem;font-weight:700;cursor:pointer;padding:2px 10px;border-radius:6px;" 
+                        ${this.currentPage === totalPages ? 'disabled style="color:var(--color-text-light);cursor:default;"' : ''}
+                        title="Halaman Selanjutnya">
+                    &rsaquo;
+                </button>
+            </div>`;
         }
         container.innerHTML = html;
+    },
+
+    changePage(direction) {
+        this.currentPage += direction;
+        this.renderSasaranList();
     },
 
     viewMadrasahAsKamad(nsm, namaMadrasah) {

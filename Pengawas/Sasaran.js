@@ -30,12 +30,15 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
     }
 
     kabupaten = sanitizeHtml(String(kabupaten || '').toLowerCase().trim());
-    let normProfileKab = kabupaten.replace(/^kab\.\s+/i, 'kabupaten ').trim();
-    if (normProfileKab && !normProfileKab.startsWith('kota ') && !normProfileKab.startsWith('kabupaten ')) {
-        normProfileKab = 'kabupaten ' + normProfileKab;
-    }
+    let cleanProfileKab = cleanRegencyName_(kabupaten);
+    
     let allowedJenjangs = String(jenjangStr || '').split(',').map(j => j.trim().toLowerCase()).filter(j => j !== '');
-    let safeCacheKey = 'kab_madrasah_' + normProfileKab.replace(/[^a-zA-Z0-9]/g, '').substring(0, 50);
+    
+    // Gunakan versi cache untuk bypass cache lama jika di-reset
+    const cache = CacheService.getScriptCache();
+    let cacheVersion = cache.get('cache_version') || '1';
+    let safeCacheKey = 'kab_madrasah_v' + cacheVersion + '_' + cleanProfileKab.substring(0, 50);
+    
     let cachedDataStr = getCacheChunked(safeCacheKey);
     let allKabMadrasahs = null;
 
@@ -68,12 +71,9 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
       allKabMadrasahs = [];
       for (let i = 1; i < data.length; i++) {
         let kab = String(data[i][idxKab]).toLowerCase().trim();
-        let normDbKab = kab.replace(/^kab\.\s+/i, 'kabupaten ').trim();
-        if (normDbKab && !normDbKab.startsWith('kota ') && !normDbKab.startsWith('kabupaten ')) {
-            normDbKab = 'kabupaten ' + normDbKab;
-        }
+        let cleanDbKab = cleanRegencyName_(kab);
 
-        if (!normProfileKab || normDbKab === normProfileKab) {
+        if (!cleanProfileKab || cleanDbKab === cleanProfileKab) {
           allKabMadrasahs.push({
             nsm: data[i][idxNSM],
             npsn: idxNPSN !== -1 ? data[i][idxNPSN] : '',
@@ -278,4 +278,20 @@ function getSasaranPageData(nip, kabupaten, jenjangStr) {
   } catch (e) {
     return apiError('Gagal memuat data halaman sasaran: ' + e.toString(), 'SYSTEM_ERROR');
   }
+}
+
+/**
+ * Normalisasi nama kabupaten/kota untuk perbandingan yang robust (case-insensitive, remove prefixes, remove spaces/hyphens)
+ * @param {string} name
+ * @returns {string} Cleaned name
+ */
+function cleanRegencyName_(name) {
+  if (!name) return '';
+  return String(name)
+    .toLowerCase()
+    .replace(/^kab\.\s+/i, '')
+    .replace(/^kabupaten\s+/i, '')
+    .replace(/^kota\s+/i, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
 }
