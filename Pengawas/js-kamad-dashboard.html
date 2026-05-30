@@ -19,24 +19,39 @@ const KamadDashboard = {
     skeleton: () => {
       const isSupervisor = !!App.state.isSupervisorViewAs;
       return `
-      <div class="kamad-header">
-        <div class="kamad-header-left">
-          ${isSupervisor ? `
-          <button class="kamad-back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')" style="margin-right:-4px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-          </button>
-          ` : ''}
-          <div class="kamad-header-icon">🏫</div>
-          <div>
-            <div class="kamad-skeleton" style="width:140px;height:14px;margin-bottom:5px;"></div>
-            <div class="kamad-skeleton" style="width:90px;height:11px;"></div>
+      <div class="header">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <div class="menu-dropdown">
+            <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('kamad-menu').classList.toggle('show')" title="Menu">☰</button>
+            <div id="kamad-menu" class="menu-dropdown-content">
+              <div class="menu-item" onclick="App.router('kamad-history'); document.getElementById('kamad-menu').classList.remove('show')">
+                <span class="menu-item-icon">🕐</span>
+                <span class="menu-item-text">Riwayat</span>
+              </div>
+              ${isSupervisor ? `
+              <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')">
+                <span class="menu-item-icon">🚪</span>
+                <span class="menu-item-text">Kembali ke Dashboard</span>
+              </div>
+              ` : `
+              <div class="menu-item" style="color:var(--color-danger);" onclick="KamadAuth.logout()">
+                <span class="menu-item-icon">⏏</span>
+                <span class="menu-item-text">Logout</span>
+              </div>
+              `}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="header-page-icon">🏫</div>
+            <div>
+              <div class="kamad-skeleton" style="width:140px;height:14px;margin-bottom:5px;"></div>
+              <div class="kamad-skeleton" style="width:90px;height:11px;"></div>
+            </div>
           </div>
         </div>
         ${isSupervisor ? `
-        <button class="kamad-logout-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')">Kembali</button>
-        ` : `
-        <button class="kamad-logout-btn" onclick="KamadAuth.logout()">Keluar</button>
-        `}
+        <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+        ` : ''}
       </div>
       <div class="content">
         <div class="kamad-skeleton" style="width:120px;height:16px;margin:15px 0 10px;"></div>
@@ -114,30 +129,39 @@ const KamadDashboard = {
 
       const isSupervisor = !!App.state.isSupervisorViewAs;
       return `
-        <div class="kamad-header">
-          <div class="kamad-header-left">
-            ${isSupervisor ? `
-            <button class="kamad-back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')" style="margin-right:-4px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            </button>
-            ` : ''}
-            <div class="kamad-header-icon">🏫</div>
-            <div>
-              <div class="kamad-header-name">${nama}</div>
-              <div class="kamad-header-meta">NSM ${nsm}${loc ? ' · ' + loc : ''}</div>
+        <div class="header">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div class="menu-dropdown">
+              <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('kamad-menu').classList.toggle('show')" title="Menu">☰</button>
+              <div id="kamad-menu" class="menu-dropdown-content">
+                <div class="menu-item" onclick="App.router('kamad-history'); document.getElementById('kamad-menu').classList.remove('show')">
+                  <span class="menu-item-icon">🕐</span>
+                  <span class="menu-item-text">Riwayat</span>
+                </div>
+                ${isSupervisor ? `
+                <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')">
+                  <span class="menu-item-icon">🚪</span>
+                  <span class="menu-item-text">Kembali ke Dashboard</span>
+                </div>
+                ` : `
+                <div class="menu-item" style="color:var(--color-danger);" onclick="KamadAuth.logout()">
+                  <span class="menu-item-icon">⏏</span>
+                  <span class="menu-item-text">Logout</span>
+                </div>
+                `}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="header-page-icon">🏫</div>
+              <div>
+                <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">${nama}</h1>
+                <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;">NSM ${nsm}${loc ? ' · ' + loc : ''}</div>
+              </div>
             </div>
           </div>
-          <div class="kamad-header-actions">
-            <button class="kamad-menu-btn" onclick="KamadDashboard.toggleMenu(this)">⋮</button>
-            <div class="kamad-dropdown" id="kamad-dash-menu">
-              <button class="kamad-dropdown-item" onclick="KamadDashboard.closeMenu(); App.router('kamad-history')">🕐 Riwayat</button>
-              ${isSupervisor ? `
-              <button class="kamad-dropdown-item danger" onclick="KamadDashboard.closeMenu(); App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')">🚪 Kembali</button>
-              ` : `
-              <button class="kamad-dropdown-item danger" onclick="KamadDashboard.closeMenu(); KamadAuth.logout()">🚪 Keluar</button>
-              `}
-            </div>
-          </div>
+          ${isSupervisor ? `
+          <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+          ` : ''}
         </div>
 
         <div class="content">
