@@ -4,7 +4,7 @@ const SasaranViews = {
         <div class="header">
             <div class="header-title-wrap">
                 <div class="header-page-icon">🏫</div>
-                <h1>Madrasah Sasaran</h1>
+                <h1>Madrasah Sasaran KBC</h1>
             </div>
             <button class="back-btn" onclick="App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
         </div>
@@ -224,7 +224,7 @@ const SasaranManager = {
         google.script.run.withSuccessHandler(res => {
             App.loading(false);
             if (res.success) {
-                App.alert('Daftar madrasah sasaran berhasil disimpan.', 'Sukses');
+                App.alert('Daftar madrasah sasaran KBC berhasil disimpan.', 'Sukses');
                 App.state.madrasahSasaran = this.selectedData;
                 App.router('dashboard');
             } else {

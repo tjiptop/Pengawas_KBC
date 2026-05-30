@@ -38,7 +38,7 @@ function generateSK(nip) {
     if (!profile) return apiError('Profil tidak ditemukan.', 'NOT_FOUND');
 
     let sasaran = getSasaran(nip);
-    if (sasaran.length === 0) return apiError('Tidak ada madrasah sasaran untuk dibuatkan SK.', 'EMPTY');
+    if (sasaran.length === 0) return apiError('Tidak ada madrasah sasaran KBC untuk dibuatkan SK.', 'EMPTY');
 
     let tempDoc = DriveApp.getFileById(SK_TEMPLATE_DOC_ID).makeCopy('SK_' + profile['Nama'] + '_' + nip);
     let doc = DocumentApp.openById(tempDoc.getId());

@@ -18,7 +18,7 @@ const DashboardViews = {
                         </div>
                         <div class="menu-item" onclick="App.router('sasaran'); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">🏫</span>
-                            <span class="menu-item-text">Sasaran & Akses Kamad</span>
+                            <span class="menu-item-text">Madrasah Sasaran</span>
                         </div>
                         <div class="menu-item" onclick="App.router('profile'); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">✏️</span>
@@ -66,10 +66,10 @@ const DashboardViews = {
                 </div>
             </div>
 
-            <!-- Madrasah Binaan -->
+            <!-- Madrasah Sasaran -->
             <div style="background:var(--color-bg-elevated);border:1px solid var(--color-border-light);border-radius:16px;overflow:hidden;margin-bottom:16px;">
                 <div style="padding:14px 16px;border-bottom:1px solid var(--color-border-light);display:flex;justify-content:space-between;align-items:center;">
-                    <div style="font-size:0.88rem;font-weight:700;color:var(--color-text);">🏫 Madrasah Binaan</div>
+                    <div style="font-size:0.88rem;font-weight:700;color:var(--color-text);">🏫 Madrasah Sasaran</div>
                     <button onclick="App.router('sasaran')" style="background:none;border:none;color:var(--color-primary);font-size:0.78rem;font-weight:600;cursor:pointer;padding:0;">Kelola →</button>
                 </div>
                 <div id="dash-sasaran-list" style="min-height:60px;">
@@ -106,7 +106,7 @@ const DashboardManager = {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div style="padding:20px;text-align:center;">
-                    <p style="margin:0 0 10px;font-size:0.82em;color:var(--color-text-light);">Belum ada madrasah sasaran.</p>
+                    <p style="margin:0 0 10px;font-size:0.82em;color:var(--color-text-light);">Belum ada madrasah sasaran KBC.</p>
                 </div>`;
             return;
         }
@@ -316,7 +316,7 @@ const DashboardManager = {
 
     generateSK() {
         if (!App.state.madrasahSasaran || App.state.madrasahSasaran.length === 0) {
-            return App.alert('Anda belum memiliki madrasah sasaran. Silakan kelola sasaran terlebih dahulu.', 'Peringatan');
+            return App.alert('Anda belum memiliki madrasah sasaran KBC. Silakan kelola sasaran terlebih dahulu.', 'Peringatan');
         }
         App.loading(true, 'Memproses SK... Mohon tunggu beberapa saat...');
         google.script.run.withSuccessHandler(res => {

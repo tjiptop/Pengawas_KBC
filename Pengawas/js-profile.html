@@ -83,7 +83,7 @@ window.ProfileViews = {
         \x3C/div>
         \x3Cdiv class="content">
             \x3Cdiv class="card">
-                \x3Cp style="margin-bottom:20px; color:#666;">Lengkapi data profil Anda di bawah ini. Pastikan data wilayah kerja benar karena akan digunakan untuk memfilter madrasah sasaran.\x3C/p>
+                \x3Cp style="margin-bottom:20px; color:#666;">Lengkapi data profil Anda di bawah ini. Pastikan data wilayah kerja benar karena akan digunakan untuk memfilter madrasah sasaran KBC.\x3C/p>
                 
                 \x3Cform id="form-profile" onsubmit="event.preventDefault(); ProfileManager.save();">
                     \x3Cdiv class="form-group" style="margin-bottom:15px;">
@@ -321,7 +321,7 @@ window.ProfileManager = {
                         App.alert('Profil berhasil diperbarui.', 'Berhasil', () => {
                             if (App.state.isNewUser) {
                                 App.state.isNewUser = false;
-                                App.alert('Silakan tambahkan daftar Madrasah Sasaran (Binaan) Anda.', 'Langkah 2/2', () => {
+                                App.alert('Silakan tambahkan daftar Madrasah Sasaran KBC Anda.', 'Langkah 2/2', () => {
                                     App.router('sasaran');
                                 });
                             } else {

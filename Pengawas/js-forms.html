@@ -183,7 +183,7 @@ const FormsManager = {
       const sasaran = App.state.madrasahSasaran || [];
 
       if (sasaran.length === 0) {
-        App.alert('Anda belum memiliki madrasah sasaran. Silakan kelola sasaran terlebih dahulu.', 'Perhatian');
+        App.alert('Anda belum memiliki madrasah sasaran KBC. Silakan kelola sasaran terlebih dahulu.', 'Perhatian');
         return;
       }
 
@@ -214,7 +214,7 @@ const FormsManager = {
       <div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px;">
           <button onclick="FormsManager.renderFormsList()" style="background:none;border:none;cursor:pointer;font-size:1.1em;color:var(--color-primary);">← Kembali</button>
-          <h3 style="margin:0;">Pilih Madrasah Sasaran</h3>
+          <h3 style="margin:0;">Pilih Madrasah Sasaran KBC</h3>
         </div>
         ${options}
       </div>`;
@@ -245,7 +245,7 @@ const FormsManager = {
         <!-- Header Section -->
         <div style="border-bottom:1px solid var(--color-border-light);padding-bottom:20px;margin-bottom:28px;">
           <span style="display:inline-block;margin-bottom:8px;font-size:0.75rem;padding:3px 10px;border-radius:20px;background:rgba(26,115,232,0.12);color:var(--color-primary);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">
-            ${madrasah.nama === 'Mandiri (Pengawas)' ? '🔒 Evaluasi Mandiri Pengawas' : '🏫 Sasaran Binaan: ' + madrasah.nama}
+            ${madrasah.nama === 'Mandiri (Pengawas)' ? '🔒 Evaluasi Mandiri Pengawas' : '🏫 Madrasah Sasaran: ' + madrasah.nama}
           </span>
           <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:var(--color-text);line-height:1.25;" id="form-fill-title">
             Memuat form...
