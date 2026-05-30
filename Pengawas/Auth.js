@@ -119,8 +119,15 @@ function login(nip, password) {
               sheet.getRange(i + 1, 2).setValue(newSaltedHash);
               logEvent_('INFO', 'login', 'Auto-upgrade password ke format high-security salted hash sukses untuk NIP: ' + nipStr);
             }
-            resetRateLimit(rateLimitKey);
-            return { success: true, require_setup: false, nip: nipStr, user: getProfile(nipStr) };
+             resetRateLimit(rateLimitKey);
+            const hasProfile = isProfileSavedInSheet(nipStr);
+            return { 
+              success: true, 
+              require_setup: false, 
+              require_profile_setup: !hasProfile, 
+              nip: nipStr, 
+              user: getProfile(nipStr) 
+            };
           } else {
             return apiError('Password salah.', 'WRONG_PASSWORD');
           }

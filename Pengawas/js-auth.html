@@ -67,6 +67,13 @@ const AuthManager = {
             if (res.success) {
                 if (res.require_setup) {
                     App.router('set_password', { nip: res.nip });
+                } else if (res.require_profile_setup) {
+                    App.state.user = res.user || { NIP: res.nip };
+                    App.state.isNewUser = true;
+                    localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
+                    App.alert('Anda belum melengkapi data profil. Silakan lengkapi dan simpan profil Anda terlebih dahulu.', 'Lengkapi Profil', () => {
+                        App.router('profile');
+                    });
                 } else {
                     App.state.user = res.user || { NIP: nip }; // Fallback minimal
                     localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));

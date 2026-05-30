@@ -238,3 +238,28 @@ function uploadPhoto(nip, base64Data, filename) {
     return apiError('Gagal mengupload foto: ' + e.toString(), 'UPLOAD_ERROR');
   }
 }
+
+/**
+ * Memeriksa apakah data profil pengawas sudah ada di sheet Profil
+ * @param {string|number} nip
+ * @returns {boolean}
+ */
+function isProfileSavedInSheet(nip) {
+  try {
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('Profil');
+    if (!sheet) return false;
+    
+    const data = sheet.getDataRange().getValues();
+    const nipStr = String(nip).trim();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() == nipStr) {
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.error('isProfileSavedInSheet error: ' + e.toString());
+    return false;
+  }
+}

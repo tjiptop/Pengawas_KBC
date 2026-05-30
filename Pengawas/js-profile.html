@@ -79,7 +79,7 @@ window.ProfileViews = {
                 \x3Cdiv class="header-page-icon">✏️\x3C/div>
                 \x3Ch1>Edit Profil\x3C/h1>
             \x3C/div>
-            ${user['Nama'] ? '\x3Cbutton class="back-btn" onclick="App.router(\'dashboard\')">\x3Cspan style="font-size:0.9em;">‹\x3C/span> Kembali\x3C/button>' : ''}
+            ${(user['Nama'] && !App.state.isNewUser) ? '\x3Cbutton class="back-btn" onclick="App.router(\'dashboard\')">\x3Cspan style="font-size:0.9em;">‹\x3C/span> Kembali\x3C/button>' : ''}
         \x3C/div>
         \x3Cdiv class="content">
             \x3Cdiv class="card">
