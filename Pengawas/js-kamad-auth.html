@@ -248,6 +248,7 @@ const KamadAuth = {
    * Logout kamad
    */
   logout() {
+    localStorage.removeItem('kamad_session');
     App.state.kamad = null;
     App.router('kamad-login');
   },
