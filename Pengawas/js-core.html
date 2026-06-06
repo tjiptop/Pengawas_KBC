@@ -23,7 +23,7 @@ const App = {
     this.applyDarkMode(this.state.darkMode);
 
     // Tampilkan label versi aktif secara dinamis di pojok kanan bawah
-    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v2.2.4';
+    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v.2.5.0';
     const badgeEl = document.getElementById('version-badge');
     if (badgeEl) {
       badgeEl.textContent = appVersion;

@@ -15,7 +15,7 @@ const ADMIN_EMAIL        = PropertiesService.getScriptProperties().getProperty('
 const IS_STAGING         = APP_ENV === 'staging';
 
 // Application Version
-const APP_VERSION = 'v2.2.4';
+const APP_VERSION = 'v.2.5.0';
 
 // ============================================================
 // ENTRY POINT (Web App serving)
