@@ -3,16 +3,19 @@
 // ============================================================
 
 // Global database and template configurations
-const APP_DB_ID = '1sIIdTzW_vBQJZoizefj_6tWBrHib1OOo2TbUPPZsDYw';
-const MASTER_MADRASAH_DB_ID = '119pUNbQxQLaLtqcuHebrbwbzXkXUU3h7n5I1OxyMu4w';
-const SK_TEMPLATE_DOC_ID = '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
+// Mengambil dari Script Properties (Environment Variables), jika kosong maka gunakan ID production
+const APP_DB_ID              = PropertiesService.getScriptProperties().getProperty('APP_DB_ID')              || '1sIIdTzW_vBQJZoizefj_6tWBrHib1OOo2TbUPPZsDYw';
+const MASTER_MADRASAH_DB_ID  = PropertiesService.getScriptProperties().getProperty('MASTER_MADRASAH_DB_ID')  || '119pUNbQxQLaLtqcuHebrbwbzXkXUU3h7n5I1OxyMu4w';
+const SK_TEMPLATE_DOC_ID     = PropertiesService.getScriptProperties().getProperty('SK_TEMPLATE_DOC_ID')     || '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 
-// Max login attempts per 5 minutes per user/NSM
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOGIN_LOCKOUT_SECONDS = 300;
+// Environment & Operational Config (dapat diubah di Script Properties tanpa deploy ulang)
+const APP_ENV            = PropertiesService.getScriptProperties().getProperty('APP_ENV')            || 'production'; // 'staging' | 'production'
+const CACHE_TTL_SECONDS  = parseInt(PropertiesService.getScriptProperties().getProperty('CACHE_TTL_SECONDS')  || '600');   // Default 10 menit
+const ADMIN_EMAIL        = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')        || '';          // Email untuk notifikasi error kritis
+const IS_STAGING         = APP_ENV === 'staging';
 
 // Application Version
-const APP_VERSION = 'v2.2.3';
+const APP_VERSION = 'v2.2.4';
 
 // ============================================================
 // ENTRY POINT (Web App serving)

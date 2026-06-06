@@ -12,8 +12,10 @@ function isRateLimited(identifier) {
   const cache = CacheService.getScriptCache();
   const key = 'ratelimit_' + identifier;
   const attempts = parseInt(cache.get(key) || '0');
-  if (attempts >= MAX_LOGIN_ATTEMPTS) return true;
-  cache.put(key, String(attempts + 1), LOGIN_LOCKOUT_SECONDS);
+  const maxAttempts = parseInt(PropertiesService.getScriptProperties().getProperty('MAX_LOGIN_ATTEMPTS') || '5');
+  const lockoutSecs = parseInt(PropertiesService.getScriptProperties().getProperty('LOGIN_LOCKOUT_SECONDS') || '300');
+  if (attempts >= maxAttempts) return true;
+  cache.put(key, String(attempts + 1), lockoutSecs);
   return false;
 }
 

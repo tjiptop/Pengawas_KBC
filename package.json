@@ -12,6 +12,13 @@
     "clasp:pengawas:push": "cd Pengawas && clasp push",
     "clasp:pengawas:status": "cd Pengawas && clasp status",
     "clasp:pengawas:watch": "cd Pengawas && clasp push --watch",
+    "switch:staging": "powershell -Command \"Copy-Item Pengawas/.clasp-staging.json Pengawas/.clasp.json -Force\"",
+    "switch:prod": "powershell -Command \"Copy-Item Pengawas/.clasp-prod.json Pengawas/.clasp.json -Force\"",
+    "deploy:staging": "npm run switch:staging && cd Pengawas && clasp push",
+    "deploy:prod": "npm run switch:prod && cd Pengawas && clasp push",
+    "release:prod": "npm run switch:prod && cd Pengawas && clasp push && clasp deploy --description \"Production release\"",
+    "watch:staging": "npm run switch:staging && cd Pengawas && clasp push --watch",
+    "release:staging": "npm run switch:staging && cd Pengawas && clasp push && clasp deploy --description \"Staging release\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

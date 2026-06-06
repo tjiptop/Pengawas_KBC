@@ -2692,4 +2692,55 @@
         transform: scale(0.995);
     }
 
+    /* ========================================
+       SKELETON LOADING — Shimmer effect
+       Gunakan class .skeleton pada elemen placeholder saat data dimuat.
+       ======================================== */
+    @keyframes shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .skeleton {
+        background: linear-gradient(90deg, var(--color-border-light) 25%, var(--color-bg-hover) 50%, var(--color-border-light) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: var(--radius-sm);
+        display: block;
+    }
+    [data-theme="dark"] .skeleton {
+        background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+        background-size: 200% 100%;
+    }
+
+    /* ========================================
+       UTILITY CLASSES
+       ======================================== */
+    .d-flex         { display: flex; }
+    .align-center   { align-items: center; }
+    .justify-between{ justify-content: space-between; }
+    .gap-sm         { gap: var(--spacing-sm); }
+    .gap-md         { gap: var(--spacing-md); }
+    .flex-1         { flex: 1; min-width: 0; }
+    .flex-shrink-0  { flex-shrink: 0; }
+    .text-sm        { font-size: var(--font-size-sm); }
+    .text-xs        { font-size: var(--font-size-xs); }
+    .text-muted     { color: var(--color-text-light); }
+    .text-secondary { color: var(--color-text-secondary); }
+    .text-primary   { color: var(--color-primary); }
+    .font-bold      { font-weight: 700; }
+    .font-semibold  { font-weight: 600; }
+    .truncate       { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Status dot — gantikan bulatan status inline */
+    .status-dot           { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; vertical-align: middle; }
+    .status-dot--aktif    { background: #28a745; }
+    .status-dot--pending  { background: #f0ad00; }
+
+    /* Disabled button */
+    .btn:disabled, .btn[disabled] {
+        opacity: 0.65; cursor: not-allowed;
+        transform: none !important; box-shadow: none !important;
+    }
+    .btn:disabled::before, .btn[disabled]::before { display: none; }
+
 </style>

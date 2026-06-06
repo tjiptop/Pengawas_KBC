@@ -3,6 +3,10 @@
 // CORE APP — State, Router, Alert Modal, Dark Mode
 // ============================================================
 
+// Lifecycle cleanup registry — fungsi-fungsi ini dipanggil saat router berpindah halaman
+// Mencegah memory leak dari event listener / interval yang tersisa
+const _pageCleanups = [];
+
 const App = {
   state: {
     user: null,
@@ -10,6 +14,7 @@ const App = {
     kamadForms: [],        // Cache daftar form kamad
     view: 'login',
     madrasahSasaran: [],
+    submissions: [],
     darkMode: localStorage.getItem('pengawas_dark') === 'true'
   },
 
@@ -18,7 +23,7 @@ const App = {
     this.applyDarkMode(this.state.darkMode);
 
     // Tampilkan label versi aktif secara dinamis di pojok kanan bawah
-    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v2.2.3';
+    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v2.2.4';
     const badgeEl = document.getElementById('version-badge');
     if (badgeEl) {
       badgeEl.textContent = appVersion;
@@ -38,6 +43,12 @@ const App = {
     }
     
     if (kamadSetupToken) {
+      // Validasi format token minimal sebelum dikirim ke server
+      if (!/^[a-zA-Z0-9_\-]{10,}$/.test(kamadSetupToken)) {
+        this.alert('Link setup tidak valid atau sudah kedaluwarsa. Minta link baru dari Pengawas Anda.', 'Link Tidak Valid');
+        this.router('login');
+        return;
+      }
       // Render halaman setup password kamad
       document.getElementById('app').innerHTML = `
         <div class="kamad-auth-wrap">
@@ -50,7 +61,23 @@ const App = {
       return;
     }
 
-    // Cek session kamad tersimpan
+    // Cek session pengawas tersimpan LEBIH DAHULU
+    // Pengawas adalah user utama; kamad_session yang tersisa dari mode "view-as"
+    // tidak boleh menggantikan sesi Pengawas yang masih aktif.
+    const storedUser = localStorage.getItem('pengawas_user');
+    if (storedUser) {
+      try {
+        this.state.user = JSON.parse(storedUser);
+        // Hapus sisa kamad_session dari sesi "view-as" sebelumnya agar tidak bocor
+        localStorage.removeItem('kamad_session');
+        this.router('dashboard');
+        return;
+      } catch (e) {
+        localStorage.removeItem('pengawas_user');
+      }
+    }
+
+    // Cek session kamad tersimpan (hanya jika tidak ada sesi Pengawas aktif)
     const storedKamad = localStorage.getItem('kamad_session');
     if (storedKamad) {
       try {
@@ -60,21 +87,14 @@ const App = {
       } catch (e) { localStorage.removeItem('kamad_session'); }
     }
 
-    // Cek session pengawas tersimpan
-    const storedUser = localStorage.getItem('pengawas_user');
-    if (storedUser) {
-      try {
-        this.state.user = JSON.parse(storedUser);
-        this.router('dashboard');
-      } catch (e) {
-        this.router('login');
-      }
-    } else {
-      this.router('login');
-    }
+    this.router('login');
   },
 
   router(view, params = {}) {
+    // Jalankan cleanup halaman sebelumnya (hapus event listener, interval, dll.)
+    while (_pageCleanups.length) {
+      try { _pageCleanups.pop()(); } catch(e) { /* silent */ }
+    }
     this.state.view = view;
     const el = document.getElementById('app');
     window.scrollTo(0, 0);
@@ -123,8 +143,12 @@ const App = {
     } else if (view === 'kamad-login') {
       el.innerHTML = KamadAuth.views.login();
     } else if (view === 'kamad-dashboard') {
-      // Simpan session kamad
-      if (this.state.kamad) localStorage.setItem('kamad_session', JSON.stringify(this.state.kamad));
+      // Simpan session kamad HANYA jika Pengawas TIDAK sedang view-as.
+      // Jika isSupervisorViewAs=true, berarti Pengawas sedang mengintip tampilan Kamad
+      // dan session-nya TIDAK boleh disimpan permanen ke localStorage.
+      if (this.state.kamad && !this.state.isSupervisorViewAs) {
+        localStorage.setItem('kamad_session', JSON.stringify(this.state.kamad));
+      }
       KamadDashboard.init();
     } else if (view === 'kamad-forms') {
       KamadForms.init();
@@ -203,6 +227,7 @@ const App = {
     localStorage.removeItem('pengawas_user');
     this.state.user = null;
     this.state.madrasahSasaran = [];
+    this.state.submissions = [];
     this.router('login');
   },
 
@@ -210,6 +235,72 @@ const App = {
     localStorage.removeItem('kamad_session');
     this.state.kamad = null;
     this.router('login');
+  },
+
+  // ============================================================
+  // GLOBAL TOAST NOTIFICATION
+  // Menggantikan showToast() yang duplikat di berbagai file.
+  // Gunakan: App.toast('Pesan', 'success' | 'error' | 'warning' | 'info')
+  // ============================================================
+  toast(msg, type = 'info', durationMs = 2500) {
+    const colors = {
+      info:    'rgba(30,30,30,0.88)',
+      success: '#28a745',
+      error:   '#dc3545',
+      warning: '#f0ad00'
+    };
+    // Pastikan style animasi hanya ditambahkan sekali
+    if (!document.getElementById('app-toast-style')) {
+      const style = document.createElement('style');
+      style.id = 'app-toast-style';
+      style.textContent = `
+        @keyframes _toastIn  { from { opacity:0; transform:translate(-50%,10px) } to { opacity:1; transform:translate(-50%,0) } }
+        @keyframes _toastOut { from { opacity:1; transform:translate(-50%,0) } to { opacity:0; transform:translate(-50%,-8px) } }
+        .app-toast { animation: _toastIn 0.22s ease forwards; }
+        .app-toast.hiding { animation: _toastOut 0.22s ease forwards; }
+      `;
+      document.head.appendChild(style);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'app-toast';
+    toast.style.cssText = `
+      position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+      background:${colors[type] || colors.info};color:white;
+      padding:10px 22px;border-radius:30px;font-size:0.82rem;
+      font-weight:600;z-index:10001;box-shadow:0 4px 16px rgba(0,0,0,0.28);
+      pointer-events:none;white-space:nowrap;font-family:inherit;
+    `;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('hiding');
+      setTimeout(() => toast.remove(), 220);
+    }, durationMs);
+  },
+
+  // ============================================================
+  // RETRY WRAPPER untuk google.script.run
+  // Otomatis coba ulang jika koneksi gagal (exponential backoff).
+  // Gunakan: App.runWithRetry('namaFungsiGAS', [arg1, arg2], onSuccess, onError)
+  // ============================================================
+  runWithRetry(fnName, args = [], onSuccess, onError, maxRetry = 2) {
+    let attempt = 0;
+    const run = () => {
+      attempt++;
+      let runner = google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(err => {
+          if (attempt < maxRetry) {
+            const delay = 1200 * attempt; // 1.2s, 2.4s, ...
+            console.warn(`[Retry ${attempt}/${maxRetry}] ${fnName} gagal, coba lagi dalam ${delay}ms...`);
+            setTimeout(run, delay);
+          } else {
+            if (typeof onError === 'function') onError(err);
+          }
+        });
+      runner[fnName](...args);
+    };
+    run();
   }
 };
 

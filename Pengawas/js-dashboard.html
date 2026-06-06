@@ -85,18 +85,39 @@ const DashboardViews = {
 const DashboardManager = {
     init() {
         this.currentPage = 1;
-        App.loading(true, 'Memuat data...');
+        // Tampilkan skeleton loading sebelum data tiba
+        const container = document.getElementById('dash-sasaran-list');
+        if (container) {
+            container.innerHTML = [1,2,3].map(() => `
+            <div style="padding:14px 16px;display:flex;gap:12px;align-items:center;">
+                <div class="skeleton" style="width:28px;height:28px;border-radius:8px;flex-shrink:0;"></div>
+                <div style="flex:1;">
+                    <div class="skeleton" style="height:13px;width:65%;margin-bottom:7px;"></div>
+                    <div class="skeleton" style="height:11px;width:40%;"></div>
+                </div>
+                <div class="skeleton" style="width:36px;height:22px;border-radius:12px;"></div>
+            </div>`).join('');
+        }
+        // 1 panggilan API menggantikan 2 panggilan sebelumnya (getSasaran + apiGetSubmissionHistory)
+        App.loading(false); // Tidak perlu loading overlay — skeleton sudah cukup
         google.script.run.withSuccessHandler(res => {
-            App.loading(false);
-            App.state.madrasahSasaran = res || [];
-            const countEl = document.getElementById('stat-sasaran-count');
-            if (countEl) countEl.textContent = res ? res.length : 0;
-            this.renderSasaranList();
-            this.loadFormsSummary();
+            if (res && res.success) {
+                App.state.madrasahSasaran = res.data.sasaran || [];
+                App.state.submissions     = res.data.history  || [];
+                const countEl = document.getElementById('stat-sasaran-count');
+                if (countEl) countEl.textContent = App.state.madrasahSasaran.length;
+                const formsCountEl = document.getElementById('stat-forms-count');
+                if (formsCountEl) formsCountEl.textContent = App.state.submissions.length;
+                this.renderSasaranList();
+                this.renderFormsSummary();
+            } else {
+                App.alert((res && res.error) || 'Gagal memuat data dashboard.', 'Gagal');
+                if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.82em;">Gagal memuat data.</div>';
+            }
         }).withFailureHandler(err => {
-            App.loading(false);
-            App.alert(err.message || 'Gagal memuat data.', 'Gagal');
-        }).getSasaran(App.state.user['NIP']);
+            App.alert(err.message || 'Koneksi gagal.', 'Error');
+            if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.82em;">Gagal memuat data.</div>';
+        }).getDashboardData(App.state.user['NIP']);
     },
 
     renderSasaranList() {
@@ -125,8 +146,8 @@ const DashboardManager = {
         let html = pageData.map((item, idx) => {
             const globalIdx = startIndex + idx;
             const statusBadge = item.kamad_aktif ? 
-                `<span style="font-size:0.7rem;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;white-space:nowrap;">✅ Aktif</span>` :
-                `<span style="font-size:0.7rem;padding:2px 8px;border-radius:6px;background:#fff3cd;color:#856404;font-weight:600;white-space:nowrap;">⚠️ Belum Aktif</span>`;
+                `<span title="Aktif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;flex-shrink:0;"></span>` :
+                `<span title="Belum Aktif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f0ad00;flex-shrink:0;"></span>`;
             
             const actionButton = item.kamad_aktif ? '' : `
                 <button
@@ -196,8 +217,33 @@ const DashboardManager = {
             </div>`;
         }
         container.innerHTML = html;
+        this.updateCount && this.updateCount();
     },
 
+    // Render ringkasan form (dipanggil setelah getDashboardData selesai)
+    renderFormsSummary() {
+        const container = document.getElementById('dash-forms-summary');
+        if (!container) return;
+        const submissions = App.state.submissions || [];
+        if (submissions.length > 0) {
+            const history = submissions.slice(0, 3);
+            container.innerHTML = history.map((item, idx) => {
+                const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                }) : '-';
+                return `
+                <div style="padding:12px 16px;${idx < Math.min(history.length,3)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;justify-content:space-between;align-items:center;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.formId.replace(/_/g,' ')}</div>
+                        <div style="font-size:0.74em;color:var(--color-text-light);margin-top:1px;">${item.nsmMadrasah || '-'} · ${date}</div>
+                    </div>
+                    <span style="font-size:0.7em;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;flex-shrink:0;margin-left:8px;">${item.status}</span>
+                </div>`;
+            }).join('');
+        } else {
+            container.innerHTML = '<div style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;">Belum ada instrumen terisi</div>';
+        }
+    },
     changePage(direction) {
         this.currentPage += direction;
         this.renderSasaranList();
@@ -248,35 +294,8 @@ const DashboardManager = {
                         }
                     };
 
-                    const showToast = (msg) => {
-                        if (!document.getElementById('toast-animation-style')) {
-                            const style = document.createElement('style');
-                            style.id = 'toast-animation-style';
-                            style.textContent = `
-                                @keyframes fadeInOut {
-                                    0% { opacity: 0; transform: translate(-50%, 10px); }
-                                    15% { opacity: 1; transform: translate(-50%, 0); }
-                                    85% { opacity: 1; transform: translate(-50%, 0); }
-                                    100% { opacity: 0; transform: translate(-50%, -10px); }
-                                }
-                            `;
-                            document.head.appendChild(style);
-                        }
-                        const toast = document.createElement('div');
-                        toast.style.cssText = `
-                            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-                            background: rgba(0,0,0,0.85); color: white; padding: 10px 24px;
-                            border-radius: 30px; font-size: 0.82rem; font-weight: 600; z-index: 10000;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none;
-                            animation: fadeInOut 2.2s forwards; font-family: sans-serif;
-                        `;
-                        toast.textContent = msg;
-                        document.body.appendChild(toast);
-                        setTimeout(() => toast.remove(), 2200);
-                    };
-
                     copyToClipboard(linkUrl).then(() => {
-                        showToast("🔗 Link berhasil disalin!");
+                        App.toast('🔗 Link berhasil disalin!', 'success');
                     }).catch(() => {
                         App.alert(
                             `Gagal menyalin otomatis. Silakan salin link berikut secara manual:<br><br><input type="text" style="width:100%;font-size:0.9em;padding:8px;border-radius:4px;border:1px solid #ccc;" value="${linkUrl}" readonly onclick="this.select()">`,
@@ -292,60 +311,6 @@ const DashboardManager = {
                 App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
             })
             .generateKamadSetupLink(nsm, nip);
-    },
-
-    loadFormsSummary() {
-        google.script.run
-            .withSuccessHandler(res => {
-                const formsCountEl = document.getElementById('stat-forms-count');
-                const container = document.getElementById('dash-forms-summary');
-                
-                if (res && res.success && res.data) {
-                    // Cache submissions list in global state
-                    App.state.submissions = res.data || [];
-                    
-                    // Update stat count
-                    if (formsCountEl) formsCountEl.textContent = res.data.length;
-                    
-                    // Render history list if container exists
-                    if (container) {
-                        if (res.data.length > 0) {
-                            const history = res.data.slice(0, 3);
-                            let html = history.map((item, idx) => {
-                                const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
-                                    day: '2-digit', month: 'short', year: 'numeric'
-                                }) : '-';
-                                return `
-                                <div style="padding:12px 16px;${idx < Math.min(history.length,3)-1 ? 'border-bottom:1px solid var(--color-border-light);' : ''}display:flex;justify-content:space-between;align-items:center;">
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="font-size:0.85em;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.formId.replace(/_/g,' ')}</div>
-                                        <div style="font-size:0.74em;color:var(--color-text-light);margin-top:1px;">${item.nsmMadrasah || '-'} · ${date}</div>
-                                    </div>
-                                    <span style="font-size:0.7em;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;flex-shrink:0;margin-left:8px;">${item.status}</span>
-                                </div>`;
-                            }).join('');
-                            container.innerHTML = html;
-                        } else {
-                            container.innerHTML = '<div style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;">Belum ada instrumen terisi</div>';
-                        }
-                    }
-                } else {
-                    App.state.submissions = [];
-                    if (container) {
-                        container.innerHTML = '<p style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;margin:0;">Belum ada riwayat.</p>';
-                    }
-                }
-                
-                // Re-render target list to display updated document counts
-                this.renderSasaranList();
-            })
-            .withFailureHandler(() => {
-                App.state.submissions = [];
-                this.renderSasaranList();
-                const container = document.getElementById('dash-forms-summary');
-                if (container) container.innerHTML = '<p style="text-align:center;color:var(--color-text-light);font-size:0.82em;padding:16px;margin:0;">Gagal memuat riwayat.</p>';
-            })
-            .apiGetSubmissionHistory(App.state.user['NIP'], null);
     },
 
     generateSK() {
@@ -369,9 +334,15 @@ const DashboardManager = {
     }
 };
 
-// Tutup dropdown saat klik di luar
-document.addEventListener('click', () => {
-    const menu = document.getElementById('dashboard-menu');
-    if (menu) menu.classList.remove('show');
-});
+// Tutup dropdown saat klik di luar — daftarkan ke _pageCleanups agar di-cleanup saat pindah halaman
+(function() {
+    const closeMenu = () => {
+        const menu = document.getElementById('dashboard-menu');
+        if (menu) menu.classList.remove('show');
+    };
+    document.addEventListener('click', closeMenu);
+    if (typeof _pageCleanups !== 'undefined') {
+        _pageCleanups.push(() => document.removeEventListener('click', closeMenu));
+    }
+})();
 </script>

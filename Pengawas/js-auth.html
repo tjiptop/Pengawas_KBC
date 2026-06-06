@@ -22,7 +22,7 @@ const AuthViews = {
                      autocomplete="current-password" style="margin-bottom:0;">
             </div>
             <p style="font-size:0.78rem;color:var(--color-text-light);margin:0 0 20px;">Bagi pengguna baru, biarkan password kosong.</p>
-            <button class="btn" style="padding:13px;" onclick="AuthManager.doLogin()">Login Pengawas</button>
+            <button id="login-submit-btn" class="btn" style="padding:13px;" onclick="AuthManager.doLogin()">Login Pengawas</button>
 
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--color-border-light);text-align:center;">
               <p style="font-size:0.8rem;color:var(--color-text-light);margin:0 0 10px;">Kepala Madrasah?</p>
@@ -49,7 +49,7 @@ const AuthViews = {
                 <label>Konfirmasi Password</label>
                 <input type="password" id="setup-pwd2" class="form-control" placeholder="Minimal 6 karakter" minlength="6" required>
             </div>
-            <button class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="AuthManager.doSetPassword('${nip}')">Simpan Password</button>
+            <button id="setup-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="AuthManager.doSetPassword('${nip}')">Simpan Password</button>
         </div>
     `
 };
@@ -61,9 +61,15 @@ const AuthManager = {
 
         if (!nip) return App.alert('NIP wajib diisi', 'Error');
 
+        // Debounce: nonaktifkan tombol selama proses
+        const btn = document.getElementById('login-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Memeriksa...'; }
+        const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Login Pengawas'; } };
+
         App.loading(true, 'Memeriksa kredensial...');
         google.script.run.withSuccessHandler(res => {
             App.loading(false);
+            resetBtn();
             if (res.success) {
                 if (res.require_setup) {
                     App.router('set_password', { nip: res.nip });
@@ -75,7 +81,7 @@ const AuthManager = {
                         App.router('profile');
                     });
                 } else {
-                    App.state.user = res.user || { NIP: nip }; // Fallback minimal
+                    App.state.user = res.user || { NIP: nip };
                     localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
                     App.router('dashboard');
                 }
@@ -84,6 +90,7 @@ const AuthManager = {
             }
         }).withFailureHandler(err => {
             App.loading(false);
+            resetBtn();
             App.alert(err.message, 'System Error');
         }).login(nip, pwd);
     },
@@ -95,13 +102,19 @@ const AuthManager = {
         if (!p1 || p1.length < 6) return App.alert('Password minimal 6 karakter', 'Error');
         if (p1 !== p2) return App.alert('Konfirmasi password tidak cocok', 'Error');
 
+        // Debounce: nonaktifkan tombol selama proses
+        const btn = document.getElementById('setup-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+        const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Simpan Password'; } };
+
         App.loading(true, 'Menyimpan password...');
         google.script.run.withSuccessHandler(res => {
             App.loading(false);
+            resetBtn();
             if (res.success) {
                 const userProfile = res.data;
                 App.state.user = userProfile || { 'NIP': nip };
-                App.state.isNewUser = true; // Tandai user baru
+                App.state.isNewUser = true;
                 localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
                 App.alert('Password berhasil disetel. Selanjutnya, lengkapi profil Anda.', 'Langkah 1/2', () => {
                     App.router('profile');
@@ -111,6 +124,7 @@ const AuthManager = {
             }
         }).withFailureHandler(err => {
             App.loading(false);
+            resetBtn();
             App.alert(err.message, 'System Error');
         }).setPassword(nip, p1);
     }

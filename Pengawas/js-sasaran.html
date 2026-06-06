@@ -60,8 +60,8 @@ const SasaranViews = {
 
     MadrasahItem: (item, isChecked, isKamadAktif) => {
         const statusBadge = isChecked ? (isKamadAktif ? 
-            `<span style="font-size:0.68rem;padding:2px 8px;border-radius:6px;background:#d4edda;color:#155724;font-weight:600;margin-left:8px;vertical-align:middle;display:inline-block;white-space:nowrap;">✅ Kamad Aktif</span>` :
-            `<span style="font-size:0.68rem;padding:2px 8px;border-radius:6px;background:#fff3cd;color:#856404;font-weight:600;margin-left:8px;vertical-align:middle;display:inline-block;white-space:nowrap;">⚠️ Kamad Belum Aktif</span>`
+            `<span title="Kamad Aktif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;flex-shrink:0;margin-left:6px;vertical-align:middle;"></span>` :
+            `<span title="Kamad Belum Aktif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f0ad00;flex-shrink:0;margin-left:6px;vertical-align:middle;"></span>`
         ) : '';
 
         const actionButton = (isChecked && !isKamadAktif) ? `
@@ -272,35 +272,8 @@ const SasaranManager = {
                         }
                     };
 
-                    const showToast = (msg) => {
-                        if (!document.getElementById('toast-animation-style')) {
-                            const style = document.createElement('style');
-                            style.id = 'toast-animation-style';
-                            style.textContent = `
-                                @keyframes fadeInOut {
-                                    0% { opacity: 0; transform: translate(-50%, 10px); }
-                                    15% { opacity: 1; transform: translate(-50%, 0); }
-                                    85% { opacity: 1; transform: translate(-50%, 0); }
-                                    100% { opacity: 0; transform: translate(-50%, -10px); }
-                                }
-                            `;
-                            document.head.appendChild(style);
-                        }
-                        const toast = document.createElement('div');
-                        toast.style.cssText = `
-                            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-                            background: rgba(0,0,0,0.85); color: white; padding: 10px 24px;
-                            border-radius: 30px; font-size: 0.82rem; font-weight: 600; z-index: 10000;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none;
-                            animation: fadeInOut 2.2s forwards; font-family: sans-serif;
-                        `;
-                        toast.textContent = msg;
-                        document.body.appendChild(toast);
-                        setTimeout(() => toast.remove(), 2200);
-                    };
-
                     copyToClipboard(linkUrl).then(() => {
-                        showToast("🔗 Link berhasil disalin!");
+                        App.toast('🔗 Link berhasil disalin!', 'success');
                     }).catch(() => {
                         App.alert(
                             `Gagal menyalin otomatis. Silakan salin link berikut secara manual:<br><br><input type="text" style="width:100%;font-size:0.9em;padding:8px;border-radius:4px;border:1px solid #ccc;" value="${linkUrl}" readonly onclick="this.select()">`,

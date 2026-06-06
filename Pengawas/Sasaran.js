@@ -340,6 +340,25 @@ function getSasaranPageData(nip, kabupaten, jenjangStr) {
 }
 
 /**
+ * Composite API: Mengambil semua data yang dibutuhkan Dashboard Pengawas dalam 1 round-trip.
+ * Menggabungkan getSasaran() + apiGetSubmissionHistory() sehingga loading dashboard 2× lebih cepat.
+ * @param {string|number} nip
+ * @returns {object} Response standard dengan { sasaran, history }
+ */
+function getDashboardData(nip) {
+  if (!nip) return apiError('NIP tidak valid.', 'VALIDATION');
+  try {
+    const sasaran = getSasaran(nip);
+    const historyRes = apiGetSubmissionHistory(nip, null);
+    const history = (historyRes && historyRes.success) ? (historyRes.data || []) : [];
+    return apiSuccess({ sasaran: sasaran, history: history });
+  } catch (e) {
+    console.error('getDashboardData error: ' + e.toString());
+    return apiError('Gagal memuat data dashboard: ' + e.toString(), 'DASHBOARD_ERROR');
+  }
+}
+
+/**
  * Normalisasi nama kabupaten/kota — mempertahankan prefix "kota"/"kabupaten"
  * agar Kota Malang ≠ Kabupaten Malang
  * - kab. / kab  → kabupaten

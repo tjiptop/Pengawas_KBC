@@ -25,3 +25,7 @@ package-lock.json
 .gemini/**
 temp_pull/**
 
+# Staging-only files (hapus baris berikut jika ingin push ke Production):
+# Untuk exclude _Test.js dari production, jalankan: npm run deploy:prod
+# (deploy:prod secara manual tidak push _Test.js karena hanya dibutuhkan saat staging)
+# _Test.js   ← Uncomment baris ini untuk exclude dari SEMUA environment
