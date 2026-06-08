@@ -1,0 +1,1139 @@
+<style>
+/* Styling Tambahan Modul Pelatihan */
+.pelatihan-card {
+    background: var(--color-bg-elevated, #fff);
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+.pelatihan-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+}
+.pelatihan-status-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+}
+.status-draft { background: rgba(240, 173, 0, 0.1); color: #f0ad00; }
+.status-aktif { background: rgba(40, 167, 69, 0.1); color: #28a745; }
+.status-selesai { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
+
+.pelatihan-tabs-wrap {
+    display: flex;
+    border-bottom: 2px solid var(--color-border-light, #eee);
+    margin-bottom: 16px;
+    gap: 8px;
+    overflow-x: auto;
+}
+.pelatihan-tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-text-light, #666);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+}
+.pelatihan-tab-btn:hover {
+    color: var(--color-primary);
+}
+.pelatihan-tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+.pelatihan-tab-content {
+    display: none;
+}
+.pelatihan-tab-content.active {
+    display: block;
+}
+
+.tree-node-kab {
+    margin-bottom: 10px;
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--color-bg-elevated, #fff);
+}
+.tree-node-kab summary {
+    padding: 12px 16px;
+    background: var(--color-bg-elevated, #fafafa);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.92rem;
+    display: flex;
+    align-items: center;
+    user-select: none;
+}
+.tree-node-kab-list {
+    padding: 8px 16px;
+    border-top: 1px solid var(--color-border-light, #eee);
+}
+
+.test-control-card {
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: var(--color-bg-elevated, #fff);
+}
+.test-status-text {
+    font-weight: 700;
+    font-size: 0.9em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+</style>
+
+<script>
+const MAX_PESERTA_PER_PELATIHAN = 50;
+const PelatihanViews = {
+    Main: () => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">🎓</div>
+                <h1>Kelola Pelatihan</h1>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="App.router('pelatihan-buat')" style="padding: 6px 12px; font-size: 0.85em; border-radius: 8px;">+ Buat Jadwal</button>
+                <button class="back-btn" onclick="App.router('dashboard')" style="padding: 6px 12px;">‹ Kembali</button>
+            </div>
+        </div>
+        <div class="content" style="padding-bottom: 40px;">
+            <div id="pelatihan-list-container">
+                <div style="text-align:center;padding:40px;color:var(--color-text-light);">Memuat daftar pelatihan...</div>
+            </div>
+        </div>
+    `,
+
+    FormJadwal: (params) => {
+        const isEdit = !!(params && params.id);
+        return `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">📅</div>
+                <h1>${isEdit ? 'Edit Jadwal Pelatihan' : 'Buat Jadwal Pelatihan'}</h1>
+            </div>
+            <button class="back-btn" onclick="App.router('pelatihan')">‹ Batal</button>
+        </div>
+        <div class="content" style="padding-bottom: 40px;">
+            <div class="card">
+                <form id="form-pelatihan" onsubmit="event.preventDefault(); PelatihanManager.saveJadwal('${params.id || ''}')">
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label class="form-label" for="plt-judul">Judul Pelatihan</label>
+                        <input type="text" id="plt-judul" class="form-control" required placeholder="Contoh: Pelatihan KBC Angkatan 1 Provinsi Jawa Timur">
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label class="form-label" for="plt-deskripsi">Deskripsi</label>
+                        <textarea id="plt-deskripsi" class="form-control" rows="3" placeholder="Deskripsi singkat kegiatan..."></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label class="form-label" for="plt-provinsi">Provinsi Target</label>
+                        <input type="text" id="plt-provinsi" class="form-control" readonly value="${App.state.user['Provinsi'] || ''}" style="background:var(--color-bg);opacity:0.85;">
+                        <small style="color:var(--color-text-light);font-size:0.75em;">Otomatis diset sesuai provinsi profil Anda.</small>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="plt-tgl-mulai">Tanggal Mulai</label>
+                            <input type="date" id="plt-tgl-mulai" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="plt-tgl-selesai">Tanggal Selesai</label>
+                            <input type="date" id="plt-tgl-selesai" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
+                        <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:12px;color:var(--color-text);">📚 Pilih Materi Pelatihan</h3>
+                        <div id="plt-materi-checkboxes" style="display:flex;flex-direction:column;gap:10px;">
+                            <div style="color:var(--color-text-light);font-size:0.85em;">Memuat materi...</div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:24px;padding:12px;">💾 Simpan Jadwal</button>
+                </form>
+            </div>
+        </div>
+        `;
+    },
+
+    Detail: (pelatihanId) => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">🎓</div>
+                <div>
+                    <h1 id="det-judul" style="font-size:1.1rem;line-height:1.2;">Memuat...</h1>
+                    <span id="det-status" class="pelatihan-status-badge status-draft" style="margin-top:4px;display:inline-block;">DRAFT</span>
+                </div>
+            </div>
+            <button class="back-btn" onclick="App.router('pelatihan')">‹ Kembali</button>
+        </div>
+        <div class="content" style="padding-bottom: 80px;">
+            <!-- Tab Buttons -->
+            <div class="pelatihan-tabs-wrap">
+                <button class="pelatihan-tab-btn active" onclick="PelatihanManager.switchTab(this, 'tab-peserta')">👥 Peserta</button>
+                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-materi')">📚 Materi</button>
+                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-test')">📝 Pre/Post Test</button>
+                <button class="pelatihan-tab-btn" id="tab-analisis-btn" onclick="PelatihanManager.switchTab(this, 'tab-analisis')" style="display:none;">📊 Analisis</button>
+            </div>
+
+            <!-- Tab Content: Peserta -->
+            <div id="tab-peserta" class="pelatihan-tab-content active">
+                
+                <!-- Invite Code Section -->
+                <div id="invite-code-section" style="display:none; background:var(--color-bg); border:1px solid var(--color-primary); padding:10px 14px; border-radius:8px; margin-bottom:16px; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:0.85rem; color:var(--color-text-light); font-weight:600;">Kode Undangan:</span>
+                        <div id="txt-invite-code" style="font-size:1.15rem; font-weight:800; letter-spacing:4px; color:var(--color-primary); background:rgba(26,115,232,0.1); padding:4px 10px; border-radius:6px;">XXXX</div>
+                    </div>
+                    <button id="btn-close-invite" class="btn" style="background:none; border:1px solid var(--color-danger); color:var(--color-danger); font-size:0.75rem; padding:4px 10px; border-radius:6px; font-weight:600;" onclick="PelatihanManager.closeInvitation('${pelatihanId}')">Tutup</button>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div>
+                            <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:2px;">Daftar Peserta Pelatihan</h3>
+                            <p style="font-size:0.75rem;color:var(--color-text-light);margin:0;">Total: <span id="detail-selected-count" style="font-weight:bold;color:var(--color-primary);">0</span> / ${MAX_PESERTA_PER_PELATIHAN} orang</p>
+                        </div>
+                        <button id="btn-show-add-peserta" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; border-radius:6px;" onclick="PelatihanManager.showSearchPesertaModal()">+ Tambah</button>
+                    </div>
+                    
+                    <div style="overflow-x:auto; margin-top:10px;">
+                        <table class="table" style="width:100%; font-size:0.8rem; white-space:nowrap; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--color-border-light);">
+                                    <th style="padding:8px; text-align:center;">No</th>
+                                    <th style="padding:8px; text-align:left;">NIP</th>
+                                    <th style="padding:8px; text-align:left;">Nama Lengkap</th>
+                                    <th style="padding:8px; text-align:left;">Kab/Kota</th>
+                                    <th style="padding:8px; text-align:left;">Provinsi</th>
+                                    <th style="padding:8px; text-align:left;">Jenjang</th>
+                                    <th style="padding:8px; text-align:center;">L/K</th>
+                                    <th style="padding:8px; text-align:center; width:60px;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="peserta-table-body">
+                                <tr><td colspan="8" style="text-align:center;padding:20px;color:var(--color-text-light);">Memuat data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Add Peserta Modal -->
+                <div id="add-peserta-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+                    <div class="card" style="width:100%; max-width:550px; max-height:85vh; display:flex; flex-direction:column; padding:20px; animation: slideUp 0.3s ease;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                            <h3 style="margin:0; font-size:1.1rem; font-weight:700;">Tambah Peserta (Provinsi Anda)</h3>
+                            <button onclick="PelatihanManager.closeSearchPesertaModal()" style="background:none; border:none; font-size:1.5rem; line-height:1; padding:4px 8px; color:var(--color-text-light); cursor:pointer; transition:color var(--transition-fast);" onmouseover="this.style.color='var(--color-danger)'" onmouseout="this.style.color='var(--color-text-light)'">&times;</button>
+                        </div>
+                        
+                        <div style="display:flex; gap:8px; margin-bottom:16px; width:100%;">
+                            <input type="text" id="search-peserta-input" class="form-control" placeholder="Cari NIP atau Nama..." style="flex:1; min-width:0; width:100%;" onkeydown="if(event.key === 'Enter') PelatihanManager.searchPeserta()">
+                            <button class="btn btn-primary" onclick="PelatihanManager.searchPeserta()" style="padding:8px 16px; width:auto !important; flex-shrink:0;">Cari</button>
+                        </div>
+                        
+                        <div id="search-peserta-results" style="flex:1; overflow-y:auto; padding-right:8px; border:1px solid var(--color-border-light); border-radius:6px; background:var(--color-bg-elevated);">
+                            <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
+                                <div>🔍</div>
+                                <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Materi -->
+            <div id="tab-materi" class="pelatihan-tab-content">
+                <div class="card">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:12px;">Materi Terpilih</h3>
+                    <div id="materi-list-container" style="display:flex;flex-direction:column;gap:10px;">
+                        <!-- Materi list here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Pre/Post Test -->
+            <div id="tab-test" class="pelatihan-tab-content">
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">Konfigurasi Soal YAML</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:12px;">Pre-Test dan Post-Test menggunakan 1 set soal yang sama (identik).</p>
+                    
+                    <textarea id="test-yaml-definition" class="form-control" rows="12" style="font-family:monospace;font-size:0.8rem;background:var(--color-bg);margin-bottom:12px;" placeholder="Tulis definisi YAML di sini..."></textarea>
+                    
+                    <button class="btn btn-secondary" id="btn-save-soal" onclick="PelatihanManager.saveSoalYAML('${pelatihanId}')" style="width:100%;margin-bottom:8px;">💾 Simpan Soal YAML</button>
+                    <button class="btn" onclick="PelatihanManager.loadTemplateYAML()" style="width:100%;background:rgba(0,0,0,0.05);color:var(--color-text);font-size:0.82em;">📝 Load Template Soal Contoh</button>
+                </div>
+
+                <div class="card" id="test-control-section" style="display:none;margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:12px;">Kontrol Pelaksanaan Test</h3>
+                    
+                    <!-- Pre Test Card -->
+                    <div class="test-control-card">
+                        <div class="test-status-text">
+                            <span>Pre-Test:</span>
+                            <span id="txt-pre-status" class="pelatihan-status-badge status-draft">DRAFT</span>
+                        </div>
+                        <div id="pre-sub-count" style="font-size:0.8em;color:var(--color-text-light);margin-bottom:12px;">Sudah mengumpulkan: 0 orang</div>
+                        <div id="pre-control-btns">
+                            <!-- buttons -->
+                        </div>
+                    </div>
+                    
+                    <!-- Post Test Card -->
+                    <div class="test-control-card">
+                        <div class="test-status-text">
+                            <span>Post-Test:</span>
+                            <span id="txt-post-status" class="pelatihan-status-badge status-draft">DRAFT</span>
+                        </div>
+                        <div id="post-sub-count" style="font-size:0.8em;color:var(--color-text-light);margin-bottom:12px;">Sudah mengumpulkan: 0 orang</div>
+                        <div id="post-control-btns">
+                            <!-- buttons -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Analisis -->
+            <div id="tab-analisis" class="pelatihan-tab-content">
+                <div class="card" style="text-align:center;padding:24px;">
+                    <div style="font-size:3rem;margin-bottom:12px;">📊</div>
+                    <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">Analisis Hasil Pre & Post Test</h3>
+                    <p style="font-size:0.82em;color:var(--color-text-light);margin-bottom:20px;max-width:280px;margin-inline:auto;">Lihat hasil uji peningkatan pemahaman peserta dengan Paired T-Test dan Cohen's d Effect Size.</p>
+                    <button class="btn btn-primary" onclick="App.router('pelatihan-analisis', { id: '${pelatihanId}' })" style="width:100%;padding:10px;">📊 Buka Analisis Statistik</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sticky Footer for Actions -->
+        <div class="sasaran-footer" id="detail-action-footer">
+            <div class="sasaran-footer-status" style="opacity:0; pointer-events:none; width:0;">
+                <!-- Hide the selected count since it's moved to table header -->
+            </div>
+            <div style="display:flex;gap:8px;margin-left:auto;">
+                <button class="btn btn-primary" id="btn-aktivasi" onclick="PelatihanManager.aktivasi('${pelatihanId}')" style="display:none;">
+                    🟢 Aktifkan Pelatihan
+                </button>
+                <button class="btn btn-primary" id="btn-selesaikan" onclick="PelatihanManager.selesaikan('${pelatihanId}')" style="display:none;background:var(--color-danger);">
+                    ⏹ Selesaikan Pelatihan
+                </button>
+            </div>
+        </div>
+    `
+};
+
+const PelatihanManager = {
+    detailData: null,
+    candidatePeserta: {}, // tree kab -> list pengawas
+    selectedPesertaNIPs: new Set(),
+    availableMateri: [],
+
+    init() {
+        App.loading(true, 'Memuat daftar pelatihan...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res && res.success) {
+                this.renderList(res.data);
+            } else {
+                App.alert((res && res.error) || 'Gagal memuat daftar.', 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiGetPelatihanList(App.state.user['NIP']);
+    },
+
+    renderList(list) {
+        const container = document.getElementById('pelatihan-list-container');
+        if (!container) return;
+        
+        if (!list || list.length === 0) {
+            container.innerHTML = `
+                <div class="card" style="text-align:center;padding:40px;color:var(--color-text-light);">
+                    <div style="font-size:3rem;margin-bottom:12px;">📅</div>
+                    <p style="margin:0 0 16px;">Belum ada jadwal pelatihan yang dibuat.</p>
+                    <button class="btn btn-primary" onclick="App.router('pelatihan-buat')">+ Buat Jadwal Baru</button>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = list.map(item => {
+            const dateStr = item.tanggal_mulai ? (new Date(item.tanggal_mulai).toLocaleDateString('id-ID', {
+                day: '2-digit', month: 'short'
+            }) + ' - ' + new Date(item.tanggal_selesai).toLocaleDateString('id-ID', {
+                day: '2-digit', month: 'short', year: 'numeric'
+            })) : 'Tanggal belum ditentukan';
+            
+            const statusClass = 'status-' + item.status;
+            
+            // Delete button for draft only
+            const deleteBtn = item.status === 'draft' ? `
+                <button onclick="event.stopPropagation(); PelatihanManager.hapusPelatihan('${item.pelatihan_id}')" class="btn" style="background:none;border:none;color:var(--color-danger);font-size:0.85em;padding:4px 8px;cursor:pointer;">🗑 Hapus</button>
+            ` : '';
+            
+            // Edit button for draft only
+            const editBtn = item.status === 'draft' ? `
+                <button onclick="event.stopPropagation(); App.router('pelatihan-buat', { id: '${item.pelatihan_id}' })" class="btn" style="background:none;border:none;color:var(--color-primary);font-size:0.85em;padding:4px 8px;cursor:pointer;margin-right:8px;">✏️ Edit</button>
+            ` : '';
+            
+            return `
+                <div class="pelatihan-card" onclick="App.router('pelatihan-detail', { id: '${item.pelatihan_id}' })">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px;">
+                        <span class="pelatihan-status-badge ${statusClass}">${item.status}</span>
+                        <div style="display:flex;align-items:center;">
+                            ${editBtn}
+                            ${deleteBtn}
+                        </div>
+                    </div>
+                    <h3 style="font-size:0.95rem;font-weight:700;color:var(--color-text);margin:0 0 4px 0;">${item.judul}</h3>
+                    <div style="font-size:0.76rem;color:var(--color-text-light);margin-bottom:10px;">📍 ${item.provinsi} · 📅 ${dateStr}</div>
+                    <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--color-text-light);border-top:1px dashed var(--color-border-light);padding-top:8px;">
+                        <span>👥 <b>${item.peserta_count}</b> Peserta</span>
+                        <span>📚 <b>${item.materi_count}</b> Materi</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = html;
+    },
+
+    hapusPelatihan(pelatihanId) {
+        App.confirm('Apakah Anda yakin ingin menghapus pelatihan ini dan seluruh data di dalamnya? Tindakan ini tidak bisa dibatalkan.', 'Hapus Pelatihan', () => {
+            App.loading(true, 'Menghapus pelatihan...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('🗑 Pelatihan berhasil dihapus', 'success');
+                    this.init();
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            }).apiDeletePelatihan(pelatihanId);
+        });
+    },
+
+    // ---- CREATE/EDIT FORM ----
+    formJadwal(params) {
+        const isEdit = !!(params && params.id);
+        const container = document.getElementById('plt-materi-checkboxes');
+        
+        App.loading(true, 'Memuat data form...');
+        
+        // Fetch available forms
+        google.script.run.withSuccessHandler(materiRes => {
+            if (materiRes.success) {
+                this.availableMateri = materiRes.data || [];
+                
+                if (isEdit) {
+                    // Fetch existing details
+                    google.script.run.withSuccessHandler(detailRes => {
+                        App.loading(false);
+                        if (detailRes.success) {
+                            const detail = detailRes.data;
+                            document.getElementById('plt-judul').value = detail.pelatihan.judul;
+                            document.getElementById('plt-deskripsi').value = detail.pelatihan.deskripsi;
+                            document.getElementById('plt-tgl-mulai').value = detail.pelatihan.tanggal_mulai ? detail.pelatihan.tanggal_mulai.split('T')[0] : '';
+                            document.getElementById('plt-tgl-selesai').value = detail.pelatihan.tanggal_selesai ? detail.pelatihan.tanggal_selesai.split('T')[0] : '';
+                            
+                            const selectedIds = new Set(detail.materi.map(m => m.materi_id));
+                            this.renderMateriCheckboxes(selectedIds);
+                        } else {
+                            App.alert(detailRes.error, 'Gagal');
+                            App.router('pelatihan');
+                        }
+                    }).withFailureHandler(err => {
+                        App.loading(false);
+                        App.alert(err.message, 'Error');
+                    }).apiGetPelatihanDetail(params.id);
+                } else {
+                    App.loading(false);
+                    this.renderMateriCheckboxes(new Set());
+                }
+            } else {
+                App.loading(false);
+                App.alert(materiRes.error, 'Gagal memuat materi');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiGetAvailableMateri();
+    },
+
+    renderMateriCheckboxes(selectedSet) {
+        const container = document.getElementById('plt-materi-checkboxes');
+        if (!container) return;
+        
+        if (this.availableMateri.length === 0) {
+            container.innerHTML = '<div style="color:var(--color-text-light);font-size:0.85em;">Belum ada instrumen form terdaftar di sistem.</div>';
+            return;
+        }
+        
+        container.innerHTML = this.availableMateri.map(m => {
+            const isChecked = selectedSet.has(m.id) ? 'checked' : '';
+            return `
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;font-size:0.85em;">
+                    <input type="checkbox" name="plt-materi-ids" value="${m.id}" ${isChecked} style="margin-top:2px;transform:scale(1.2);">
+                    <div>
+                        <strong style="color:var(--color-text);">${m.title}</strong>
+                        <div style="color:var(--color-text-light);font-size:0.9em;margin-top:1px;">Group: ${m.group} · ${m.description}</div>
+                    </div>
+                </label>
+            `;
+        }).join('');
+    },
+
+    saveJadwal(editId) {
+        const judul = document.getElementById('plt-judul').value;
+        const deskripsi = document.getElementById('plt-deskripsi').value;
+        const tglMulai = document.getElementById('plt-tgl-mulai').value;
+        const tglSelesai = document.getElementById('plt-tgl-selesai').value;
+        
+        // Get selected materias
+        const checkboxes = document.getElementsByName('plt-materi-ids');
+        let listMateri = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                // Find original title
+                let orig = this.availableMateri.find(m => m.id === cb.value);
+                listMateri.push({
+                    materi_id: cb.value,
+                    judul_materi: orig ? orig.title : cb.value
+                });
+            }
+        });
+        
+        if (listMateri.length === 0) {
+            return App.alert('Harap pilih minimal 1 materi pelatihan.', 'Validasi');
+        }
+        
+        const payload = {
+            judul: judul,
+            deskripsi: deskripsi,
+            nip_pelatih: App.state.user['NIP'],
+            provinsi: App.state.user['Provinsi'],
+            tanggal_mulai: tglMulai,
+            tanggal_selesai: tglSelesai
+        };
+        
+        App.loading(true, 'Menyimpan jadwal pelatihan...');
+        
+        const handleMateriSave = (pid) => {
+            google.script.run.withSuccessHandler(mRes => {
+                App.loading(false);
+                if (mRes.success) {
+                    App.toast('💾 Jadwal dan materi berhasil disimpan', 'success');
+                    App.router('pelatihan-detail', { id: pid });
+                } else {
+                    App.alert(mRes.error, 'Gagal menyimpan materi');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'Error');
+            }).apiSetMateri(pid, listMateri);
+        };
+        
+        if (editId) {
+            // Edit
+            google.script.run.withSuccessHandler(res => {
+                if (res.success) {
+                    handleMateriSave(editId);
+                } else {
+                    App.loading(false);
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'Error');
+            }).apiUpdatePelatihan(editId, payload);
+        } else {
+            // Create
+            google.script.run.withSuccessHandler(res => {
+                if (res.success) {
+                    handleMateriSave(res.data.pelatihan_id);
+                } else {
+                    App.loading(false);
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'Error');
+            }).apiCreatePelatihan(payload);
+        }
+    },
+
+    // ---- DETAIL PAGE ----
+    loadDetail(pelatihanId) {
+        App.loading(true, 'Memuat detail pelatihan...');
+        
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                this.detailData = res.data;
+                this.selectedPesertaNIPs = new Set(res.data.peserta.map(p => p.nip_peserta));
+                
+                this.renderDetailView();
+            } else {
+                App.alert(res.error, 'Gagal');
+                App.router('pelatihan');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error');
+        }).apiGetPelatihanDetail(pelatihanId);
+    },
+
+    renderDetailView() {
+        const detail = this.detailData;
+        const state = detail.pelatihan.status; // draft, aktif, selesai
+        
+        // Header
+        let dateStr = 'Tanggal belum ditentukan';
+        try {
+            if (detail.pelatihan.tanggal_mulai && detail.pelatihan.tanggal_selesai) {
+                dateStr = new Date(detail.pelatihan.tanggal_mulai).toLocaleDateString('id-ID', {
+                    day: '2-digit', month: 'short'
+                }) + ' - ' + new Date(detail.pelatihan.tanggal_selesai).toLocaleDateString('id-ID', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                });
+            } else if (detail.pelatihan.tanggal_mulai) {
+                dateStr = new Date(detail.pelatihan.tanggal_mulai).toLocaleDateString('id-ID', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                });
+            }
+        } catch (e) {
+            console.error('Date parse error', e);
+        }
+        
+        document.getElementById('det-judul').innerHTML = `
+            ${detail.pelatihan.judul}
+            <div style="font-size:0.65em;color:var(--color-text-light);font-weight:400;margin-top:2px;">📅 ${dateStr} · 📍 ${detail.pelatihan.provinsi}</div>
+        `;
+        
+        const badge = document.getElementById('det-status');
+        badge.className = 'pelatihan-status-badge status-' + state;
+        badge.textContent = state;
+        
+        // Footer actions
+        const btnAktivasi = document.getElementById('btn-aktivasi');
+        const btnSelesaikan = document.getElementById('btn-selesaikan');
+        
+        if (btnAktivasi) btnAktivasi.style.display = 'none';
+        if (btnSelesaikan) btnSelesaikan.style.display = 'none';
+        
+        // Show/Hide Invite Code Section
+        const inviteSec = document.getElementById('invite-code-section');
+        const inviteCodeEl = document.getElementById('txt-invite-code');
+        if (detail.pelatihan.invite_code && detail.pelatihan.invite_status === 'open' && state !== 'selesai') {
+            inviteSec.style.display = 'flex';
+            inviteCodeEl.textContent = detail.pelatihan.invite_code;
+        } else {
+            inviteSec.style.display = 'none';
+        }
+        
+        if (state === 'draft') {
+            btnAktivasi.style.display = 'block';
+        } else if (state === 'aktif') {
+            btnSelesaikan.style.display = 'block';
+        }
+        
+        // Hide Tambah button if not draft
+        const btnAdd = document.getElementById('btn-show-add-peserta');
+        if (btnAdd) btnAdd.style.display = state === 'draft' ? 'block' : 'none';
+        
+        // Render Tab 1: Peserta Table
+        this.renderPesertaTable(state === 'draft');
+        
+        // Render Tab 2: Materi list
+        this.renderMateriList();
+        
+        // Render Tab 3: YAML & Test Control
+        this.renderPrePostTestSection();
+        
+        // Tab 4: Analisis button show if not draft
+        const tabAnalisisBtn = document.getElementById('tab-analisis-btn');
+        if (state !== 'draft') {
+            tabAnalisisBtn.style.display = 'block';
+        } else {
+            tabAnalisisBtn.style.display = 'none';
+        }
+        
+        this.updateSelectedPesertaCount();
+    },
+
+    switchTab(btn, tabId) {
+        // Toggle tab active button
+        const tabBtns = document.querySelectorAll('.pelatihan-tab-btn');
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Toggle tab content active
+        const tabContents = document.querySelectorAll('.pelatihan-tab-content');
+        tabContents.forEach(c => c.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        
+        // Hide/Show action footer (only show for Peserta tab if in draft)
+        const footer = document.getElementById('detail-action-footer');
+        if (tabId === 'tab-peserta' && this.detailData.pelatihan.status !== 'selesai') {
+            footer.style.display = 'flex';
+        } else {
+            footer.style.display = 'none';
+        }
+    },
+
+    closeInvitation(pelatihanId) {
+        App.confirm('Apakah Anda yakin ingin menutup undangan? Peserta tidak akan bisa bergabung lagi menggunakan kode ini.', 'Tutup Undangan', () => {
+            App.loading(true, 'Menutup undangan...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('Undangan berhasil ditutup', 'success');
+                    this.loadDetail(pelatihanId);
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            }).apiCloseInvitation(pelatihanId);
+        });
+    },
+
+    renderPesertaTable(editable) {
+        const tbody = document.getElementById('peserta-table-body');
+        if (!tbody) return;
+        
+        const pesertaList = this.detailData.peserta || [];
+        if (pesertaList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--color-text-light);">Belum ada peserta terdaftar.</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        pesertaList.forEach((p, idx) => {
+            html += `
+                <tr>
+                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${idx + 1}</td>
+                    <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light); font-family:monospace;">${p.nip_peserta}</td>
+                    <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light); font-weight:600;">${p.nama_peserta}</td>
+                    <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.kabupaten}</td>
+                    <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.provinsi}</td>
+                    <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);"><span class="badge" style="background:#e0f2fe;color:#0284c7;">${p.jenjang || '-'}</span></td>
+                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.kelamin === 'L' ? 'Laki-laki' : (p.kelamin === 'P' ? 'Perempuan' : '-')}</td>
+                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">
+                        ${editable ? `<button onclick="PelatihanManager.removePeserta('${p.nip_peserta}')" style="background:none; border:1px solid var(--color-danger); color:var(--color-danger); padding:4px 8px; font-size:0.75rem; border-radius:6px; cursor:pointer; font-weight:600; transition:all var(--transition-fast);" onmouseover="this.style.background='var(--color-danger)'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='var(--color-danger)';">- Hapus</button>` : `<span style="font-size:0.8em;color:var(--color-text-light);">${p.status}</span>`}
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+    },
+
+    showSearchPesertaModal() {
+        document.getElementById('add-peserta-modal').style.display = 'flex';
+        document.getElementById('search-peserta-input').value = '';
+        document.getElementById('search-peserta-input').focus();
+        document.getElementById('search-peserta-results').innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
+                <div>🔍</div>
+                <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
+            </div>
+        `;
+    },
+
+    closeSearchPesertaModal() {
+        document.getElementById('add-peserta-modal').style.display = 'none';
+    },
+
+    searchPeserta() {
+        const keyword = document.getElementById('search-peserta-input').value;
+        if (!keyword || keyword.trim() === '') return;
+        
+        const container = document.getElementById('search-peserta-results');
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--color-text-light);">Mencari...</div>';
+        
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                if (res.data.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--color-text-light);">Tidak ditemukan pengawas dengan kata kunci tersebut di provinsi Anda.</div>';
+                    return;
+                }
+                
+                let html = '<div style="display:flex; flex-direction:column; gap:8px; padding:10px;">';
+                res.data.forEach(p => {
+                    const isAdded = this.selectedPesertaNIPs.has(p.nip);
+                    html += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-bg); padding:10px; border-radius:6px; border:1px solid var(--color-border-light);">
+                            <div style="flex:1; min-width:0; margin-right:12px;">
+                                <div style="font-weight:700; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.nama}</div>
+                                <div style="font-size:0.75rem; color:var(--color-text-light); font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.nip} · ${p.kabupaten} · ${p.jenjang || '-'}</div>
+                            </div>
+                            <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; border-radius:6px; width:auto !important; flex-shrink:0;" onclick="PelatihanManager.addPeserta('${p.nip}')" ${isAdded ? 'disabled' : ''}>
+                                ${isAdded ? '✓ Terdaftar' : '+ Tambah'}
+                            </button>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--color-danger);">${res.error}</div>`;
+            }
+        }).withFailureHandler(err => {
+            container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--color-danger);">${err.message}</div>`;
+        }).apiSearchPengawas(App.state.user['Provinsi'], keyword);
+    },
+
+    addPeserta(nip) {
+        if (this.selectedPesertaNIPs.size >= MAX_PESERTA_PER_PELATIHAN) {
+            App.alert('Jumlah peserta sudah maksimal (' + MAX_PESERTA_PER_PELATIHAN + ').', 'Batas Maksimal');
+            return;
+        }
+        
+        App.loading(true, 'Menambahkan peserta...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('Peserta ditambahkan', 'success');
+                // Reload details to show updated table
+                this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+            } else {
+                App.alert(res.error, 'Gagal menambahkan');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error');
+        }).apiAddPeserta(this.detailData.pelatihan.pelatihan_id, nip);
+    },
+
+    removePeserta(nip) {
+        App.confirm('Hapus peserta ini dari pelatihan?', 'Hapus Peserta', () => {
+            App.loading(true, 'Menghapus peserta...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('Peserta dihapus', 'success');
+                    // Reload details to show updated table
+                    this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+                } else {
+                    App.alert(res.error, 'Gagal menghapus');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'Error');
+            }).apiRemovePeserta(this.detailData.pelatihan.pelatihan_id, nip);
+        });
+    },
+
+    updateSelectedPesertaCount() {
+        const cntEl = document.getElementById('detail-selected-count');
+        if (cntEl) cntEl.textContent = this.selectedPesertaNIPs.size;
+    },
+
+    savePeserta(pelatihanId) {
+        App.loading(true, 'Menimpan peserta pelatihan...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('👥 Peserta berhasil disimpan', 'success');
+                this.loadDetail(pelatihanId);
+            } else {
+                App.alert(res.error, 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error');
+        }).apiSetPeserta(pelatihanId, Array.from(this.selectedPesertaNIPs));
+    },
+
+    renderMateriList() {
+        const container = document.getElementById('materi-list-container');
+        if (!container) return;
+        
+        const materi = this.detailData.materi || [];
+        if (materi.length === 0) {
+            container.innerHTML = '<div style="color:var(--color-text-light);font-size:0.85em;padding:12px 0;">Belum ada materi terpilih. Silakan edit jadwal.</div>';
+            return;
+        }
+        
+        container.innerHTML = materi.map((m, idx) => `
+            <div style="padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border-light); border-radius: 8px; font-size: 0.85em; color: var(--color-text); display: flex; align-items: center;">
+                <span style="font-weight: 500;">${idx+1}. ${m.judul_materi} <span style="color: var(--color-text-secondary, --color-text-light); font-weight: 400;">(${m.materi_id})</span></span>
+            </div>
+        `).join('');
+    },
+
+    renderPrePostTestSection() {
+        const detail = this.detailData;
+        const test = detail.test;
+        
+        const txtYaml = document.getElementById('test-yaml-definition');
+        const btnSaveYAML = document.getElementById('btn-save-soal');
+        
+        if (test) {
+            txtYaml.value = test.yaml_definition;
+            
+            // If not draft, make it read-only
+            if (test.status_pre !== 'draft' || test.status_post !== 'draft') {
+                txtYaml.readOnly = true;
+                txtYaml.style.background = 'var(--color-bg-elevated)';
+                btnSaveYAML.style.display = 'none';
+            } else {
+                txtYaml.readOnly = false;
+                txtYaml.style.background = 'var(--color-bg)';
+                btnSaveYAML.style.display = 'block';
+            }
+            
+            // Show test control section
+            document.getElementById('test-control-section').style.display = 'block';
+            this.renderTestControls(test);
+        } else {
+            txtYaml.value = '';
+            txtYaml.readOnly = false;
+            txtYaml.style.background = 'var(--color-bg)';
+            btnSaveYAML.style.display = 'block';
+            document.getElementById('test-control-section').style.display = 'none';
+        }
+    },
+
+    renderTestControls(test) {
+        // Pre-Test Status & Control
+        const preStatus = document.getElementById('txt-pre-status');
+        preStatus.className = 'pelatihan-status-badge status-' + test.status_pre;
+        preStatus.textContent = test.status_pre;
+        
+        const preControl = document.getElementById('pre-control-btns');
+        preControl.innerHTML = '';
+        
+        if (test.status_pre === 'draft') {
+            preControl.innerHTML = `<button class="btn btn-primary" onclick="PelatihanManager.bukaTest('${test.soal_id}', 'pre')" style="font-size:0.85em;padding:6px 12px;width:100%;">▶ Buka Pre-Test</button>`;
+        } else if (test.status_pre === 'aktif') {
+            preControl.innerHTML = `<button class="btn" onclick="PelatihanManager.tutupTest('${test.soal_id}', 'pre')" style="font-size:0.85em;padding:6px 12px;width:100%;background:var(--color-danger);color:white;">⏹ Tutup Pre-Test</button>`;
+        } else if (test.status_pre === 'ditutup') {
+            const closedDate = test.pre_ditutup_pada ? new Date(test.pre_ditutup_pada).toLocaleTimeString('id-ID', {
+                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+            }) : '-';
+            preControl.innerHTML = `<div style="font-size:0.8em;color:var(--color-text-light);text-align:center;font-style:italic;">Ditutup pada: ${closedDate}</div>`;
+        }
+        
+        // Post-Test Status & Control
+        const postStatus = document.getElementById('txt-post-status');
+        postStatus.className = 'pelatihan-status-badge status-' + test.status_post;
+        postStatus.textContent = test.status_post;
+        
+        const postControl = document.getElementById('post-control-btns');
+        postControl.innerHTML = '';
+        
+        if (test.status_post === 'draft') {
+            // Only allow opening post test if pretest is already closed or ditutup
+            const preClosed = test.status_pre === 'ditutup';
+            const disabledAttr = preClosed ? '' : 'disabled style="opacity:0.5;cursor:default;"';
+            const btnTitle = preClosed ? '▶ Buka Post-Test' : '🔒 Pre-Test harus ditutup dulu';
+            postControl.innerHTML = `<button class="btn btn-primary" onclick="PelatihanManager.bukaTest('${test.soal_id}', 'post')" ${disabledAttr} style="font-size:0.85em;padding:6px 12px;width:100%;">${btnTitle}</button>`;
+        } else if (test.status_post === 'aktif') {
+            postControl.innerHTML = `<button class="btn" onclick="PelatihanManager.tutupTest('${test.soal_id}', 'post')" style="font-size:0.85em;padding:6px 12px;width:100%;background:var(--color-danger);color:white;">⏹ Tutup Post-Test</button>`;
+        } else if (test.status_post === 'ditutup') {
+            const closedDate = test.post_ditutup_pada ? new Date(test.post_ditutup_pada).toLocaleTimeString('id-ID', {
+                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+            }) : '-';
+            postControl.innerHTML = `<div style="font-size:0.8em;color:var(--color-text-light);text-align:center;font-style:italic;">Ditutup pada: ${closedDate}</div>`;
+        }
+        
+        // Load submission counts
+        this.loadTestSubmissionCounts(this.detailData.pelatihan.pelatihan_id);
+    },
+
+    loadTestSubmissionCounts(pelatihanId) {
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                const responses = res.data || [];
+                const preCount = responses.filter(r => r.tipe === 'pretest').length;
+                const postCount = responses.filter(r => r.tipe === 'posttest').length;
+                
+                const totalPeserta = this.selectedPesertaNIPs.size;
+                document.getElementById('pre-sub-count').textContent = `Sudah mengumpulkan: ${preCount} dari ${totalPeserta} orang`;
+                document.getElementById('post-sub-count').textContent = `Sudah mengumpulkan: ${postCount} dari ${totalPeserta} orang`;
+            }
+        }).apiGetHasilPrePost(pelatihanId);
+    },
+
+    bukaTest(soalId, tipe) {
+        const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
+        App.confirm(`Apakah Anda yakin ingin membuka ${act} sekarang? Peserta pelatihan akan dapat mengakses dan mengerjakannya.`, `Buka ${act}`, () => {
+            App.loading(true, `Membuka ${act}...`);
+            const runFn = tipe === 'pre' ? google.script.run.apiBukaPreTest : google.script.run.apiBukaPostTest;
+            runFn.call(google.script.run).withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast(`🟢 ${act} dibuka`, 'success');
+                    this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            })(soalId);
+        });
+    },
+
+    tutupTest(soalId, tipe) {
+        const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
+        App.confirm(`Apakah Anda yakin ingin menutup ${act} sekarang? Peserta tidak akan bisa mengerjakannya lagi.`, `Tutup ${act}`, () => {
+            App.loading(true, `Menutup ${act}...`);
+            const runFn = tipe === 'pre' ? google.script.run.apiTutupPreTest : google.script.run.apiTutupPostTest;
+            runFn.call(google.script.run).withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast(`⏹ ${act} ditutup`, 'success');
+                    this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            })(soalId);
+        });
+    },
+
+    saveSoalYAML(pelatihanId) {
+        const yaml = document.getElementById('test-yaml-definition').value;
+        if (!yaml.trim()) return App.alert('Soal YAML tidak boleh kosong.', 'Validasi');
+        
+        App.loading(true, 'Menyimpan soal YAML...');
+        
+        const handleSave = (soalId) => {
+            const runFn = soalId ? google.script.run.apiUpdatePrePostSoal : google.script.run.apiCreatePrePostSoal;
+            const arg1 = soalId ? soalId : pelatihanId;
+            
+            runFn.call(google.script.run).withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('💾 Soal YAML berhasil disimpan', 'success');
+                    this.loadDetail(pelatihanId);
+                } else {
+                    App.alert(res.error, 'Gagal menyimpan');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            })(arg1, yaml);
+        };
+        
+        const existingSoalId = this.detailData.test ? this.detailData.test.soal_id : null;
+        handleSave(existingSoalId);
+    },
+
+    loadTemplateYAML() {
+        const template = `title: "Pre/Post Test Pemahaman KBC"
+description: "Soal evaluasi pemahaman baseline KBC untuk pengawas"
+shuffle_questions: true
+shuffle_options: true
+time_limit_minutes: 30
+
+questions:
+  - type: radio
+    name: q1
+    label: "KBC (Kriteria Baseline Cepat) dirancang untuk menilai:"
+    options:
+      - "Kemampuan mengajar guru secara individual"
+      - "Kondisi baseline penjaminan mutu madrasah"
+      - "Prestasi olahraga siswa tingkat nasional"
+      - "Kepatuhan anggaran belanja tahunan"
+    answer: "Kondisi baseline penjaminan mutu madrasah"
+    category: "Konsep Dasar KBC"
+
+  - type: boolean
+    name: q2
+    label: "Evaluasi KBC melibatkan unsur internal madrasah (Kamad) dan eksternal (Pengawas)."
+    answer: "Benar"
+    category: "Prosedur KBC"
+
+  - type: checkbox
+    name: q3
+    label: "Manakah yang termasuk pilar utama instrumen KBC? (Pilih yang sesuai)"
+    options:
+      - "Kurikulum"
+      - "Proses Pembelajaran"
+      - "Penilaian"
+      - "Struktur Bangunan Madrasah"
+    answer: ["Kurikulum", "Proses Pembelajaran", "Penilaian"]
+    category: "Pilar KBC"
+
+  - type: matching
+    name: q4
+    label: "Pasangkan peran di bawah ini dengan tugas utamanya dalam KBC:"
+    pairs:
+      - left: "Pengawas"
+        right_options:
+          - "Melakukan verifikasi eksternal dan pendampingan"
+          - "Mengisi instrumen baseline internal madrasah"
+          - "Mengeluarkan regulasi nasional"
+      - left: "Kamad"
+        right_options:
+          - "Melakukan verifikasi eksternal dan pendampingan"
+          - "Mengisi instrumen baseline internal madrasah"
+          - "Mengeluarkan regulasi nasional"
+    answer:
+      "Pengawas": "Melakukan verifikasi eksternal dan pendampingan"
+      "Kamad": "Mengisi instrumen baseline internal madrasah"
+    category: "Peran KBC"`;
+
+        document.getElementById('test-yaml-definition').value = template;
+        App.toast('📝 Template contoh berhasil di-load', 'info');
+    },
+
+    aktivasi(pelatihanId) {
+        App.confirm('Apakah Anda yakin ingin mengaktifkan pelatihan ini? Status pelatihan akan berubah menjadi AKTIF dan tidak bisa dikembalikan ke DRAFT. Peserta & materi tidak bisa diubah lagi.', 'Aktifkan Pelatihan', () => {
+            App.loading(true, 'Mengaktifkan pelatihan...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('🟢 Pelatihan aktif!', 'success');
+                    this.loadDetail(pelatihanId);
+                } else {
+                    App.alert(res.error, 'Gagal mengaktifkan');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            }).apiAktivasiPelatihan(pelatihanId);
+        });
+    },
+
+    selesaikan(pelatihanId) {
+        App.confirm('Apakah Anda yakin ingin menyelesaikan pelatihan ini? Seluruh pre/post test yang aktif akan ditutup secara otomatis.', 'Selesaikan Pelatihan', () => {
+            App.loading(true, 'Menyelesaikan pelatihan...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('⏹ Pelatihan diselesaikan', 'success');
+                    this.loadDetail(pelatihanId);
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'System Error');
+            }).apiSelesaikanPelatihan(pelatihanId);
+        });
+    }
+};
+</script>

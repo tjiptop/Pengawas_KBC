@@ -1,0 +1,278 @@
+<script>
+// ============================================================
+// KAMAD AUTH MODULE
+// Modul autentikasi untuk Kepala Madrasah
+// Login via NSM + password, setup password pertama via link WA
+// ============================================================
+
+const KamadAuth = {
+
+  // --------------------------------------------------------
+  // VIEWS (HTML Templates)
+  // --------------------------------------------------------
+
+  views: {
+    /**
+     * Tampilan login Kamad
+     */
+    login: () => `
+      <div class="kamad-auth-wrap">
+        <div class="kamad-auth-card">
+
+          <div class="kamad-brand">
+            <div class="kamad-brand-icon">🏫</div>
+            <div>
+              <h1 class="kamad-brand-title">Portal Kamad</h1>
+              <p class="kamad-brand-sub">Kepala Madrasah</p>
+            </div>
+          </div>
+
+          <div class="kamad-divider"></div>
+
+          <form id="kamad-login-form" onsubmit="KamadAuth.doLogin(event)">
+            <div class="form-group">
+              <label class="kamad-label" for="kamad-nsm">NSM Madrasah</label>
+              <input
+                id="kamad-nsm"
+                type="text"
+                class="form-control kamad-input"
+                placeholder="Masukkan NSM madrasah Anda"
+                autocomplete="username"
+                inputmode="numeric"
+                required
+              >
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+              <label class="kamad-label" for="kamad-pwd">Password</label>
+              <div class="kamad-input-wrap">
+                <input
+                  id="kamad-pwd"
+                  type="password"
+                  class="form-control kamad-input"
+                  placeholder="Password Anda"
+                  autocomplete="current-password"
+                  required
+                >
+                <button type="button" class="kamad-eye-btn" onclick="KamadAuth.togglePwd('kamad-pwd', this)" tabindex="-1" aria-label="Tampilkan password">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div id="kamad-login-error" class="kamad-error-msg" style="display:none;"></div>
+
+            <div style="clear: both; margin-top: 24px;"></div>
+            <button type="submit" class="btn kamad-submit-btn" id="kamad-login-btn">
+              Masuk
+            </button>
+          </form>
+
+          <div class="kamad-footer-link">
+            <button class="kamad-text-btn" onclick="App.router('login')">
+              ← Kembali ke Login Pengawas
+            </button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    /**
+     * Tampilan setup password pertama (dari link WA)
+     */
+    setupPassword: (nsm, madrasahName, token) => `
+      <div class="auth-wrap">
+        <div class="auth-card" style="max-width: 400px; margin: 40px auto; padding: 30px; border-radius: var(--radius-xl); box-shadow: var(--shadow-md);">
+          <h2 style="text-align: center; color: var(--color-primary); margin-bottom: 10px;">Setup Password Kamad</h2>
+          <p style="text-align: center; margin-bottom: 24px; font-size: 0.9em; color: var(--color-text-secondary);">
+            Selamat datang! Silakan buat password untuk mengakses Portal Kamad <b>${madrasahName || 'Madrasah Anda'}</b> (NSM: ${nsm})
+          </p>
+          
+          <form id="kamad-setup-form" onsubmit="KamadAuth.doSetupPassword(event, '${nsm}', '${token}')">
+            <div class="form-group" style="margin-bottom: 15px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Password Baru</label>
+              <input type="password" id="kamad-new-pwd" class="form-control" required placeholder="Minimal 6 karakter" minlength="6">
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Konfirmasi Password</label>
+              <input type="password" id="kamad-confirm-pwd" class="form-control" required placeholder="Ulangi password baru" minlength="6">
+            </div>
+            
+            <div id="kamad-setup-error" class="kamad-error-msg" style="display:none; margin-bottom: 15px;"></div>
+            
+            <button type="submit" class="btn" style="width: 100%; padding: 12px;" id="kamad-setup-btn">Simpan & Masuk</button>
+          </form>
+        </div>
+      </div>
+    `,
+
+    /**
+     * Token tidak valid / sudah kadaluarsa
+     */
+    tokenError: (reason) => `
+      <div class="kamad-auth-wrap">
+        <div class="kamad-auth-card" style="text-align:center;">
+          <div style="font-size:3rem;margin-bottom:16px;">⚠️</div>
+          <h2 style="margin:0 0 8px;font-size:1.1rem;color:var(--color-text);">Link Tidak Valid</h2>
+          <p style="color:var(--color-text-secondary);font-size:0.9rem;margin:0 0 24px;">${reason || 'Link sudah kadaluarsa atau sudah digunakan.'}</p>
+          <button class="btn kamad-submit-btn" onclick="App.router('kamad-login')">
+            Login Kamad
+          </button>
+          <div class="kamad-footer-link">
+            <button class="kamad-text-btn" onclick="App.router('login')">
+              ← Kembali ke Login Pengawas
+            </button>
+          </div>
+        </div>
+      </div>
+    `,
+  },
+
+  // --------------------------------------------------------
+  // ACTIONS
+  // --------------------------------------------------------
+
+  /**
+   * Proses login kamad
+   */
+  doLogin(e) {
+    e.preventDefault();
+    const nsm = document.getElementById('kamad-nsm').value.trim();
+    const pwd = document.getElementById('kamad-pwd').value;
+    const errEl = document.getElementById('kamad-login-error');
+    const btn = document.getElementById('kamad-login-btn');
+
+    if (!nsm || !pwd) {
+      this._showError(errEl, 'NSM dan password harus diisi.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Memeriksa...';
+    errEl.style.display = 'none';
+
+    App.loading(true, 'Memverifikasi akun...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+
+        if (res.success) {
+          App.state.kamad = res.data;
+          App.router('kamad-dashboard');
+        } else {
+          this._showError(errEl, res.error || 'Login gagal. Periksa NSM dan password.');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+        this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
+      })
+      .kamadLogin(nsm, pwd);
+  },
+
+  /**
+   * Proses setup password pertama
+   */
+  doSetupPassword(e, nsm, token) {
+    e.preventDefault();
+    const newPwd = document.getElementById('kamad-new-pwd').value;
+    const confirmPwd = document.getElementById('kamad-confirm-pwd').value;
+    const errEl = document.getElementById('kamad-setup-error');
+    const btn = document.getElementById('kamad-setup-btn');
+
+    if (newPwd.length < 6) {
+      this._showError(errEl, 'Password minimal 6 karakter.');
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      this._showError(errEl, 'Password tidak cocok. Pastikan kedua password sama.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
+    errEl.style.display = 'none';
+
+    App.loading(true, 'Menyimpan password...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Simpan & Masuk';
+
+        if (res.success) {
+          App.state.kamad = res.data;
+          App.router('kamad-dashboard');
+        } else {
+          this._showError(errEl, res.error || 'Gagal menyimpan password.');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Simpan & Masuk';
+        this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
+      })
+      .kamadSetPassword(nsm, newPwd, token);
+  },
+
+  /**
+   * Validasi token setup dari URL, kemudian tampilkan form
+   */
+  handleSetupToken(token) {
+    App.loading(true, 'Memverifikasi link...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.valid) {
+          // Render form setup password
+          document.getElementById('app').innerHTML =
+            KamadAuth.views.setupPassword(res.nsm, res.madrasah_name, token);
+        } else {
+          document.getElementById('app').innerHTML =
+            KamadAuth.views.tokenError(res.reason);
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        document.getElementById('app').innerHTML =
+          KamadAuth.views.tokenError('Gagal memverifikasi link: ' + (err.message || err));
+      })
+      .kamadValidateSetupToken(token);
+  },
+
+  /**
+   * Logout kamad
+   */
+  logout() {
+    localStorage.removeItem('kamad_session');
+    App.state.kamad = null;
+    App.router('kamad-login');
+  },
+
+  // --------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------
+
+  _showError(el, msg) {
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    // Shake animation
+    el.classList.remove('kamad-shake');
+    void el.offsetWidth;
+    el.classList.add('kamad-shake');
+  },
+
+  togglePwd(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isText = input.type === 'text';
+    input.type = isText ? 'password' : 'text';
+    btn.style.opacity = isText ? '0.5' : '1';
+  }
+};
+</script>

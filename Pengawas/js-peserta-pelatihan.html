@@ -1,0 +1,810 @@
+<style>
+/* Styling Tambahan UI Peserta Pelatihan */
+.peserta-card {
+    background: var(--color-bg-elevated, #fff);
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.peserta-materi-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--color-bg);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 0.82em;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.peserta-materi-item:hover {
+    background: rgba(26, 115, 232, 0.08);
+    color: var(--color-primary);
+}
+.peserta-materi-item-static {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--color-bg);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 0.82em;
+    color: var(--color-text);
+}
+
+.test-progress-dot-container {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+}
+.test-progress-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+.test-progress-dot.active {
+    border-color: var(--color-primary);
+    background: rgba(26,115,232,0.1);
+    color: var(--color-primary);
+}
+.test-progress-dot.answered {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+</style>
+
+<script>
+const PesertaViews = {
+    Main: () => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">📝</div>
+                <h1>Pelatihan Saya</h1>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-primary" onclick="PesertaManager.showJoinModal()" style="padding: 6px 12px; font-size: 0.85em; border-radius: 8px;">Gabung</button>
+                <button class="back-btn" onclick="App.router('dashboard')" style="padding: 6px 12px;">‹ Kembali</button>
+            </div>
+        </div>
+        <div class="content" style="padding-bottom: 40px;">
+            <div id="peserta-list-container">
+                <div style="text-align:center;padding:40px;color:var(--color-text-light);">Memuat daftar pelatihan...</div>
+            </div>
+        </div>
+
+        <!-- Modal Popup Gabung Pelatihan -->
+        <div id="join-modal-overlay" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(4px);">
+            <div class="modal-content" style="max-width:320px; text-align:center; padding:24px; background:var(--color-bg-elevated); border-radius:12px; box-shadow:var(--shadow-lg);">
+                <h3 style="margin-top:0; margin-bottom:8px; font-size:1.1rem; color:var(--color-text);">Gabung Pelatihan</h3>
+                <p style="font-size:0.8rem; color:var(--color-text-light); margin-bottom:16px;">Masukkan 4 digit kode undangan dari pelatih</p>
+                <div style="display:flex; justify-content:center; margin-bottom:20px;">
+                    <input type="text" id="input-invite-code" class="form-control" placeholder="ABCD" maxlength="4" 
+                           onkeydown="if(event.key === 'Enter') PesertaManager.joinByCode()"
+                           style="text-transform:uppercase; font-size:1.4rem; letter-spacing:4px; font-weight:700; width:110px; text-align:center; padding:8px 0; font-family:monospace; box-sizing:border-box;">
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-secondary" onclick="PesertaManager.hideJoinModal()" style="padding:8px 16px; font-size:0.85em; flex:1; border-radius:8px;">Batal</button>
+                    <button class="btn btn-primary" onclick="PesertaManager.joinByCode()" style="padding:8px 16px; font-size:0.85em; flex:1; border-radius:8px;">Gabung</button>
+                </div>
+            </div>
+        </div>
+    `,
+
+    TestUI: (params) => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">📝</div>
+                <div>
+                    <h1 id="test-title" style="font-size:1.1rem;line-height:1.2;">Memuat Test...</h1>
+                    <span id="test-timer" style="font-size:0.75rem;font-weight:700;color:var(--color-danger);margin-top:2px;display:inline-block;">Sisa Waktu: --:--</span>
+                </div>
+            </div>
+            <button class="back-btn" onclick="PesertaManager.confirmExitTest()">‹ Keluar</button>
+        </div>
+        <div class="content" style="padding-bottom: 80px;">
+            <div class="card" id="test-quiz-card" style="margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border-light);padding-bottom:10px;margin-bottom:16px;">
+                    <span id="test-category" style="font-size:0.78rem;font-weight:700;color:var(--color-primary);text-transform:uppercase;">Kategori: --</span>
+                    <span id="test-question-num" style="font-size:0.78rem;color:var(--color-text-light);font-weight:600;">Soal -- dari --</span>
+                </div>
+                
+                <!-- Question Mount -->
+                <div id="test-question-label" style="font-size:0.95rem;font-weight:700;line-height:1.5;margin-bottom:20px;color:var(--color-text);">Memuat pertanyaan...</div>
+                <div id="test-options-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+                    <!-- options list -->
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                <button class="btn btn-secondary" id="btn-test-prev" onclick="PesertaManager.prevQuestion()" style="padding:10px;">← Sebelumnya</button>
+                <button class="btn btn-secondary" id="btn-test-next" onclick="PesertaManager.nextQuestion()" style="padding:10px;">Selanjutnya →</button>
+            </div>
+            
+            <!-- Question dots -->
+            <div class="test-progress-dot-container" id="test-dots-container"></div>
+            
+            <button class="btn btn-primary" id="btn-submit-test" onclick="PesertaManager.submitTest()" style="width:100%;padding:12px;font-size:0.95rem;display:none;background:var(--color-success);border-color:var(--color-success);">
+                📤 Selesai & Kirim Jawaban
+            </button>
+        </div>
+    `,
+
+    Dashboard: () => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">🎓</div>
+                <div>
+                    <h1 id="dash-title" style="font-size:1.1rem;line-height:1.2;">Memuat Dashboard...</h1>
+                    <span id="dash-subtitle" style="font-size:0.75rem;color:var(--color-text-light);"></span>
+                </div>
+            </div>
+            <button class="back-btn" onclick="App.router('peserta-pelatihan')">‹ Kembali</button>
+        </div>
+        <div class="content" style="padding-bottom: 80px;" id="dash-content-container">
+            <div style="text-align:center;padding:40px;color:var(--color-text-light);">Memuat sub-dashboard...</div>
+        </div>
+    `
+};
+
+const PesertaManager = {
+    listData: [],
+    dashboardCache: {},
+    testData: null, // Full test structure
+    shuffledQuestions: [], // Shuffled questions list
+    currentQuestionIdx: 0,
+    answers: {}, // NIP/name mapping -> userAnswer
+    timerInterval: null,
+    timeRemainingSecs: 0,
+    testSoalId: '',
+    testPelatihanId: '',
+    testTipe: '',
+
+    init() {
+        App.loading(true, 'Memuat daftar pelatihan...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                this.listData = res.data || [];
+                this.renderList();
+            } else {
+                App.alert(res.error, 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiGetPelatihanPesertaList(App.state.user['NIP']);
+    },
+
+    showJoinModal() {
+        const modal = document.getElementById('join-modal-overlay');
+        if (modal) {
+            modal.style.display = 'flex';
+            const input = document.getElementById('input-invite-code');
+            if (input) {
+                input.value = '';
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+    },
+
+    hideJoinModal() {
+        const modal = document.getElementById('join-modal-overlay');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    },
+
+    joinByCode() {
+        const codeInput = document.getElementById('input-invite-code');
+        if (!codeInput) return;
+        const code = (codeInput.value || '').trim().toUpperCase();
+        if (code.length !== 4) {
+            return App.alert('Kode undangan harus 4 karakter.', 'Validasi');
+        }
+        
+        App.loading(true, 'Bergabung ke pelatihan...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('Berhasil bergabung dengan pelatihan!', 'success');
+                codeInput.value = '';
+                this.hideJoinModal();
+                this.init(); // Refresh list
+            } else {
+                App.alert(res.error, 'Gagal Bergabung');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiJoinPelatihanByCode(App.state.user['NIP'], code);
+    },
+
+    renderList() {
+        const container = document.getElementById('peserta-list-container');
+        if (!container) return;
+        
+        if (this.listData.length === 0) {
+            container.innerHTML = `
+                <div class="card" style="text-align:center;padding:40px;color:var(--color-text-light);">
+                    <div style="font-size:3rem;margin-bottom:12px;">📭</div>
+                    <p style="margin:0;">Anda belum terdaftar di pelatihan manapun.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render each training session in the list
+        container.innerHTML = `<div style="text-align:center;color:var(--color-text-light);font-size:0.85em;margin-bottom:16px;">Memuat data lengkap pelatihan...</div>`;
+        
+        let loadedCount = 0;
+        let htmlList = new Array(this.listData.length);
+        
+        this.listData.forEach((plt, idx) => {
+            google.script.run.withSuccessHandler(res => {
+                loadedCount++;
+                if (res.success) {
+                    const detail = res.data;
+                    const pre = detail.test_status.pretest;
+                    const post = detail.test_status.posttest;
+                    const testConfig = detail.test;
+                    
+                    // Pre-test status HTML
+                    let preHtml = '';
+                    if (!testConfig) {
+                        preHtml = `<span style="color:var(--color-text-light);">Belum disetup oleh pelatih</span>`;
+                    } else if (pre.completed) {
+                        preHtml = `<span style="color:var(--color-success);font-weight:700;">✅ Selesai (Skor: ${pre.skor})</span>`;
+                    } else if (testConfig.status_pre === 'aktif') {
+                        preHtml = `<button class="btn btn-primary" onclick="PesertaManager.startTestRoute('${testConfig.soal_id}', '${detail.pelatihan.pelatihan_id}', 'pretest')" style="padding:4px 10px;font-size:0.8em;border-radius:6px;background:var(--color-primary);">✍️ Kerjakan Pre-Test</button>`;
+                    } else if (testConfig.status_pre === 'ditutup') {
+                        preHtml = `<span style="color:var(--color-danger);font-weight:600;">Ditutup</span>`;
+                    } else {
+                        preHtml = `<span style="color:var(--color-text-light);">Belum dibuka</span>`;
+                    }
+                    
+                    // Post-test status HTML
+                    let postHtml = '';
+                    if (!testConfig) {
+                        postHtml = `<span style="color:var(--color-text-light);">Belum disetup oleh pelatih</span>`;
+                    } else if (post.completed) {
+                        postHtml = `<span style="color:var(--color-success);font-weight:700;">✅ Selesai (Skor: ${post.skor})</span>`;
+                    } else if (testConfig.status_post === 'aktif') {
+                        postHtml = `<button class="btn btn-primary" onclick="PesertaManager.startTestRoute('${testConfig.soal_id}', '${detail.pelatihan.pelatihan_id}', 'posttest')" style="padding:4px 10px;font-size:0.8em;border-radius:6px;background:var(--color-primary);">✍️ Kerjakan Post-Test</button>`;
+                    } else if (testConfig.status_post === 'ditutup') {
+                        postHtml = `<span style="color:var(--color-danger);font-weight:600;">Ditutup</span>`;
+                    } else {
+                        postHtml = `<span style="color:var(--color-text-light);">Belum dibuka</span>`;
+                    }
+                    
+                    // Simpan ke cache
+                    this.dashboardCache[plt.pelatihan_id] = detail;
+                    
+                    const dateStr = detail.pelatihan.tanggal_mulai ? (new Date(detail.pelatihan.tanggal_mulai).toLocaleDateString('id-ID', {
+                        day: '2-digit', month: 'short'
+                    }) + ' - ' + new Date(detail.pelatihan.tanggal_selesai).toLocaleDateString('id-ID', {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                    })) : '';
+                    
+                    htmlList[idx] = `
+                        <div class="peserta-card" style="cursor:pointer; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.05);" onclick="App.router('peserta-dashboard', { id: '${plt.pelatihan_id}' })" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                            <h3 style="font-size:1.05rem;font-weight:700;color:var(--color-primary);margin:0 0 4px 0;">${detail.pelatihan.judul}</h3>
+                            <div style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:12px;">👤 ${detail.pelatihan.nama_pelatih} · 📅 ${dateStr}</div>
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--color-border-light); padding-top:12px; margin-top:8px;">
+                                <span style="font-size:0.8rem; color:var(--color-text-light);">Terdapat ${detail.materi ? detail.materi.length : 0} Materi</span>
+                                <span style="color:var(--color-primary); font-size:0.85rem; font-weight:600;">Buka Dashboard ›</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (loadedCount === this.listData.length) {
+                    container.innerHTML = htmlList.join('');
+                }
+            }).withFailureHandler(err => {
+                loadedCount++;
+                htmlList[idx] = `<div class="peserta-card" style="border-color:var(--color-danger);color:var(--color-danger);">Gagal memuat detail pelatihan: ${err.message}</div>`;
+                if (loadedCount === this.listData.length) {
+                    container.innerHTML = htmlList.join('');
+                }
+            }).apiGetDashboardPelatihan(plt.pelatihan_id, App.state.user['NIP']);
+        });
+    },
+
+    bukaMateri(materiId) {
+        // Navigasi langsung ke forms dengan setup formId di state
+        App.router('forms', { startFormId: materiId });
+    },
+
+    renderDashboard(pelatihanId) {
+        const detail = this.dashboardCache[pelatihanId];
+        if (!detail) {
+            App.router('peserta-pelatihan');
+            return;
+        }
+
+        document.getElementById('dash-title').innerText = detail.pelatihan.judul;
+        
+        const dateStr = detail.pelatihan.tanggal_mulai ? (new Date(detail.pelatihan.tanggal_mulai).toLocaleDateString('id-ID', {
+            day: '2-digit', month: 'short'
+        }) + ' - ' + new Date(detail.pelatihan.tanggal_selesai).toLocaleDateString('id-ID', {
+            day: '2-digit', month: 'short', year: 'numeric'
+        })) : '';
+        document.getElementById('dash-subtitle').innerText = '👤 ' + detail.pelatihan.nama_pelatih + ' · 📅 ' + dateStr;
+
+        const container = document.getElementById('dash-content-container');
+        
+        // Setup general test buttons (from original logic)
+        const pre = detail.test_status.pretest;
+        const post = detail.test_status.posttest;
+        const testConfig = detail.test;
+        
+        let preHtml = '';
+        if (!testConfig) preHtml = `<span style="color:var(--color-text-light);">Belum disetup oleh pelatih</span>`;
+        else if (pre.completed) preHtml = `<span style="color:var(--color-success);font-weight:700;">✅ Selesai (Skor: ${pre.skor})</span>`;
+        else if (testConfig.status_pre === 'aktif') preHtml = `<button class="btn btn-primary" onclick="PesertaManager.startTestRoute('${testConfig.soal_id}', '${detail.pelatihan.pelatihan_id}', 'pretest')" style="padding:6px 12px;font-size:0.85em;border-radius:6px;background:var(--color-primary);">✍️ Kerjakan Pre-Test</button>`;
+        else if (testConfig.status_pre === 'ditutup') preHtml = `<span style="color:var(--color-danger);font-weight:600;">Ditutup</span>`;
+        else preHtml = `<span style="color:var(--color-text-light);">Belum dibuka</span>`;
+        
+        let postHtml = '';
+        if (!testConfig) postHtml = `<span style="color:var(--color-text-light);">Belum disetup oleh pelatih</span>`;
+        else if (post.completed) postHtml = `<span style="color:var(--color-success);font-weight:700;">✅ Selesai (Skor: ${post.skor})</span>`;
+        else if (testConfig.status_post === 'aktif') postHtml = `<button class="btn btn-primary" onclick="PesertaManager.startTestRoute('${testConfig.soal_id}', '${detail.pelatihan.pelatihan_id}', 'posttest')" style="padding:6px 12px;font-size:0.85em;border-radius:6px;background:var(--color-primary);">✍️ Kerjakan Post-Test</button>`;
+        else if (testConfig.status_post === 'ditutup') postHtml = `<span style="color:var(--color-danger);font-weight:600;">Ditutup</span>`;
+        else postHtml = `<span style="color:var(--color-text-light);">Belum dibuka</span>`;
+
+        let html = '';
+        
+        // Deskripsi Pelatihan Utama (jika ada)
+        if (detail.pelatihan.deskripsi) {
+            html += `
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:8px; color:var(--color-text);">📝 Deskripsi Pelatihan</h3>
+                    <p style="font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">${detail.pelatihan.deskripsi.replace(/\\n/g, '<br>')}</p>
+                </div>
+            `;
+        }
+
+        // Pre/Post Test Utama
+        html += `
+            <div class="card" style="margin-bottom:16px;">
+                <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px; color:var(--color-text);">📝 Evaluasi Pelatihan</h3>
+                <div style="display:grid;grid-template-columns:1fr;gap:10px;padding:12px;background:var(--color-bg);border:1px solid var(--color-border-light);border-radius:12px;font-size:0.85em;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-weight:600;">Pre-Test:</span>
+                        <span>${preHtml}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--color-border-light);padding-top:8px;">
+                        <span style="font-weight:600;">Post-Test:</span>
+                        <span>${postHtml}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Loop Materi & Konfigurasi JSON
+        if (detail.materi && detail.materi.length > 0) {
+            html += `<h3 style="font-size:0.95rem; font-weight:700; margin:24px 0 12px 0; color:var(--color-text);">📚 Materi & Lembar Kerja</h3>`;
+            
+            detail.materi.forEach((m, mIdx) => {
+                let configHtml = '';
+                if (m.config) {
+                    const c = m.config;
+                    // Deskripsi dari YAML
+                    if (c.deskripsi) {
+                        configHtml += `<div style="font-size:0.85em;color:var(--color-text-secondary);margin-bottom:12px;line-height:1.4;">${c.deskripsi}</div>`;
+                    }
+                    
+                    // Pre/Post Test URL dari YAML
+                    if (c.pre_post_test) {
+                        let tests = [];
+                        if (c.pre_post_test.pre_test_url) tests.push(`<a href="${c.pre_post_test.pre_test_url}" target="_blank" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75em;">📝 Pre-Test Materi</a>`);
+                        if (c.pre_post_test.post_test_url) tests.push(`<a href="${c.pre_post_test.post_test_url}" target="_blank" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75em;">📝 Post-Test Materi</a>`);
+                        if (tests.length > 0) {
+                            configHtml += `<div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">${tests.join('')}</div>`;
+                        }
+                    }
+                    
+                    // Lembar Kerja dari YAML
+                    if (c.lembar_kerja && c.lembar_kerja.length > 0) {
+                        configHtml += `<div style="margin-bottom:12px;">
+                            <strong style="font-size:0.8em; color:var(--color-text); display:block; margin-bottom:6px;">Lembar Kerja:</strong>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                ${c.lembar_kerja.map(lk => `<a href="${lk.url}" target="_blank" style="display:flex; align-items:center; background:rgba(26,115,232,0.08); color:var(--color-primary); padding:8px 12px; border-radius:6px; text-decoration:none; font-size:0.85em; font-weight:500;">📋 ${lk.judul}</a>`).join('')}
+                            </div>
+                        </div>`;
+                    }
+                    
+                    // Link Materi dari YAML
+                    if (c.materi && c.materi.length > 0) {
+                        configHtml += `<div>
+                            <strong style="font-size:0.8em; color:var(--color-text); display:block; margin-bottom:6px;">Link Materi Pelatihan:</strong>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                ${c.materi.map(mat => `<a href="${mat.url}" target="_blank" style="display:flex; align-items:center; background:rgba(230,124,115,0.08); color:#d93025; padding:8px 12px; border-radius:6px; text-decoration:none; font-size:0.85em; font-weight:500;">📖 ${mat.judul}</a>`).join('')}
+                            </div>
+                        </div>`;
+                    }
+                } else {
+                    configHtml = `<div style="font-size:0.8em; color:var(--color-text-light); font-style:italic;">Belum ada konfigurasi template dari pelatih.</div>`;
+                }
+
+                html += `
+                    <div class="card" style="margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <h4 style="margin:0; font-size:0.9rem; font-weight:700; color:var(--color-primary);">${mIdx+1}. ${m.judul_materi}</h4>
+                        </div>
+                        <div style="border-top:1px solid var(--color-border-light); padding-top:12px;">
+                            ${configHtml}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html += `<div style="text-align:center; padding:20px; color:var(--color-text-light); font-size:0.85rem;">Belum ada materi terpilih untuk pelatihan ini.</div>`;
+        }
+
+        container.innerHTML = html;
+    },
+
+    startTestRoute(soalId, pelatihanId, tipe) {
+        App.router('peserta-test', { id: soalId, pelatihan_id: pelatihanId, tipe: tipe });
+    },
+
+    // ---- QUIZ RUNNING STATE ----
+    startTest(params) {
+        this.testSoalId = params.id;
+        this.testPelatihanId = params.pelatihan_id;
+        this.testTipe = params.tipe;
+        this.answers = {};
+        this.currentQuestionIdx = 0;
+        
+        App.loading(true, 'Menyiapkan test...');
+        
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                this.testData = res.data;
+                this.prepareQuiz();
+            } else {
+                App.alert(res.error, 'Gagal Memulai Test', () => {
+                    App.router('peserta-pelatihan');
+                });
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error', () => {
+                App.router('peserta-pelatihan');
+            });
+        }).apiGetTestUntukPeserta(this.testSoalId, App.state.user['NIP'], this.testTipe);
+    },
+
+    prepareQuiz() {
+        const test = this.testData;
+        const seed = test.seed;
+        const rand = createRandom_(seed);
+        
+        document.getElementById('test-title').innerHTML = `${test.title} <div style="font-size:0.6em;color:var(--color-text-secondary);font-weight:400;margin-top:2px;">Tipe: ${this.testTipe === 'pretest' ? 'Pre-Test' : 'Post-Test'}</div>`;
+        
+        // Copy questions
+        this.shuffledQuestions = test.questions.map(q => JSON.parse(JSON.stringify(q)));
+        
+        // Shuffle questions in JavaScript deterministically using seed
+        if (test.shuffle_questions) {
+            shuffleArray_(this.shuffledQuestions, rand);
+        }
+        
+        // Shuffle options/pairs deterministically
+        if (test.shuffle_options) {
+            this.shuffledQuestions.forEach(q => {
+                if (q.options && q.type !== 'boolean') {
+                    shuffleArray_(q.options, rand);
+                }
+                if (q.pairs) {
+                    shuffleArray_(q.pairs, rand);
+                    q.pairs.forEach(p => {
+                        shuffleArray_(p.right_options, rand);
+                    });
+                }
+            });
+        }
+        
+        // Init answers structure
+        this.shuffledQuestions.forEach(q => {
+            if (q.type === 'checkbox') this.answers[q.name] = [];
+            else if (q.type === 'matching') this.answers[q.name] = {};
+            else this.answers[q.name] = '';
+        });
+        
+        // Start timer
+        this.startTimer(test.time_limit_minutes);
+        
+        // Render quiz
+        this.renderQuestion();
+        this.renderProgressDots();
+    },
+
+    startTimer(mins) {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        
+        const timerEl = document.getElementById('test-timer');
+        if (!mins || mins <= 0) {
+            timerEl.textContent = '⏳ Tanpa Batas Waktu';
+            timerEl.style.color = 'var(--color-primary)';
+            return;
+        }
+        
+        this.timeRemainingSecs = mins * 60;
+        
+        const updateTimerDisplay = () => {
+            const m = Math.floor(this.timeRemainingSecs / 60);
+            const s = this.timeRemainingSecs % 60;
+            timerEl.textContent = `⏱️ Sisa Waktu: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            
+            if (this.timeRemainingSecs <= 60) {
+                timerEl.style.color = 'var(--color-danger)';
+            } else {
+                timerEl.style.color = 'var(--color-text-secondary)';
+            }
+        };
+        
+        updateTimerDisplay();
+        
+        this.timerInterval = setInterval(() => {
+            this.timeRemainingSecs--;
+            if (this.timeRemainingSecs <= 0) {
+                clearInterval(this.timerInterval);
+                updateTimerDisplay();
+                App.alert('Batas waktu pengerjaan test telah habis! Jawaban Anda akan otomatis dikirim sekarang.', 'Waktu Habis', () => {
+                    this.submitAnswersAutomatically();
+                });
+            } else {
+                updateTimerDisplay();
+            }
+        }, 1000);
+        
+        // Register cleanup to clear timer on route changes
+        if (typeof _pageCleanups !== 'undefined') {
+            _pageCleanups.push(() => clearInterval(this.timerInterval));
+        }
+    },
+
+    renderQuestion() {
+        const q = this.shuffledQuestions[this.currentQuestionIdx];
+        if (!q) return;
+        
+        document.getElementById('test-category').textContent = `Kategori: ${q.category || 'Umum'}`;
+        document.getElementById('test-question-num').textContent = `Soal ${this.currentQuestionIdx + 1} dari ${this.shuffledQuestions.length}`;
+        document.getElementById('test-question-label').textContent = q.label;
+        
+        const optContainer = document.getElementById('test-options-container');
+        optContainer.innerHTML = '';
+        
+        const savedAnswer = this.answers[q.name];
+        
+        // Radio / Multiple Choice
+        if (q.type === 'radio') {
+            optContainer.innerHTML = q.options.map(opt => {
+                const checked = savedAnswer === opt ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedAnswer === opt ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="radio" name="plt-q-opt" value="${opt}" ${checked} onchange="PesertaManager.saveQuestionAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+        // Boolean / True-False
+        else if (q.type === 'boolean') {
+            const opts = ['Benar', 'Salah'];
+            optContainer.innerHTML = opts.map(opt => {
+                const checked = savedAnswer === opt ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedAnswer === opt ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="radio" name="plt-q-opt" value="${opt}" ${checked} onchange="PesertaManager.saveQuestionAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+        // Checkbox / Multi Select
+        else if (q.type === 'checkbox') {
+            const savedList = Array.isArray(savedAnswer) ? savedAnswer : [];
+            optContainer.innerHTML = q.options.map(opt => {
+                const checked = savedList.includes(opt) ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedList.includes(opt) ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="checkbox" name="plt-q-opt" value="${opt}" ${checked} onchange="PesertaManager.toggleCheckboxAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+        // Matching
+        else if (q.type === 'matching') {
+            const savedMap = typeof savedAnswer === 'object' ? savedAnswer : {};
+            optContainer.innerHTML = q.pairs.map(pair => {
+                const left = pair.left;
+                const rightSelected = savedMap[left] || '';
+                
+                const selectOptions = ['-- Pilih Pasangan --', ...pair.right_options].map(opt => {
+                    const selected = rightSelected === opt ? 'selected' : '';
+                    const displayOpt = opt === '-- Pilih Pasangan --' ? opt : opt;
+                    const val = opt === '-- Pilih Pasangan --' ? '' : opt;
+                    return `<option value="${val}" ${selected}>${displayOpt}</option>`;
+                }).join('');
+                
+                return `
+                    <div class="card" style="padding:14px 16px;margin:0;display:flex;flex-direction:column;gap:8px;">
+                        <span style="font-size:0.88rem;font-weight:600;color:var(--color-text);">${left}</span>
+                        <select onchange="PesertaManager.saveMatchingAnswer('${q.name}', '${left.replace(/'/g, "\\'")}', this.value)" class="form-control" style="font-size:0.82rem;padding:8px 10px;">
+                            ${selectOptions}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Navigation Buttons disabled state
+        document.getElementById('btn-test-prev').disabled = (this.currentQuestionIdx === 0);
+        document.getElementById('btn-test-next').disabled = (this.currentQuestionIdx === this.shuffledQuestions.length - 1);
+        
+        // Show/hide submit button on last question
+        const submitBtn = document.getElementById('btn-submit-test');
+        if (this.currentQuestionIdx === this.shuffledQuestions.length - 1) {
+            submitBtn.style.display = 'block';
+        } else {
+            submitBtn.style.display = 'none';
+        }
+    },
+
+    renderProgressDots() {
+        const container = document.getElementById('test-dots-container');
+        if (!container) return;
+        
+        container.innerHTML = this.shuffledQuestions.map((q, idx) => {
+            const isActive = idx === this.currentQuestionIdx;
+            const saved = this.answers[q.name];
+            
+            let isAnswered = false;
+            if (q.type === 'checkbox') {
+                isAnswered = Array.isArray(saved) && saved.length > 0;
+            } else if (q.type === 'matching') {
+                // Answered if at least one matching key is populated
+                isAnswered = saved && typeof saved === 'object' && Object.values(saved).filter(v => v !== '').length > 0;
+            } else {
+                isAnswered = !!saved;
+            }
+            
+            const activeClass = isActive ? 'active' : '';
+            const answeredClass = isAnswered ? 'answered' : '';
+            
+            return `
+                <div class="test-progress-dot ${activeClass} ${answeredClass}" onclick="PesertaManager.goToQuestion(${idx})">
+                    ${idx+1}
+                </div>
+            `;
+        }).join('');
+    },
+
+    saveQuestionAnswer(qName, value) {
+        this.answers[qName] = value;
+        this.renderProgressDots();
+        this.renderQuestion();
+    },
+
+    toggleCheckboxAnswer(qName, value) {
+        if (!Array.isArray(this.answers[qName])) {
+            this.answers[qName] = [];
+        }
+        
+        const idx = this.answers[qName].indexOf(value);
+        if (idx === -1) {
+            this.answers[qName].push(value);
+        } else {
+            this.answers[qName].splice(idx, 1);
+        }
+        
+        this.renderProgressDots();
+        this.renderQuestion();
+    },
+
+    saveMatchingAnswer(qName, leftKey, value) {
+        if (typeof this.answers[qName] !== 'object' || this.answers[qName] === null) {
+            this.answers[qName] = {};
+        }
+        
+        if (value === '') {
+            delete this.answers[qName][leftKey];
+        } else {
+            this.answers[qName][leftKey] = value;
+        }
+        
+        this.renderProgressDots();
+    },
+
+    goToQuestion(idx) {
+        if (idx >= 0 && idx < this.shuffledQuestions.length) {
+            this.currentQuestionIdx = idx;
+            this.renderQuestion();
+            this.renderProgressDots();
+        }
+    },
+
+    prevQuestion() {
+        this.goToQuestion(this.currentQuestionIdx - 1);
+    },
+
+    nextQuestion() {
+        this.goToQuestion(this.currentQuestionIdx + 1);
+    },
+
+    confirmExitTest() {
+        App.confirm('Apakah Anda yakin ingin keluar dari pengerjaan test? Waktu pengerjaan akan terus berjalan dan jawaban Anda belum terkirim.', 'Keluar Test', () => {
+            if (this.timerInterval) clearInterval(this.timerInterval);
+            App.router('peserta-pelatihan');
+        });
+    },
+
+    submitTest() {
+        // Count unanswered questions
+        let unanswered = 0;
+        this.shuffledQuestions.forEach(q => {
+            const ans = this.answers[q.name];
+            let hasAns = false;
+            if (q.type === 'checkbox') hasAns = ans && ans.length > 0;
+            else if (q.type === 'matching') hasAns = ans && Object.values(ans).filter(v => v !== '').length > 0;
+            else hasAns = !!ans;
+            
+            if (!hasAns) unanswered++;
+        });
+        
+        let confirmMsg = 'Apakah Anda yakin ingin mengumpulkan jawaban test Anda sekarang?';
+        if (unanswered > 0) {
+            confirmMsg = `⚠️ Masih ada ${unanswered} soal yang belum Anda jawab! ${confirmMsg}`;
+        }
+        
+        App.confirm(confirmMsg, 'Kirim Jawaban', () => {
+            this.submitAnswersAutomatically();
+        });
+    },
+
+    submitAnswersAutomatically() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        
+        App.loading(true, 'Mengirim jawaban ke server...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.alert(`Jawaban Anda berhasil dikirim! Skor Anda: ${res.data.skor}`, 'Test Selesai', () => {
+                    App.router('peserta-pelatihan');
+                });
+            } else {
+                App.alert(res.error, 'Gagal mengirim jawaban', () => {
+                    // Try to go back
+                    App.router('peserta-pelatihan');
+                });
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert('Error koneksi ke server: ' + err.message + '. Silakan hubungi pengawas Anda.', 'Gagal Mengirim');
+        }).apiSubmitTestJawaban(this.testSoalId, App.state.user['NIP'], this.testTipe, this.answers);
+    }
+};
+</script>

@@ -78,10 +78,7 @@ const DashboardViews = {
                 <div style="display:flex;gap:14px;align-items:center;position:relative;">
                     ${photoCardHtml}
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:1rem;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;">
-                            ${user['Nama'] || 'Nama Belum Diisi'}
-                            ${user['Pelatih'] === 'Nasional' ? '<span style="background:rgba(0,0,0,0.45);color:#ffc107;border:1px solid #ffc107;border-radius:6px;padding:2px 8px;font-size:0.65rem;font-weight:800;line-height:1;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;letter-spacing:0.5px;">⭐ PELATIH</span>' : ''}
-                        </div>
+                        <div style="font-size:1rem;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user['Nama'] || 'Nama Belum Diisi'}</div>
                         <div style="font-size:0.78rem;opacity:0.85;margin-bottom:6px;">NIP: ${user['NIP']} · Gol. ${user['Golongan'] || '-'}</div>
                         <div style="display:flex;gap:6px;flex-wrap:wrap;">
                             <span style="background:rgba(255,255,255,0.2);border-radius:8px;padding:2px 10px;font-size:0.72rem;font-weight:600;">${user['Kabupaten'] || '-'}</span>

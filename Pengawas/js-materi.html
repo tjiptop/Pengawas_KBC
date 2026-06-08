@@ -1,0 +1,141 @@
+<script>
+// ============================================================
+// MATERI VIEW & MANAGER
+// Halaman daftar materi KBC & MAGIS
+// ============================================================
+
+const MateriViews = {
+  Main: () => `
+    <div class="header">
+      <div class="header-title-wrap">
+        <div class="header-page-icon">📚</div>
+        <h1>Materi Pembelajaran</h1>
+      </div>
+      <button class="back-btn" onclick="App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+    </div>
+    <div class="content">
+      <div id="materi-container">
+        <!-- Content will be injected here -->
+      </div>
+    </div>
+  `,
+  
+  Empty: () => `
+    <div class="card" style="text-align:center; padding:40px; color:var(--color-text-light);">
+        <div style="font-size:3rem; margin-bottom:12px;">📚</div>
+        <p style="margin:0; font-size:0.95em;">Belum ada materi yang tersedia saat ini.</p>
+    </div>
+  `
+};
+
+const MateriManager = {
+  state: {
+    materi: []
+  },
+
+  init() {
+    this.loadMateri();
+  },
+
+  loadMateri() {
+    App.loading(true, 'Memuat daftar materi...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.state.materi = res.data || [];
+          this.render();
+        } else {
+          document.getElementById('materi-container').innerHTML = 
+            `<p style="color:#c0392b;text-align:center;">Gagal memuat materi: ${res.error}</p>`;
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        document.getElementById('materi-container').innerHTML = 
+          `<p style="color:#c0392b;text-align:center;">Koneksi terputus: ${err.message || err}</p>`;
+      })
+      .getMateriList();
+  },
+
+  render() {
+    const container = document.getElementById('materi-container');
+    if (!container) return;
+
+    if (this.state.materi.length === 0) {
+      container.innerHTML = MateriViews.Empty();
+      return;
+    }
+
+    // Group by Kelompok and Sub Kelompok
+    const grouped = {};
+    this.state.materi.forEach(item => {
+      const kel = item.kelompok || 'Umum';
+      const sub = item.subKelompok || 'Lainnya';
+      if (!grouped[kel]) grouped[kel] = {};
+      if (!grouped[kel][sub]) grouped[kel][sub] = [];
+      grouped[kel][sub].push(item);
+    });
+
+    let html = '';
+
+    for (const kelompok in grouped) {
+      html += `
+        <div class="card" style="margin-bottom:24px; padding:0; overflow:hidden;">
+          <div style="background:var(--color-bg-elevated); padding:16px 20px; border-bottom:1px solid var(--color-border-light);">
+            <h2 style="margin:0; font-size:1.1rem; color:var(--color-text); display:flex; align-items:center; gap:8px;">
+              <span style="color:var(--color-primary);">📚</span> ${kelompok}
+            </h2>
+          </div>
+          <div style="padding:10px 20px 20px 20px;">
+      `;
+      
+      for (const subKelompok in grouped[kelompok]) {
+        html += `
+            <div style="margin-top:16px;">
+              ${subKelompok !== 'Lainnya' ? `<h3 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.5px;">${subKelompok}</h3>` : ''}
+              <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+        `;
+        
+        grouped[kelompok][subKelompok].forEach(item => {
+          html += `
+                <div onclick="window.open('${item.link}', '_blank')" class="materi-card" style="border:1px solid var(--color-border-light); border-radius:10px; padding:12px 16px; cursor:pointer; display:flex; align-items:center; gap:12px; transition:all 0.2s; background:var(--color-bg);">
+                  <div style="width:36px; height:36px; border-radius:8px; background:rgba(26,115,232,0.1); color:var(--color-primary); display:flex; align-items:center; justify-content:center; font-size:1.2em; flex-shrink:0;">
+                    📄
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-weight:600; font-size:0.9rem; color:var(--color-text); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${item.judul}">${item.judul}</div>
+                    <div style="font-size:0.75rem; color:var(--color-primary);">Buka Materi ›</div>
+                  </div>
+                </div>
+          `;
+        });
+        
+        html += `
+              </div>
+            </div>
+        `;
+      }
+      
+      html += `
+          </div>
+        </div>
+      `;
+    }
+
+    // Add a little CSS for hover effect specifically for this view
+    html += `
+      <style>
+        .materi-card:hover {
+          border-color: var(--color-primary) !important;
+          background: rgba(26,115,232,0.02) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+      </style>
+    `;
+
+    container.innerHTML = html;
+  }
+};
+</script>

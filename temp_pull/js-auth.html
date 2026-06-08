@@ -1,0 +1,132 @@
+<script>
+const AuthViews = {
+    Login: () => `
+        <div class="auth-wrap">
+          <div class="auth-card">
+            <div class="auth-brand">
+              <div class="auth-brand-icon">👁️</div>
+              <div>
+                <h1 class="auth-brand-title">Portal Pengawas</h1>
+                <p class="auth-brand-sub">Kemenag KBC</p>
+              </div>
+            </div>
+            <div class="auth-divider"></div>
+            <div class="form-group">
+              <label style="font-size:0.82rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:6px;display:block;">NIP</label>
+              <input type="text" id="login-nip" class="form-control" placeholder="Masukkan NIP Anda"
+                     autocomplete="username" inputmode="numeric" style="margin-bottom:0;">
+            </div>
+            <div class="form-group" style="margin-bottom:6px;">
+              <label style="font-size:0.82rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:6px;display:block;">Password</label>
+              <input type="password" id="login-password" class="form-control" placeholder="Kosongkan jika baru pertama login"
+                     autocomplete="current-password" style="margin-bottom:0;">
+            </div>
+            <p style="font-size:0.78rem;color:var(--color-text-light);margin:0 0 20px;">Bagi pengguna baru, biarkan password kosong.</p>
+            <button id="login-submit-btn" class="btn" style="padding:13px;" onclick="AuthManager.doLogin()">Login Pengawas</button>
+
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--color-border-light);text-align:center;">
+              <p style="font-size:0.8rem;color:var(--color-text-light);margin:0 0 10px;">Kepala Madrasah?</p>
+              <button onclick="App.router('kamad-login')"
+                style="background:none;border:1px solid var(--color-border);color:var(--color-text-secondary);
+                       padding:10px 20px;border-radius:var(--radius-full);font-size:0.85rem;cursor:pointer;
+                       transition:all 0.15s;width:100%;">
+                🏫 Login sebagai Kamad
+              </button>
+            </div>
+          </div>
+        </div>
+    `,
+
+    SetPassword: (nip) => `
+        <div class="auth-card card" style="max-width: 400px; margin: 40px auto; padding: 30px;">
+            <h2 style="text-align: center; color: var(--color-primary); margin-bottom: 10px;">Setup Password</h2>
+            <p style="text-align: center; margin-bottom: 20px; font-size: 0.9em; color: #555;">Selamat datang! Silakan buat password untuk akun NIP <b>${nip}</b></p>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label>Password Baru</label>
+                <input type="password" id="setup-pwd1" class="form-control" placeholder="Minimal 6 karakter" minlength="6" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label>Konfirmasi Password</label>
+                <input type="password" id="setup-pwd2" class="form-control" placeholder="Minimal 6 karakter" minlength="6" required>
+            </div>
+            <button id="setup-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="AuthManager.doSetPassword('${nip}')">Simpan Password</button>
+        </div>
+    `
+};
+
+const AuthManager = {
+    doLogin() {
+        const nip = document.getElementById('login-nip').value.trim();
+        const pwd = document.getElementById('login-password').value;
+
+        if (!nip) return App.alert('NIP wajib diisi', 'Error');
+
+        // Debounce: nonaktifkan tombol selama proses
+        const btn = document.getElementById('login-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Memeriksa...'; }
+        const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Login Pengawas'; } };
+
+        App.loading(true, 'Memeriksa kredensial...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            resetBtn();
+            if (res.success) {
+                if (res.require_setup) {
+                    App.router('set_password', { nip: res.nip });
+                } else if (res.require_profile_setup) {
+                    App.state.user = res.user || { NIP: res.nip };
+                    App.state.isNewUser = true;
+                    localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
+                    App.alert('Anda belum melengkapi data profil. Silakan lengkapi dan simpan profil Anda terlebih dahulu.', 'Lengkapi Profil', () => {
+                        App.router('profile');
+                    });
+                } else {
+                    App.state.user = res.user || { NIP: nip };
+                    localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
+                    App.router('dashboard');
+                }
+            } else {
+                App.alert(res.error || res.message || 'Login gagal.', 'Gagal Login');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            resetBtn();
+            App.alert(err.message, 'System Error');
+        }).login(nip, pwd);
+    },
+
+    doSetPassword(nip) {
+        const p1 = document.getElementById('setup-pwd1').value;
+        const p2 = document.getElementById('setup-pwd2').value;
+
+        if (!p1 || p1.length < 6) return App.alert('Password minimal 6 karakter', 'Error');
+        if (p1 !== p2) return App.alert('Konfirmasi password tidak cocok', 'Error');
+
+        // Debounce: nonaktifkan tombol selama proses
+        const btn = document.getElementById('setup-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+        const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Simpan Password'; } };
+
+        App.loading(true, 'Menyimpan password...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            resetBtn();
+            if (res.success) {
+                const userProfile = res.data;
+                App.state.user = userProfile || { 'NIP': nip };
+                App.state.isNewUser = true;
+                localStorage.setItem('pengawas_user', JSON.stringify(App.state.user));
+                App.alert('Password berhasil disetel. Selanjutnya, lengkapi profil Anda.', 'Langkah 1/2', () => {
+                    App.router('profile');
+                });
+            } else {
+                App.alert(res.error || res.message || 'Gagal menyimpan password.', 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            resetBtn();
+            App.alert(err.message, 'System Error');
+        }).setPassword(nip, p1);
+    }
+};
+</script>

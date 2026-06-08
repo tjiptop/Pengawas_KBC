@@ -38,7 +38,7 @@ function SetupAwal() {
   ]);
   
   const sheetMateriPel = setupSheet(ss, 'Materi_Pelatihan', [
-    'materi_id', 'judul_materi', 'deskripsi', 'konfigurasi_template', 'konfigurasi_soal'
+    'materi_id', 'judul_materi', 'deskripsi'
   ]);
   if (sheetMateriPel.getLastRow() <= 1) {
     sheetMateriPel.appendRow(['MAT-001', 'Kurikulum KBC', 'Materi tentang Kriteria Baseline Cepat untuk madrasah']);

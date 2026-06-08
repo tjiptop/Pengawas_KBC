@@ -178,9 +178,6 @@ const App = {
     } else if (view === 'peserta-pelatihan') {
       el.innerHTML = PesertaViews.Main();
       PesertaManager.init();
-    } else if (view === 'peserta-dashboard') {
-      el.innerHTML = PesertaViews.Dashboard();
-      PesertaManager.renderDashboard(params.id);
     } else if (view === 'peserta-test') {
       el.innerHTML = PesertaViews.TestUI(params);
       PesertaManager.startTest(params);

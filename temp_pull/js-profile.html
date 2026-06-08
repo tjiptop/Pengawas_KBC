@@ -85,11 +85,11 @@ window.ProfileViews = {
             \x3Cdiv class="card">
                 \x3Cp style="margin-bottom:20px; color:#666;">Lengkapi data profil Anda di bawah ini. Pastikan data wilayah kerja benar karena akan digunakan untuk memfilter madrasah sasaran KBC.\x3C/p>
                 
-                <form id="form-profile" onsubmit="event.preventDefault(); ProfileManager.save();">
-                    <div class="form-group" style="margin-bottom:15px;">
-                        <label>NIP (Read-only) ${user['Pelatih'] === 'Nasional' ? '<span style="background:#fdf6ec;color:#e6a23c;border:1px solid #f5dab1;border-radius:6px;padding:2px 8px;font-size:0.65rem;font-weight:800;margin-left:8px;vertical-align:middle;display:inline-flex;align-items:center;gap:3px;line-height:1;">⭐ PELATIH</span>' : ''}</label>
-                        <input type="text" id="prof-nip" class="form-control" value="${esc(nip)}" readonly style="background:#eee">
-                    </div>
+                \x3Cform id="form-profile" onsubmit="event.preventDefault(); ProfileManager.save();">
+                    \x3Cdiv class="form-group" style="margin-bottom:15px;">
+                        \x3Clabel>NIP (Read-only)\x3C/label>
+                        \x3Cinput type="text" id="prof-nip" class="form-control" value="${esc(nip)}" readonly style="background:#eee">
+                    \x3C/div>
                     \x3Cdiv class="form-group" style="margin-bottom:15px;">
                         \x3Clabel>Nama Lengkap (beserta gelar)\x3C/label>
                         \x3Cinput type="text" id="prof-nama" class="form-control" value="${esc(user['Nama'])}" required>
@@ -180,26 +180,7 @@ window.ProfileViews = {
                         \x3Cinput type="hidden" id="prof-foto-filename">
                     \x3C/div>
 
-                    <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:1.1em;">Simpan Profil</button>
-                </form>
-            \x3C/div>
-
-            \x3Cdiv class="card" style="margin-top:20px;">
-                \x3Ch3 style="margin-top:0; margin-bottom:15px; font-size:1.1rem; font-weight:700;">🔑 Ganti Password\x3C/h3>
-                \x3Cform id="form-change-password" onsubmit="event.preventDefault(); ProfileManager.changePassword();">
-                    \x3Cdiv class="form-group" style="margin-bottom:15px;">
-                        \x3Clabel>Password Lama\x3C/label>
-                        \x3Cinput type="password" id="pw-old" class="form-control" placeholder="Masukkan password saat ini" required>
-                    \x3C/div>
-                    \x3Cdiv class="form-group" style="margin-bottom:15px;">
-                        \x3Clabel>Password Baru\x3C/label>
-                        \x3Cinput type="password" id="pw-new" class="form-control" placeholder="Minimal 6 karakter" required>
-                    \x3C/div>
-                    \x3Cdiv class="form-group" style="margin-bottom:20px;">
-                        \x3Clabel>Konfirmasi Password Baru\x3C/label>
-                        \x3Cinput type="password" id="pw-confirm" class="form-control" placeholder="Ulangi password baru" required>
-                    \x3C/div>
-                    \x3Cbutton type="submit" class="btn btn-secondary" style="width:100%; padding:12px; font-size:1.1em; background:var(--color-bg-hover); border:1px solid var(--color-border); color:var(--color-text);">Update Password\x3C/button>
+                    \x3Cbutton type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:1.1em;">Simpan Profil\x3C/button>
                 \x3C/form>
             \x3C/div>
         \x3C/div>
@@ -362,39 +343,6 @@ window.ProfileManager = {
         } catch (e) {
             App.loading(false);
             App.alert('Error di saveData(): ' + e.message, 'JS Error');
-        }
-    },
-
-    changePassword() {
-        try {
-            const oldPw = document.getElementById('pw-old').value;
-            const newPw = document.getElementById('pw-new').value;
-            const confirmPw = document.getElementById('pw-confirm').value;
-
-            if (newPw.length < 6) {
-                return App.alert('Password baru minimal 6 karakter.', 'Validasi');
-            }
-            if (newPw !== confirmPw) {
-                return App.alert('Konfirmasi password baru tidak cocok.', 'Validasi');
-            }
-
-            App.loading(true, 'Mengubah password...');
-            google.script.run.withSuccessHandler(res => {
-                App.loading(false);
-                if (res.success) {
-                    App.alert('Password berhasil diubah.', 'Berhasil', () => {
-                        document.getElementById('form-change-password').reset();
-                    });
-                } else {
-                    App.alert(res.error || res.message, 'Gagal');
-                }
-            }).withFailureHandler(err => {
-                App.loading(false);
-                App.alert(err.message, 'System Error');
-            }).changePassword(App.state.user['NIP'], oldPw, newPw);
-        } catch(e) {
-            App.loading(false);
-            App.alert('Error di changePassword(): ' + e.message, 'JS Error');
         }
     }
 };

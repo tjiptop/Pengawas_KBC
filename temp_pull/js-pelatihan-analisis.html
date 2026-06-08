@@ -1,0 +1,373 @@
+<style>
+/* Styling Tambahan UI Analisis */
+.analisis-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.analisis-summary-card {
+    background: var(--color-bg-elevated, #fff);
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 12px;
+    padding: 14px;
+    text-align: center;
+}
+.analisis-summary-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-primary);
+    margin-top: 4px;
+}
+.analisis-summary-label {
+    font-size: 0.76rem;
+    color: var(--color-text-light, #666);
+    font-weight: 600;
+}
+
+.stats-section-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--color-text);
+    border-left: 3px solid var(--color-primary);
+    padding-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.effect-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.effect-besar { background: rgba(40, 167, 69, 0.1); color: #28a745; }
+.effect-sedang { background: rgba(0, 123, 255, 0.1); color: #007bff; }
+.effect-kecil { background: rgba(255, 193, 7, 0.1); color: #ffc107; }
+.effect-sangat-kecil { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
+
+.css-bar-chart-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 10px;
+}
+.css-bar-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.css-bar-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+.css-bar-track {
+    background: var(--color-bg, #f4f4f4);
+    height: 18px;
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.css-bar-fill-pre {
+    background: #4a90e2;
+    height: 100%;
+    transition: width 0.8s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+.css-bar-fill-post {
+    background: #2eca76;
+    height: 100%;
+    transition: width 0.8s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.table-detail-peserta {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin-top: 8px;
+}
+.table-detail-peserta th {
+    background: var(--color-bg, #fafafa);
+    color: var(--color-text);
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--color-border-light, #eee);
+}
+.table-detail-peserta td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border-light, #eee);
+    color: var(--color-text-secondary);
+}
+.table-detail-peserta tr:hover {
+    background: rgba(0,0,0,0.015);
+}
+</style>
+
+<script>
+const AnalisisViews = {
+    Main: (pelatihanId) => `
+        <div class="header">
+            <div class="header-title-wrap">
+                <div class="header-page-icon">📊</div>
+                <div>
+                    <h1 id="ans-title" style="font-size:1.1rem;line-height:1.2;">Memuat Analisis...</h1>
+                    <span style="font-size:0.7rem;color:var(--color-text-light);font-weight:400;margin-top:2px;">Analisis Uji Statistik Pre & Post Test</span>
+                </div>
+            </div>
+            <button class="back-btn" onclick="App.router('pelatihan-detail', { id: '${pelatihanId}' })">‹ Detail</button>
+        </div>
+        <div class="content" style="padding-bottom: 60px;">
+            
+            <div id="analisis-dashboard-mount">
+                <div style="text-align:center;padding:40px;color:var(--color-text-light);">Menghitung analisis statistik...</div>
+            </div>
+            
+        </div>
+    `,
+
+    Dashboard: (data) => {
+        const plt = data.pelatihan;
+        const sum = data.ringkasan;
+        const stat = data.statistik;
+        const categories = data.kategori || [];
+        const detailPeserta = data.detail_peserta || [];
+        
+        // Cek apakah data valid (N > 1)
+        if (!sum.n_peserta || sum.n_peserta <= 1) {
+            return `
+                <div class="card" style="text-align:center;padding:32px;">
+                    <div style="font-size:3rem;margin-bottom:12px;">📊</div>
+                    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:8px;">Data Tidak Mencukupi</h3>
+                    <p style="font-size:0.82em;color:var(--color-text-light);line-height:1.5;margin-bottom:20px;max-width:300px;margin-inline:auto;">
+                        Analisis statistik memerlukan minimal <b>2 peserta</b> yang telah menyelesaikan <b>Pre-Test DAN Post-Test</b>.
+                    </p>
+                    <div style="padding:12px;background:var(--color-bg);border:1px solid var(--color-border-light);border-radius:10px;text-align:left;font-size:0.8em;margin-bottom:20px;">
+                        <div>• Jumlah pengisi test: <b>${sum.n_peserta || 0}</b> orang</div>
+                        <div style="margin-top:4px;">Harap tunggu peserta menyelesaikan pengisian pre/post test sebelum membuka halaman analisis ini kembali.</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="App.router('pelatihan-detail', { id: '${plt.pelatihan_id || ''}' })" style="width:100%;">‹ Kembali ke Detail Pelatihan</button>
+                </div>
+            `;
+        }
+        
+        // T-Test badge
+        const tTestBadge = stat.signifikan ? 
+            `<span class="pelatihan-status-badge status-aktif">Signifikan ✅</span>` :
+            `<span class="pelatihan-status-badge status-draft">Tidak Signifikan</span>`;
+            
+        // Effect size class
+        let effectClass = 'effect-sangat-kecil';
+        if (stat.effect_interpretation === 'Besar') effectClass = 'effect-besar';
+        else if (stat.effect_interpretation === 'Sedang') effectClass = 'effect-sedang';
+        else if (stat.effect_interpretation === 'Kecil') effectClass = 'effect-kecil';
+        
+        // Bar charts HTML
+        const barChartsHtml = categories.map(cat => {
+            const preVal = cat.mean_pre;
+            const postVal = cat.mean_post;
+            const delta = cat.mean_diff;
+            const deltaSign = delta >= 0 ? '+' : '';
+            
+            return `
+                <div class="css-bar-row">
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;">
+                        <strong style="color:var(--color-text);">${cat.kategori}</strong>
+                        <span style="font-size:0.85em;font-weight:700;color:${delta >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};">Delta: ${deltaSign}${delta}</span>
+                    </div>
+                    <!-- Pre Test Bar -->
+                    <div class="css-bar-track" style="margin-top:2px;">
+                        <div class="css-bar-fill-pre" style="width:${preVal}%;min-width:16%;">Pre: ${preVal}%</div>
+                    </div>
+                    <!-- Post Test Bar -->
+                    <div class="css-bar-track">
+                        <div class="css-bar-fill-post" style="width:${postVal}%;min-width:16%;">Post: ${postVal}%</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // Detail Peserta rows HTML
+        const tableRowsHtml = detailPeserta.map((dp, idx) => {
+            const preStr = dp.pre_skor !== null ? dp.pre_skor : '-';
+            const postStr = dp.post_skor !== null ? dp.post_skor : '-';
+            
+            let diffHtml = '-';
+            if (dp.diff !== null) {
+                diffHtml = dp.diff >= 0 ? 
+                    `<span style="color:var(--color-success);font-weight:700;">+${dp.diff}</span>` : 
+                    `<span style="color:var(--color-danger);font-weight:700;">${dp.diff}</span>`;
+            }
+            
+            return `
+                <tr>
+                    <td>${idx+1}</td>
+                    <td>${dp.nama}</td>
+                    <td>${dp.kabupaten}</td>
+                    <td>${preStr}</td>
+                    <td>${postStr}</td>
+                    <td>${diffHtml}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        return `
+            <!-- Summary Grid -->
+            <div class="analisis-summary-grid">
+                <div class="analisis-summary-card">
+                    <div class="analisis-summary-label">👥 Peserta Teranalisis</div>
+                    <div class="analisis-summary-value">${sum.n_peserta}</div>
+                </div>
+                <div class="analisis-summary-card">
+                    <div class="analisis-summary-label">📈 Rata-rata Pre</div>
+                    <div class="analisis-summary-value" style="color:#4a90e2;">${sum.mean_pre}</div>
+                </div>
+                <div class="analisis-summary-card">
+                    <div class="analisis-summary-label">📈 Rata-rata Post</div>
+                    <div class="analisis-summary-value" style="color:#2eca76;">${sum.mean_post}</div>
+                </div>
+                <div class="analisis-summary-card">
+                    <div class="analisis-summary-label">⚡ Rata-rata Naik</div>
+                    <div class="analisis-summary-value" style="color:var(--color-primary);">${sum.mean_diff > 0 ? '+' : ''}${sum.mean_diff}</div>
+                </div>
+            </div>
+
+            <!-- Stats Metrics -->
+            <div class="card" style="margin-bottom:16px;">
+                <h3 class="stats-section-title">📊 Pengujian Hipotesis (Paired T-Test)</h3>
+                <div style="display:flex;flex-direction:column;gap:12px;font-size:0.85rem;">
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--color-border-light);padding-bottom:8px;">
+                        <span style="color:var(--color-text-secondary);">t-statistic:</span>
+                        <strong style="color:var(--color-text);">${stat.t_value}</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--color-border-light);padding-bottom:8px;">
+                        <span style="color:var(--color-text-secondary);">Degrees of Freedom (df):</span>
+                        <strong style="color:var(--color-text);">${stat.df}</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--color-border-light);padding-bottom:8px;">
+                        <span style="color:var(--color-text-secondary);">p-value:</span>
+                        <strong style="color:var(--color-text);">${stat.p_value}</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--color-text-secondary);font-weight:600;">Kesimpulan Uji:</span>
+                        ${tTestBadge}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Effect Size -->
+            <div class="card" style="margin-bottom:16px;">
+                <h3 class="stats-section-title">📏 Ukuran Efek (Cohen's d Effect Size)</h3>
+                <div style="display:flex;flex-direction:column;gap:12px;font-size:0.85rem;">
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--color-border-light);padding-bottom:8px;">
+                        <span style="color:var(--color-text-secondary);">Cohen's d value:</span>
+                        <strong style="color:var(--color-text);">${stat.cohens_d}</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--color-text-secondary);font-weight:600;">Efektivitas Pelatihan:</span>
+                        <span class="effect-badge ${effectClass}">${stat.effect_interpretation}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kategori comparison (CSS Charts) -->
+            <div class="card" style="margin-bottom:16px;">
+                <h3 class="stats-section-title">📊 Perbandingan Per Kategori</h3>
+                <div class="css-bar-chart-container">
+                    ${barChartsHtml}
+                </div>
+                <div style="display:flex;gap:14px;justify-content:center;margin-top:16px;font-size:0.75rem;font-weight:600;">
+                    <span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:#4a90e2;border-radius:3px;"></span> Rata-rata Pre</span>
+                    <span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:#2eca76;border-radius:3px;"></span> Rata-rata Post</span>
+                </div>
+            </div>
+
+            <!-- Detail Peserta Table -->
+            <div class="card" style="margin-bottom:16px;overflow-x:auto;">
+                <h3 class="stats-section-title">📋 Detail Hasil Peserta</h3>
+                <table class="table-detail-peserta">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama Peserta</th>
+                            <th>Kabupaten</th>
+                            <th>Pre</th>
+                            <th>Post</th>
+                            <th>Δ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Export to Excel Button -->
+            <button class="btn btn-primary" onclick="AnalisisManager.exportSpreadsheet('${plt.pelatihan_id}')" style="width:100%;padding:12px;font-size:0.95rem;background:#107c41;border-color:#107c41;font-weight:700;">
+                📥 Export ke Spreadsheet Excel
+            </button>
+        `;
+    }
+};
+
+const AnalisisManager = {
+    init(pelatihanId) {
+        App.loading(true, 'Menghitung analisis statistik...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                const data = res.data;
+                
+                // Update title
+                document.getElementById('ans-title').innerHTML = `
+                    Analisis: ${data.pelatihan.judul}
+                    <div style="font-size:0.6em;color:var(--color-text-secondary);font-weight:400;margin-top:2px;">Pelatih: ${data.pelatihan.nama_pelatih}</div>
+                `;
+                
+                document.getElementById('analisis-dashboard-mount').innerHTML = AnalisisViews.Dashboard(data);
+            } else {
+                App.alert(res.error, 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiHitungAnalisis(pelatihanId);
+    },
+
+    exportSpreadsheet(pelatihanId) {
+        App.loading(true, 'Mengekspor analisis pelatihan ke Spreadsheet...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.alert('Spreadsheet hasil analisis sukses dibuat! Silakan buka tautan berikut untuk mengunduh atau menyalin file.', 'Ekspor Sukses', () => {
+                    window.open(res.data.url, '_blank');
+                });
+            } else {
+                App.alert(res.error, 'Gagal Mengekspor');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).apiExportAnalisisExcel(pelatihanId);
+    }
+};
+</script>
