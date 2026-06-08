@@ -1,5 +1,5 @@
 // ============================================================
-// PENGAWAS KBC - Google Apps Script Backend (v2.2.0)
+// PENGAWAS KBC - Google Apps Script Backend (v2.5.2)
 // ============================================================
 
 // Global database and template configurations
@@ -15,7 +15,7 @@ const ADMIN_EMAIL        = PropertiesService.getScriptProperties().getProperty('
 const IS_STAGING         = APP_ENV === 'staging';
 
 // Application Version
-const APP_VERSION = 'v.2.5.0';
+const APP_VERSION = 'v.2.5.2';
 
 // ============================================================
 // ENTRY POINT (Web App serving)
