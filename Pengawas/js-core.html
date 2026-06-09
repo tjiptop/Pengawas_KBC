@@ -1,4 +1,51 @@
 <script>
+// Wrap google.script.run using Proxy to inject sessionToken automatically
+(function() {
+  function wrapRunner(runner) {
+    if (runner.__wrapped) return runner;
+    const proxy = new Proxy(runner, {
+      get(target, prop, receiver) {
+        if (prop === '__wrapped') return true;
+        if (prop === 'withSuccessHandler' || prop === 'withFailureHandler') {
+          return function(...args) {
+            const result = target[prop](...args);
+            return wrapRunner(result);
+          };
+        }
+        
+        if (typeof target[prop] === 'function') {
+          return function(...args) {
+            const sessionToken = localStorage.getItem('session_token') || '';
+            const newArgs = [...args, sessionToken];
+            return target[prop](...newArgs);
+          };
+        }
+        
+        return Reflect.get(target, prop, receiver);
+      }
+    });
+    return proxy;
+  }
+
+  if (window.google && window.google.script && window.google.script.run) {
+    window.google.script.run = wrapRunner(window.google.script.run);
+  } else {
+    let _google = window.google;
+    Object.defineProperty(window, 'google', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return _google;
+      },
+      set(val) {
+        _google = val;
+        if (_google && _google.script && _google.script.run) {
+          _google.script.run = wrapRunner(_google.script.run);
+        }
+      }
+    });
+  }
+})();
 // ============================================================
 // CORE APP — State, Router, Alert Modal, Dark Mode
 // ============================================================
@@ -103,6 +150,10 @@ const App = {
       el.innerHTML = AuthViews.Login();
     } else if (view === 'set_password') {
       el.innerHTML = AuthViews.SetPassword(params.nip);
+    } else if (view === 'forgot_password') {
+      el.innerHTML = AuthViews.ForgotPasswordRequest();
+    } else if (view === 'forgot_password_confirm') {
+      el.innerHTML = AuthViews.ForgotPasswordConfirm(params.nip, params.safeEmail);
     } else if (view === 'profile') {
       try {
         el.innerHTML = ProfileViews.Form(this.state.user || {});
@@ -307,6 +358,7 @@ const App = {
 
   logout() {
     localStorage.removeItem('pengawas_user');
+    localStorage.removeItem('session_token');
     this.state.user = null;
     this.state.madrasahSasaran = [];
     this.state.submissions = [];

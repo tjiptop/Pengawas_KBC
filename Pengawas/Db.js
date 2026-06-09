@@ -82,3 +82,134 @@ function logEvent_(level, source, message, details) {
   }
 }
 
+/**
+ * Memvalidasi token sesi dan mengembalikan NIP pengguna yang valid.
+ * Mengembalikan null jika token tidak valid atau kedaluwarsa.
+ * @param {string} sessionToken
+ * @returns {string|null}
+ */
+function validateSession_(sessionToken) {
+  if (!sessionToken) return null;
+  try {
+    const cache = CacheService.getScriptCache();
+    const nip = cache.get('session_' + sessionToken);
+    return nip || null;
+  } catch(e) {
+    console.error('validateSession_ error: ' + e.toString());
+    return null;
+  }
+}
+
+/**
+ * Memastikan pengguna aktif berdasarkan sessionToken adalah pelatih pemilik pelatihanId
+ * @param {string} pelatihanId
+ * @param {string} sessionToken
+ * @returns {boolean}
+ */
+function checkPelatihanOwnership_(pelatihanId, sessionToken) {
+  try {
+    const nip = validateSession_(sessionToken);
+    if (!nip) return false;
+    
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('Pelatihan');
+    if (!sheet) return false;
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('pelatihan_id');
+    const idxPelatih = headers.indexOf('nip_pelatih');
+    if (idxId === -1 || idxPelatih === -1) return false;
+    
+    const row = findRowIndex_(sheet, idxId, pelatihanId);
+    if (row === -1) return false;
+    
+    const nipPelatih = String(data[row - 1][idxPelatih]).trim();
+    return nipPelatih === String(nip).trim();
+  } catch(e) {
+    console.error('checkPelatihanOwnership_ error: ' + e.toString());
+    return false;
+  }
+}
+
+/**
+ * Memastikan pengguna aktif berdasarkan sessionToken adalah pelatih pemilik soalId
+ * @param {string} soalId
+ * @param {string} sessionToken
+ * @returns {boolean}
+ */
+function checkSoalOwnership_(soalId, sessionToken) {
+  try {
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('PrePostSoal');
+    if (!sheet) return false;
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('soal_id');
+    const idxPelId = headers.indexOf('pelatihan_id');
+    if (idxId === -1 || idxPelId === -1) return false;
+    
+    const row = findRowIndex_(sheet, idxId, soalId);
+    if (row === -1) return false;
+    
+    const pelatihanId = String(data[row - 1][idxPelId]).trim();
+    return checkPelatihanOwnership_(pelatihanId, sessionToken);
+  } catch(e) {
+    console.error('checkSoalOwnership_ error: ' + e.toString());
+    return false;
+  }
+}
+
+/**
+ * Mencari indeks baris (1-indexed) berdasarkan nilai pencarian pada kolom tertentu
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} colIndex Indeks kolom (0-indexed)
+ * @param {string} searchValue Nilai yang dicari
+ * @returns {number} 1-indexed row index, atau -1 jika tidak ditemukan
+ */
+function findRowIndex_(sheet, colIndex, searchValue) {
+  if (!sheet) return -1;
+  const data = sheet.getDataRange().getValues();
+  const valStr = String(searchValue).trim();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][colIndex]).trim() === valStr) {
+      return i + 1; // 1-indexed row number
+    }
+  }
+  return -1;
+}
+
+/**
+ * Memperbarui nilai pada kolom tertentu berdasarkan kolom kunci pencarian
+ * @param {string} sheetName Nama sheet
+ * @param {string} keyColName Nama kolom kunci
+ * @param {string} keyValue Nilai kunci yang dicari
+ * @param {string} targetColName Nama kolom yang ingin diupdate
+ * @param {any} newValue Nilai baru yang akan dimasukkan
+ * @returns {boolean} Apakah berhasil
+ */
+function updateField_(sheetName, keyColName, keyValue, targetColName, newValue) {
+  try {
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return false;
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0] || [];
+    const keyColIdx = headers.indexOf(keyColName);
+    const targetColIdx = headers.indexOf(targetColName);
+    
+    if (keyColIdx === -1 || targetColIdx === -1) return false;
+    
+    const row = findRowIndex_(sheet, keyColIdx, keyValue);
+    if (row === -1) return false;
+    
+    sheet.getRange(row, targetColIdx + 1).setValue(newValue);
+    return true;
+  } catch(e) {
+    console.error('updateField_ error: ' + e.toString());
+    return false;
+  }
+}
+

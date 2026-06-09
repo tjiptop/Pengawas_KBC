@@ -312,8 +312,13 @@ function apiGetPelatihanDetail(pelatihanId) {
  * @param {object} payload
  * @returns {object} Response standard dengan ID pelatihan
  */
-function apiCreatePelatihan(payload) {
+function apiCreatePelatihan(payload, sessionToken) {
   try {
+    const nip = validateSession_(sessionToken);
+    if (!nip) return apiError('Sesi tidak valid atau kedaluwarsa. Silakan login kembali.', 'UNAUTHORIZED');
+    if (String(nip).trim() !== String(payload.nip_pelatih).trim()) {
+      return apiError('NIP pelatih tidak cocok dengan sesi Anda.', 'FORBIDDEN');
+    }
     if (!payload || !payload.judul || !payload.nip_pelatih || !payload.provinsi) {
       return apiError('Data judul, pelatih, dan provinsi harus diisi.', 'VALIDATION');
     }
@@ -366,8 +371,11 @@ function apiCreatePelatihan(payload) {
  * @param {object} payload
  * @returns {object} Response standard
  */
-function apiUpdatePelatihan(pelatihanId, payload) {
+function apiUpdatePelatihan(pelatihanId, payload, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengubah pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !payload) return apiError('Parameter tidak lengkap.', 'VALIDATION');
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Pelatihan');
@@ -383,27 +391,22 @@ function apiUpdatePelatihan(pelatihanId, payload) {
     const idxTglMulai = headers.indexOf('tanggal_mulai');
     const idxTglSelesai = headers.indexOf('tanggal_selesai');
     const idxUpdated = headers.indexOf('updated_at');
+    const row = findRowIndex_(sheet, idxId, pelatihanId);
+    if (row === -1) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
     
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(pelatihanId).trim()) {
-        const status = String(data[i][idxStatus]).trim().toLowerCase();
-        if (status !== 'draft') {
-          return apiError('Hanya pelatihan berstatus DRAFT yang dapat diedit.', 'INVALID_STATUS');
-        }
-        
-        const row = i + 1;
-        if (payload.judul) sheet.getRange(row, idxJudul + 1).setValue(payload.judul);
-        if (payload.deskripsi !== undefined) sheet.getRange(row, idxDesc + 1).setValue(payload.deskripsi);
-        if (payload.provinsi) sheet.getRange(row, idxProv + 1).setValue(payload.provinsi);
-        if (payload.tanggal_mulai !== undefined) sheet.getRange(row, idxTglMulai + 1).setValue(payload.tanggal_mulai);
-        if (payload.tanggal_selesai !== undefined) sheet.getRange(row, idxTglSelesai + 1).setValue(payload.tanggal_selesai);
-        
-        sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
-        return apiSuccess(null, 'Jadwal pelatihan berhasil diperbarui.');
-      }
+    const status = String(data[row - 1][idxStatus]).trim().toLowerCase();
+    if (status !== 'draft') {
+      return apiError('Hanya pelatihan berstatus DRAFT yang dapat diedit.', 'INVALID_STATUS');
     }
     
-    return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    if (payload.judul) sheet.getRange(row, idxJudul + 1).setValue(payload.judul);
+    if (payload.deskripsi !== undefined) sheet.getRange(row, idxDesc + 1).setValue(payload.deskripsi);
+    if (payload.provinsi) sheet.getRange(row, idxProv + 1).setValue(payload.provinsi);
+    if (payload.tanggal_mulai !== undefined) sheet.getRange(row, idxTglMulai + 1).setValue(payload.tanggal_mulai);
+    if (payload.tanggal_selesai !== undefined) sheet.getRange(row, idxTglSelesai + 1).setValue(payload.tanggal_selesai);
+    
+    sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
+    return apiSuccess(null, 'Jadwal pelatihan berhasil diperbarui.');
   } catch (e) {
     return apiError('Gagal memperbarui pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
   }
@@ -414,8 +417,11 @@ function apiUpdatePelatihan(pelatihanId, payload) {
  * @param {string} pelatihanId
  * @returns {object} Response standard
  */
-function apiDeletePelatihan(pelatihanId) {
+function apiDeletePelatihan(pelatihanId, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk menghapus pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId) return apiError('ID Pelatihan harus diisi.', 'VALIDATION');
     const ss = getAppDb_();
     
@@ -426,17 +432,9 @@ function apiDeletePelatihan(pelatihanId) {
     const idxId = dataP[0].indexOf('pelatihan_id');
     const idxStatus = dataP[0].indexOf('status');
     
-    let isDraft = false;
-    let rowToDelete = -1;
-    for (let i = 1; i < dataP.length; i++) {
-      if (String(dataP[i][idxId]).trim() === String(pelatihanId).trim()) {
-        isDraft = String(dataP[i][idxStatus]).trim().toLowerCase() === 'draft';
-        rowToDelete = i + 1;
-        break;
-      }
-    }
-    
+    const rowToDelete = findRowIndex_(sheetP, idxId, pelatihanId);
     if (rowToDelete === -1) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    const isDraft = String(dataP[rowToDelete - 1][idxStatus]).trim().toLowerCase() === 'draft';
     if (!isDraft) return apiError('Hanya pelatihan dengan status DRAFT yang bisa dihapus.', 'INVALID_STATUS');
     
     // 1. Delete Pelatihan
@@ -481,8 +479,11 @@ function apiDeletePelatihan(pelatihanId) {
  * @param {string} pelatihanId
  * @returns {object} Response standard
  */
-function apiAktivasiPelatihan(pelatihanId) {
+function apiAktivasiPelatihan(pelatihanId, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengaktifkan pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId) return apiError('ID Pelatihan harus diisi.', 'VALIDATION');
     const ss = getAppDb_();
     
@@ -510,22 +511,19 @@ function apiAktivasiPelatihan(pelatihanId) {
       return apiError('Pelatihan tidak dapat diaktifkan karena Pre/Post Test belum disetup.', 'VALIDATION');
     }
     
+    
     // Update status
     const sheet = ss.getSheetByName('Pelatihan');
     const data = sheet.getDataRange().getValues();
     const idxId = data[0].indexOf('pelatihan_id');
+    const row = findRowIndex_(sheet, idxId, pelatihanId);
+    if (row === -1) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    
     const idxStatus = data[0].indexOf('status');
     const idxUpdated = data[0].indexOf('updated_at');
-    
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(pelatihanId).trim()) {
-        sheet.getRange(i + 1, idxStatus + 1).setValue('aktif');
-        sheet.getRange(i + 1, idxUpdated + 1).setValue(new Date().toISOString());
-        return apiSuccess(null, 'Pelatihan berhasil diaktifkan.');
-      }
-    }
-    
-    return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    sheet.getRange(row, idxStatus + 1).setValue('aktif');
+    sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
+    return apiSuccess(null, 'Pelatihan berhasil diaktifkan.');
   } catch (e) {
     return apiError('Gagal mengaktifkan pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
   }
@@ -536,8 +534,11 @@ function apiAktivasiPelatihan(pelatihanId) {
  * @param {string} pelatihanId
  * @returns {object} Response standard
  */
-function apiSelesaikanPelatihan(pelatihanId) {
+function apiSelesaikanPelatihan(pelatihanId, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk menyelesaikan pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId) return apiError('ID Pelatihan harus diisi.', 'VALIDATION');
     const ss = getAppDb_();
     
@@ -548,41 +549,37 @@ function apiSelesaikanPelatihan(pelatihanId) {
     const idxStatus = data[0].indexOf('status');
     const idxUpdated = data[0].indexOf('updated_at');
     
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(pelatihanId).trim()) {
-        const curStatus = String(data[i][idxStatus]).trim().toLowerCase();
-        if (curStatus !== 'aktif') {
-          return apiError('Hanya pelatihan aktif yang dapat diselesaikan.', 'INVALID_STATUS');
+    const row = findRowIndex_(sheet, idxId, pelatihanId);
+    if (row === -1) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    
+    const curStatus = String(data[row - 1][idxStatus]).trim().toLowerCase();
+    if (curStatus !== 'aktif') {
+      return apiError('Hanya pelatihan aktif yang dapat diselesaikan.', 'INVALID_STATUS');
+    }
+    
+    sheet.getRange(row, idxStatus + 1).setValue('selesai');
+    sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
+    
+    // Tutup pre & post test jika masih ada yang terbuka
+    const sheetSoal = ss.getSheetByName('PrePostSoal');
+    if (sheetSoal && sheetSoal.getLastRow() > 1) {
+      const dataS = sheetSoal.getDataRange().getValues();
+      const idxPid = dataS[0].indexOf('pelatihan_id');
+      const idxSPre = dataS[0].indexOf('status_pre');
+      const idxSPost = dataS[0].indexOf('status_post');
+      
+      const soalRow = findRowIndex_(sheetSoal, idxPid, pelatihanId);
+      if (soalRow !== -1) {
+        if (String(dataS[soalRow - 1][idxSPre]).trim() === 'aktif') {
+          sheetSoal.getRange(soalRow, idxSPre + 1).setValue('ditutup');
         }
-        
-        sheet.getRange(i + 1, idxStatus + 1).setValue('selesai');
-        sheet.getRange(i + 1, idxUpdated + 1).setValue(new Date().toISOString());
-        
-        // Tutup pre & post test jika masih ada yang terbuka
-        const sheetSoal = ss.getSheetByName('PrePostSoal');
-        if (sheetSoal && sheetSoal.getLastRow() > 1) {
-          const dataS = sheetSoal.getDataRange().getValues();
-          const idxPid = dataS[0].indexOf('pelatihan_id');
-          const idxSPre = dataS[0].indexOf('status_pre');
-          const idxSPost = dataS[0].indexOf('status_post');
-          for (let j = 1; j < dataS.length; j++) {
-            if (String(dataS[j][idxPid]).trim() === String(pelatihanId).trim()) {
-              if (String(dataS[j][idxSPre]).trim() === 'aktif') {
-                sheetSoal.getRange(j + 1, idxSPre + 1).setValue('ditutup');
-              }
-              if (String(dataS[j][idxSPost]).trim() === 'aktif') {
-                sheetSoal.getRange(j + 1, idxSPost + 1).setValue('ditutup');
-              }
-              break;
-            }
-          }
+        if (String(dataS[soalRow - 1][idxSPost]).trim() === 'aktif') {
+          sheetSoal.getRange(soalRow, idxSPost + 1).setValue('ditutup');
         }
-        
-        return apiSuccess(null, 'Pelatihan berhasil diselesaikan.');
       }
     }
     
-    return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    return apiSuccess(null, 'Pelatihan berhasil diselesaikan.');
   } catch (e) {
     return apiError('Gagal menyelesaikan pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
   }
@@ -593,8 +590,11 @@ function apiSelesaikanPelatihan(pelatihanId) {
  * @param {string} pelatihanId
  * @returns {object} Response standard
  */
-function apiCloseInvitation(pelatihanId) {
+function apiCloseInvitation(pelatihanId, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk menutup undangan pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId) return apiError('ID Pelatihan harus diisi.', 'VALIDATION');
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Pelatihan');
@@ -608,15 +608,12 @@ function apiCloseInvitation(pelatihanId) {
     
     if (idxInviteStatus === -1) return apiError('Fitur kode undangan belum tersedia.', 'SYSTEM_ERROR');
     
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(pelatihanId).trim()) {
-        sheet.getRange(i + 1, idxInviteStatus + 1).setValue('closed');
-        sheet.getRange(i + 1, idxUpdated + 1).setValue(new Date().toISOString());
-        return apiSuccess(null, 'Kode undangan berhasil ditutup.');
-      }
-    }
+    const row = findRowIndex_(sheet, idxId, pelatihanId);
+    if (row === -1) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
     
-    return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+    sheet.getRange(row, idxInviteStatus + 1).setValue('closed');
+    sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
+    return apiSuccess(null, 'Kode undangan berhasil ditutup.');
   } catch (e) {
     return apiError('Gagal menutup undangan: ' + e.toString(), 'SYSTEM_ERROR');
   }
@@ -649,23 +646,15 @@ function apiJoinPelatihanByCode(nipPeserta, inviteCode) {
       return apiError('Kode undangan tidak valid atau belum disupport.', 'INVALID_CODE');
     }
     
-    let targetPelatihanId = null;
-    let pelatihNip = null;
-    
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxCode]).trim().toUpperCase() === codeStr) {
-        if (String(data[i][idxStatus]).trim().toLowerCase() !== 'open') {
-          return apiError('Kode undangan ini sudah ditutup oleh pelatih.', 'CLOSED_CODE');
-        }
-        targetPelatihanId = String(data[i][idxId]).trim();
-        pelatihNip = String(data[i][idxPelatih]).trim();
-        break;
-      }
-    }
-    
-    if (!targetPelatihanId) {
+    const row = findRowIndex_(sheet, idxCode, codeStr);
+    if (row === -1) {
       return apiError('Kode undangan tidak ditemukan.', 'NOT_FOUND');
     }
+    if (String(data[row - 1][idxStatus]).trim().toLowerCase() !== 'open') {
+      return apiError('Kode undangan ini sudah ditutup oleh pelatih.', 'CLOSED_CODE');
+    }
+    targetPelatihanId = String(data[row - 1][idxId]).trim();
+    pelatihNip = String(data[row - 1][idxPelatih]).trim();
     
     if (String(nipPeserta).trim() === pelatihNip) {
       return apiError('Anda adalah pelatih dari pelatihan ini.', 'VALIDATION');
@@ -697,12 +686,10 @@ function apiJoinPelatihanByCode(nipPeserta, inviteCode) {
       const pNamaIdx = hProfil.indexOf('Nama');
       const pKabIdx = hProfil.indexOf('Kabupaten');
       
-      for (let i = 1; i < dtProfil.length; i++) {
-        if (String(dtProfil[i][pNipIdx]).trim() === String(nipPeserta).trim()) {
-          namaPeserta = dtProfil[i][pNamaIdx] || namaPeserta;
-          kabPeserta = dtProfil[i][pKabIdx] || kabPeserta;
-          break;
-        }
+      const pRow = findRowIndex_(sheetProfil, pNipIdx, nipPeserta);
+      if (pRow !== -1) {
+        namaPeserta = dtProfil[pRow - 1][pNamaIdx] || namaPeserta;
+        kabPeserta = dtProfil[pRow - 1][pKabIdx] || kabPeserta;
       }
     }
     
@@ -786,8 +773,11 @@ function apiGetCalonPeserta(provinsi) {
  * @param {Array<string>} listNIP
  * @returns {object} Response standard
  */
-function apiSetPeserta(pelatihanId, listNIP) {
+function apiSetPeserta(pelatihanId, listNIP, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengatur peserta pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !listNIP) return apiError('Parameter tidak lengkap.', 'VALIDATION');
     if (listNIP.length > MAX_PESERTA_PER_PELATIHAN) {
       return apiError('Jumlah peserta melebihi batas maksimal (' + MAX_PESERTA_PER_PELATIHAN + ' orang).', 'LIMIT_EXCEEDED');
@@ -875,8 +865,11 @@ function apiSetPeserta(pelatihanId, listNIP) {
  * @param {Array<object>} listMateri Array dari { materi_id, judul_materi }
  * @returns {object} Response standard
  */
-function apiSetMateri(pelatihanId, listMateri) {
+function apiSetMateri(pelatihanId, listMateri, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengatur materi pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !listMateri) return apiError('Parameter tidak lengkap.', 'VALIDATION');
     const ss = getAppDb_();
     
@@ -1070,6 +1063,13 @@ function apiGetDashboardPelatihan(pelatihanId, nipPeserta) {
  */
 function apiGetAvailableMateri() {
   try {
+    const cache = CacheService.getScriptCache();
+    const cachedAvailableMateri = cache.get('available_materi_list');
+    if (cachedAvailableMateri) {
+      try {
+        return apiSuccess(JSON.parse(cachedAvailableMateri));
+      } catch (e) {}
+    }
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Materi_Pelatihan');
     if (!sheet) return apiSuccess([]);
@@ -1097,6 +1097,9 @@ function apiGetAvailableMateri() {
         });
       }
     }
+    try {
+      cache.put('available_materi_list', JSON.stringify(list), 1800); // 30 mins
+    } catch(e) {}
     return apiSuccess(list);
   } catch (e) {
     return apiError('Gagal mengambil daftar materi: ' + e.toString(), 'SYSTEM_ERROR');
@@ -1244,8 +1247,10 @@ function apiGetMateriYaml(materiId) {
  * @param {string} jsonString 
  * @param {string} soalYamlString
  */
-function apiSaveMateriConfig(materiId, jsonString, soalYamlString) {
+function apiSaveMateriConfig(materiId, jsonString, soalYamlString, sessionToken) {
   try {
+    const nip = validateSession_(sessionToken);
+    if (!nip) return apiError('Sesi tidak valid atau kedaluwarsa. Silakan login kembali.', 'UNAUTHORIZED');
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Materi_Pelatihan');
     const data = sheet.getDataRange().getValues();
@@ -1265,14 +1270,7 @@ function apiSaveMateriConfig(materiId, jsonString, soalYamlString) {
       sheet.getRange(1, idxSoal + 1).setValue('konfigurasi_soal');
     }
     
-    let rowIndex = -1;
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === materiId) {
-        rowIndex = i + 1;
-        break;
-      }
-    }
-    
+    const rowIndex = findRowIndex_(sheet, idxId, materiId);
     if (rowIndex === -1) return apiError('Materi tidak ditemukan');
     
     sheet.getRange(rowIndex, idxConfig + 1).setValue(jsonString);
@@ -1280,6 +1278,10 @@ function apiSaveMateriConfig(materiId, jsonString, soalYamlString) {
       sheet.getRange(rowIndex, idxSoal + 1).setValue(soalYamlString);
     }
     
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove('available_materi_list');
+    } catch(e) {}
     return apiSuccess(null, 'Berhasil sinkronisasi dan menyimpan JSON template');
   } catch(e) {
     return apiError('Gagal menyimpan konfigurasi: ' + e.message);
@@ -1342,8 +1344,11 @@ function apiSearchPengawas(provinsi, keyword) {
 /**
  * Menambahkan satu peserta ke pelatihan
  */
-function apiAddPeserta(pelatihanId, nip) {
+function apiAddPeserta(pelatihanId, nip, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk menambah peserta ke pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !nip) return apiError('Parameter tidak lengkap', 'VALIDATION');
     const ss = getAppDb_();
     
@@ -1393,8 +1398,11 @@ function apiAddPeserta(pelatihanId, nip) {
 /**
  * Menghapus satu peserta dari pelatihan
  */
-function apiRemovePeserta(pelatihanId, nip) {
+function apiRemovePeserta(pelatihanId, nip, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk menghapus peserta dari pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !nip) return apiError('Parameter tidak lengkap', 'VALIDATION');
     const ss = getAppDb_();
     const sheetPeserta = ss.getSheetByName('PelatihanPeserta');

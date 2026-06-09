@@ -9,8 +9,19 @@
  */
 function getProfile(nip) {
   try {
-    const ss = getAppDb_();
     const nipStr = String(nip).trim();
+    if (!nipStr) return null;
+    
+    // Coba ambil dari CacheService
+    const cache = CacheService.getScriptCache();
+    const cachedProfile = cache.get('profile_' + nipStr);
+    if (cachedProfile) {
+      try {
+        return JSON.parse(cachedProfile);
+      } catch (e) {}
+    }
+
+    const ss = getAppDb_();
     
     let pelatihRole = '';
     const sheetUsers = ss.getSheetByName('Users');
@@ -51,6 +62,9 @@ function getProfile(nip) {
           }
           
           profile['Pelatih'] = pelatihRole;
+          try {
+            cache.put('profile_' + nipStr, JSON.stringify(profile), 1800); // 30 mins
+          } catch(e) {}
           return profile;
         }
       }
@@ -120,6 +134,9 @@ function getProfile(nip) {
           }
           profile['NIP'] = nipStr;
           profile['Pelatih'] = pelatihRole;
+          try {
+            cache.put('profile_' + nipStr, JSON.stringify(profile), 1800); // 30 mins
+          } catch(e) {}
           return profile;
         }
       }
@@ -139,6 +156,13 @@ function getProfile(nip) {
 function saveProfile(data) {
   try {
     if (!data || !data['NIP']) return apiError('Data profil tidak valid.', 'VALIDATION');
+    const nipStr = String(data['NIP']).trim();
+    
+    // Hapus dari cache agar data terupdate terbaca di pemanggilan berikutnya
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove('profile_' + nipStr);
+    } catch(e) {}
 
     // Sanitasi semua field dari formula injection
     data = sanitizeObject(data);
@@ -156,7 +180,7 @@ function saveProfile(data) {
       data['Tanggal Lahir'] = `${n.substring(0,4)}-${n.substring(4,6)}-${n.substring(6,8)}`;
     }
 
-    const nipStr = String(data['NIP']).trim();
+    // nipStr sudah dideklarasikan di awal fungsi
     let rowIdx = -1;
     for (let i = 1; i < rows.length; i++) {
       if (String(rows[i][0]).trim() == nipStr) {

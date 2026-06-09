@@ -231,8 +231,11 @@ function shuffleArray_(array, randFn) {
 // PUBLIC SOAL CRUD APIs
 // ============================================================
 
-function apiCreatePrePostSoal(pelatihanId, yamlDef) {
+function apiCreatePrePostSoal(pelatihanId, yamlDef, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('PrePostSoal');
@@ -273,8 +276,11 @@ function apiCreatePrePostSoal(pelatihanId, yamlDef) {
   }
 }
 
-function apiUpdatePrePostSoal(soalId, yamlDef) {
+function apiUpdatePrePostSoal(soalId, yamlDef, sessionToken) {
   try {
+    if (!checkSoalOwnership_(soalId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal ini.', 'FORBIDDEN');
+    }
     if (!soalId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('PrePostSoal');
@@ -342,24 +348,27 @@ function apiGetPrePostSoal(soalId) {
 // TEST CONTROL (TRAINER ACTIONS)
 // ============================================================
 
-function apiBukaPreTest(soalId) {
-  return setTestStatus_(soalId, 'status_pre', 'aktif', 'pre_dibuka_pada');
+function apiBukaPreTest(soalId, sessionToken) {
+  return setTestStatus_(soalId, 'status_pre', 'aktif', 'pre_dibuka_pada', sessionToken);
 }
 
-function apiTutupPreTest(soalId) {
-  return setTestStatus_(soalId, 'status_pre', 'ditutup', 'pre_ditutup_pada');
+function apiTutupPreTest(soalId, sessionToken) {
+  return setTestStatus_(soalId, 'status_pre', 'ditutup', 'pre_ditutup_pada', sessionToken);
 }
 
-function apiBukaPostTest(soalId) {
-  return setTestStatus_(soalId, 'status_post', 'aktif', 'post_dibuka_pada');
+function apiBukaPostTest(soalId, sessionToken) {
+  return setTestStatus_(soalId, 'status_post', 'aktif', 'post_dibuka_pada', sessionToken);
 }
 
-function apiTutupPostTest(soalId) {
-  return setTestStatus_(soalId, 'status_post', 'ditutup', 'post_ditutup_pada');
+function apiTutupPostTest(soalId, sessionToken) {
+  return setTestStatus_(soalId, 'status_post', 'ditutup', 'post_ditutup_pada', sessionToken);
 }
 
-function setTestStatus_(soalId, statusField, newStatus, timestampField) {
+function setTestStatus_(soalId, statusField, newStatus, timestampField, sessionToken) {
   try {
+    if (!checkSoalOwnership_(soalId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengubah status test ini.', 'FORBIDDEN');
+    }
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('PrePostSoal');
     if (!sheet) return apiError('Sheet PrePostSoal tidak ditemukan.', 'SYSTEM_ERROR');
@@ -370,14 +379,12 @@ function setTestStatus_(soalId, statusField, newStatus, timestampField) {
     const idxStatus = headers.indexOf(statusField);
     const idxTime = headers.indexOf(timestampField);
     
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(soalId).trim()) {
-        sheet.getRange(i + 1, idxStatus + 1).setValue(newStatus);
-        sheet.getRange(i + 1, idxTime + 1).setValue(new Date().toISOString());
-        return apiSuccess(null, 'Status test berhasil diupdate.');
-      }
-    }
-    return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
+    const row = findRowIndex_(sheet, idxId, soalId);
+    if (row === -1) return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
+    
+    sheet.getRange(row, idxStatus + 1).setValue(newStatus);
+    sheet.getRange(row, idxTime + 1).setValue(new Date().toISOString());
+    return apiSuccess(null, 'Status test berhasil diupdate.');
   } catch (e) {
     return apiError('Gagal mengubah status test: ' + e.toString(), 'SYSTEM_ERROR');
   }
@@ -465,6 +472,14 @@ function apiGetTestUntukPeserta(soalId, nipPeserta, tipe) {
     if (!seed) {
       seed = String(Math.floor(Math.random() * 900000) + 100000);
       cache.put(cacheKey, seed, 7200); // Tahan 2 jam
+    }
+    
+    // Catat waktu mulai pengerjaan pertama kali
+    const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
+    let startTime = cache.get(startKey);
+    if (!startTime) {
+      startTime = new Date().toISOString();
+      cache.put(startKey, startTime, 7200); // Tahan 2 jam
     }
     
     // 5. Parse dan acak soal
@@ -579,6 +594,25 @@ function apiSubmitTestJawaban(soalId, nipPeserta, tipe, jawaban) {
     }
     if (tipe === 'posttest' && statusPost !== 'aktif') {
       return apiError('Post-Test tidak aktif.', 'TEST_INACTIVE');
+    }
+    
+    // Validasi batas waktu pengerjaan
+    const testConfigTmp = parsePrePostYaml_(soalRow[idxYaml]);
+    if (testConfigTmp && testConfigTmp.time_limit_minutes > 0) {
+      const cache = CacheService.getScriptCache();
+      const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
+      const startTimeStr = cache.get(startKey);
+      if (startTimeStr) {
+        const startTime = new Date(startTimeStr);
+        const now = new Date();
+        const elapsedMinutes = (now - startTime) / 60000;
+        const limitMinutes = parseInt(testConfigTmp.time_limit_minutes);
+        
+        // Batas toleransi delay pengiriman 2 menit
+        if (elapsedMinutes > (limitMinutes + 2)) {
+          return apiError('Batas waktu pengerjaan ujian telah habis. Jawaban Anda tidak dapat diterima.', 'TIME_LIMIT_EXCEEDED');
+        }
+      }
     }
     
     // 2. Cek apakah sudah pernah submit tipe ini
@@ -884,8 +918,11 @@ function tDist2TailPValue_(t, df) {
  * @param {string} pelatihanId
  * @returns {object} Analisis detail untuk visualisasi
  */
-function apiHitungAnalisis(pelatihanId) {
+function apiHitungAnalisis(pelatihanId, sessionToken) {
   try {
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk melihat analisis pelatihan ini.', 'FORBIDDEN');
+    }
     if (!pelatihanId) return apiError('ID Pelatihan harus diisi.', 'VALIDATION');
     const ss = getAppDb_();
     
