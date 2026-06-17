@@ -1275,7 +1275,16 @@ function apiSaveMateriConfig(materiId, jsonString, soalYamlString, sessionToken)
     
     sheet.getRange(rowIndex, idxConfig + 1).setValue(jsonString);
     if (soalYamlString !== undefined) {
-      sheet.getRange(rowIndex, idxSoal + 1).setValue(soalYamlString);
+      let soalJsonVal = '';
+      if (soalYamlString && soalYamlString.trim() !== '') {
+        const parsedSoal = parsePrePostYaml_(soalYamlString);
+        if (parsedSoal) {
+          soalJsonVal = JSON.stringify(parsedSoal);
+        } else {
+          soalJsonVal = soalYamlString; // Fallback
+        }
+      }
+      sheet.getRange(rowIndex, idxSoal + 1).setValue(soalJsonVal);
     }
     
     try {

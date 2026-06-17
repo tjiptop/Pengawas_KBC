@@ -1,0 +1,448 @@
+KOTA;K KOTA;K PROPINSI;Provinsi;Kabupaten
+Kab. Aceh Besar;101001;101;Aceh;Kab. Aceh Besar
+Kab. Pidie;101002;101;Aceh;Kab. Pidie
+Kab. Aceh Utara;101003;101;Aceh;Kab. Aceh Utara
+Kab. Aceh Timur;101004;101;Aceh;Kab. Aceh Timur
+Kab. Aceh Tengah;101005;101;Aceh;Kab. Aceh Tengah
+Kab. Aceh Barat;101006;101;Aceh;Kab. Aceh Barat
+Kab. Aceh Selatan;101007;101;Aceh;Kab. Aceh Selatan
+Kab. Aceh Tenggara;101008;101;Aceh;Kab. Aceh Tenggara
+Kab. Simeulue;101009;101;Aceh;Kab. Simeulue
+Kab. Bireuen;101010;101;Aceh;Kab. Bireuen
+Kab. Aceh Singkil;101011;101;Aceh;Kab. Aceh Singkil
+Kab. Aceh Tamiang;101012;101;Aceh;Kab. Aceh Tamiang
+Kab. Gayo Lues;101013;101;Aceh;Kab. Gayo Lues
+Kab. Aceh Nagan Raya;101014;101;Aceh;Kab. Nagan Raya
+Kab. Aceh Barat Daya;101015;101;Aceh;Kab. Aceh Barat Daya
+Kab. Aceh Jaya;101016;101;Aceh;Kab. Aceh Jaya
+Kab. Bener Meriah;101017;101;Aceh;Kab. Bener Meriah
+Kota Sabang;101018;101;Aceh;Kota Sabang
+Kota Banda Aceh;101019;101;Aceh;Kota Banda Aceh
+Kota Lhokseumawe;101020;101;Aceh;Kota Lhokseumawe
+Kota Langsa;101021;101;Aceh;Kota Langsa
+Kab. Pidie Jaya;101022;101;Aceh;Kab. Pidie Jaya
+Kota Subulussalam;101023;101;Aceh;Kota Subulussalam
+Kab. Deli Serdang;102001;102;Sumatera Utara;Kab. Deli Serdang
+Kab. Langkat;102002;102;Sumatera Utara;Kab. Langkat
+Kab. Karo;102003;102;Sumatera Utara;Kab. Karo
+Kab. Simalungun;102004;102;Sumatera Utara;Kab. Simalungun
+Kab. Dairi;102005;102;Sumatera Utara;Kab. Dairi
+Kab. Asahan;102006;102;Sumatera Utara;Kab. Asahan
+Kab. Labuhanbatu;102007;102;Sumatera Utara;Kab. Labuhanbatu
+Kab. Tapanuli Utara;102008;102;Sumatera Utara;Kab. Tapanuli Utara
+Kab. Tapanuli Tengah;102009;102;Sumatera Utara;Kab. Tapanuli Tengah
+Kab. Tapanuli Selatan;102010;102;Sumatera Utara;Kab. Tapanuli Selatan
+Kab. Mandailing Natal;102012;102;Sumatera Utara;Kab. Mandailing Natal
+Kab. Toba Samosir;102013;102;Sumatera Utara;Kab. Toba
+Kab. Pakpak Bharat;102015;102;Sumatera Utara;Kab. Pakpak Bharat
+Kab. Humbang Hasundutan;102016;102;Sumatera Utara;Kab. Humbang Hasundutan
+Kab. Serdang Bedagai;102018;102;Sumatera Utara;Kab. Serdang Bedagai
+Kota Medan;102019;102;Sumatera Utara;Kota Medan
+Kota Binjai;102020;102;Sumatera Utara;Kota Binjai
+Kota Tebing Tinggi;102021;102;Sumatera Utara;Kota Tebing Tinggi
+Kota Pematang Siantar;102022;102;Sumatera Utara;Kota Pematangsiantar
+Kota Tanjung Balai;102023;102;Sumatera Utara;Kota Tanjungbalai
+Kota Sibolga;102024;102;Sumatera Utara;Kota Sibolga
+Kota Padang Sidempuan;102025;102;Sumatera Utara;Kota Padangsidimpuan
+Kab. Batubara;102027;102;Sumatera Utara;Kab. Batubara
+Kab. Padang Lawas;102028;102;Sumatera Utara;Kab. Padang Lawas
+Kab. Padang Lawas Utara;102029;102;Sumatera Utara;Kab. Padang Lawas Utara
+Kab. Labuhanbatu Utara;102030;102;Sumatera Utara;Kab. Labuhanbatu Utara
+Kab. Labuhanbatu Selatan;102031;102;Sumatera Utara;Kab. Labuhanbatu Selatan
+Kab. Nias Barat;102032;102;Sumatera Utara;Kab. Nias Barat
+Kota Gunung Sitoli;102034;102;Sumatera Utara;Kota Gunungsitoli
+Kab. Agam;103001;103;Sumatera Barat;Kab. Agam
+Kab. Pasaman;103002;103;Sumatera Barat;Kab. Pasaman
+Kab. Lima Puluh Kota;103003;103;Sumatera Barat;Kab. Lima Puluh Kota
+Kab. Solok;103004;103;Sumatera Barat;Kab. Solok
+Kab. Padang Pariaman;103005;103;Sumatera Barat;Kab. Padang Pariaman
+Kab. Pesisir Selatan;103006;103;Sumatera Barat;Kab. Pesisir Selatan
+Kab. Tanah Datar;103007;103;Sumatera Barat;Kab. Tanah Datar
+Kab. Sijunjung;103008;103;Sumatera Barat;Kab. Sijunjung
+Kab. Kepulauan Mentawai;103009;103;Sumatera Barat;Kab. Kepulauan Mentawai
+Kab. Pasaman Barat;103010;103;Sumatera Barat;Kab. Pasaman Barat
+Kab. Dharmasraya;103011;103;Sumatera Barat;Kab. Dharmasraya
+Kota Bukittinggi;103013;103;Sumatera Barat;Kota Bukittinggi
+Kota Padang;103014;103;Sumatera Barat;Kota Padang
+Kota Padang Panjang;103015;103;Sumatera Barat;Kota Padang Panjang
+Kota Sawahlunto;103016;103;Sumatera Barat;Kota Sawahlunto
+Kota Solok;103017;103;Sumatera Barat;Kota Solok
+Kota Payakumbuh;103018;103;Sumatera Barat;Kota Payakumbuh
+Kota Pariaman;103019;103;Sumatera Barat;Kota Pariaman
+Kab. Kampar;104001;104;Riau;Kab. Kampar
+Kab. Bengkalis;104002;104;Riau;Kab. Bengkalis
+Kab. Indragiri Hulu;104003;104;Riau;Kab. Indragiri Hulu
+Kab. Indragiri Hilir;104004;104;Riau;Kab. Indragiri Hilir
+Kab. Pelalawan;104005;104;Riau;Kab. Pelalawan
+Kab. Rokan Hulu;104006;104;Riau;Kab. Rokan Hulu
+Kab. Rokan Hilir;104007;104;Riau;Kab. Rokan Hilir
+Kab. Siak;104008;104;Riau;Kab. Siak
+Kab. Kuantan Singingi;104009;104;Riau;Kab. Kuantan Singingi
+Kota Pekanbaru;104010;104;Riau;Kota Pekanbaru
+Kota Dumai;104011;104;Riau;Kota Dumai
+Kab. Kepulauan Meranti;104012;104;Riau;Kab. Kepulauan Meranti
+Kab. Batanghari;105001;105;Jambi;Kab. Batanghari
+Kab. Bungo;105002;105;Jambi;Kab. Bungo
+Kab. Merangin;105003;105;Jambi;Kab. Merangin
+Kab. Tanjung Jabung Barat;105004;105;Jambi;Kab. Tanjung Jabung Barat
+Kab. Kerinci;105005;105;Jambi;Kab. Kerinci
+Kab. Muaro Jambi;105006;105;Jambi;Kab. Muaro Jambi
+Kab. Tebo;105007;105;Jambi;Kab. Tebo
+Kab. Sarolangun;105008;105;Jambi;Kab. Sarolangun
+Kab. Tanjung Jabung Timur;105009;105;Jambi;Kab. Tanjung Jabung Timur
+Kota Jambi;105010;105;Jambi;Kota Jambi
+Kota Sungai Penuh;105011;105;Jambi;Kota Sungai Penuh
+Kab. Musi Banyuasin;106001;106;Sumatera Selatan;Kab. Musi Banyuasin
+Kab. Ogan Komering Ilir;106002;106;Sumatera Selatan;Kab. Ogan Komering Ilir
+Kab. Ogan Komering Ulu;106003;106;Sumatera Selatan;Kab. Ogan Komering Ulu
+Kab. Muara Enim;106004;106;Sumatera Selatan;Kab. Muara Enim
+Kab. Lahat;106005;106;Sumatera Selatan;Kab. Lahat
+Kab. Musi Rawas;106006;106;Sumatera Selatan;Kab. Musi Rawas
+Kab. Banyuasin;106007;106;Sumatera Selatan;Kab. Banyuasin
+Kab. Ogan Ilir;106008;106;Sumatera Selatan;Kab. Ogan Ilir
+Kab. OKU Selatan;106009;106;Sumatera Selatan;Kab. OKU Selatan
+Kab. Oku Timur;106010;106;Sumatera Selatan;Kab. OKU Timur
+Kota Palembang;106011;106;Sumatera Selatan;Kota Palembang
+Kota Lubuk Linggau;106012;106;Sumatera Selatan;Kota Lubuklinggau
+Kota Prabumulih;106013;106;Sumatera Selatan;Kota Prabumulih
+Kota Pagar Alam;106014;106;Sumatera Selatan;Kota Pagar Alam
+Kab. Penukal Abab Lematang Ilir;106016;106;Sumatera Selatan;Kab. Penukal Abab Lematang Ilir
+Kab. Musi Rawas Utara;106017;106;Sumatera Selatan;Kab. Musi Rawas Utara
+Kab. Bengkulu Utara;107001;107;Bengkulu;Kab. Bengkulu Utara
+Kab. Rejang Lebong;107002;107;Bengkulu;Kab. Rejang Lebong
+Kab. Bengkulu Selatan;107003;107;Bengkulu;Kab. Bengkulu Selatan
+Kab. Muko-Muko;107004;107;Bengkulu;Kab. Mukomuko
+Kab. Seluma;107005;107;Bengkulu;Kab. Seluma
+Kab. Kaur;107006;107;Bengkulu;Kab. Kaur
+Kab. Lebong;107007;107;Bengkulu;Kab. Lebong
+Kab. Kepahiang;107008;107;Bengkulu;Kab. Kepahiang
+Kota Bengkulu;107009;107;Bengkulu;Kota Bengkulu
+Kab. Bengkulu Tengah;107010;107;Bengkulu;Kab. Bengkulu Tengah
+Kab. Lampung Selatan;108001;108;Lampung;Kab. Lampung Selatan
+Kab. Lampung Tengah;108002;108;Lampung;Kab. Lampung Tengah
+Kab. Lampung Utara;108003;108;Lampung;Kab. Lampung Utara
+Kab. Lampung Barat;108004;108;Lampung;Kab. Lampung Barat
+Kab. Tulang Bawang;108005;108;Lampung;Kab. Tulang Bawang
+Kab. Tanggamus;108006;108;Lampung;Kab. Tanggamus
+Kab. Lampung Timur;108007;108;Lampung;Kab. Lampung Timur
+Kab. Way Kanan;108008;108;Lampung;Kab. Way Kanan
+Kota Bandar Lampung;108009;108;Lampung;Kota Bandar Lampung
+Kota Metro;108010;108;Lampung;Kota Metro
+Kab. Pesawaran;108011;108;Lampung;Kab. Pesawaran
+Kab. Mesuji;108012;108;Lampung;Kab. Mesuji
+Kab. Pringsewu;108013;108;Lampung;Kab. Pringsewu
+Kab. Tulang Bawang Barat;108014;108;Lampung;Kab. Tulang Bawang Barat
+Kab. Pesisir Barat;108015;108;Lampung;Kab. Pesisir Barat
+Kab. Bangka Barat;109001;109;Kepulauan Bangka Belitung;Kab. Bangka Barat
+Kab. Bangka Tengah;109002;109;Kepulauan Bangka Belitung;Kab. Bangka Tengah
+Kab. Bangka Selatan;109003;109;Kepulauan Bangka Belitung;Kab. Bangka Selatan
+Kab. Belitung Timur;109005;109;Kepulauan Bangka Belitung;Kab. Belitung Timur
+Kab. Bangka;109006;109;Kepulauan Bangka Belitung;Kab. Bangka
+Kab. Belitung;109007;109;Kepulauan Bangka Belitung;Kab. Belitung
+Kota Pangkal Pinang;109008;109;Kepulauan Bangka Belitung;Kota Pangkalpinang
+Kab. Karimun;110002;110;Kepulauan Riau;Kab. Karimun
+Kab. Natuna;110003;110;Kepulauan Riau;Kab. Natuna
+Kab. Lingga;110004;110;Kepulauan Riau;Kab. Lingga
+Kota Batam;110005;110;Kepulauan Riau;Kota Batam
+Kota Tanjung Pinang;110006;110;Kepulauan Riau;Kota Tanjungpinang
+Kab. Bintan;110007;110;Kepulauan Riau;Kab. Bintan
+Kab. Kepulauan Seribu;201001;201;DKI Jakarta;Kab. Kepulauan Seribu
+Kota Jakarta Pusat;201002;201;DKI Jakarta;Kota Jakarta Pusat
+Kota Jakarta Utara;201003;201;DKI Jakarta;Kota Jakarta Utara
+Kota Jakarta Barat;201004;201;DKI Jakarta;Kota Jakarta Barat
+Kota Jakarta Selatan;201005;201;DKI Jakarta;Kota Jakarta Selatan
+Kota Jakarta Timur;201006;201;DKI Jakarta;Kota Jakarta Timur
+Kab. Bogor;202001;202;Jawa Barat;Kab. Bogor
+Kab. Sukabumi;202002;202;Jawa Barat;Kab. Sukabumi
+Kab. Cianjur;202003;202;Jawa Barat;Kab. Cianjur
+Kab. Bandung;202004;202;Jawa Barat;Kab. Bandung
+Kab. Sumedang;202005;202;Jawa Barat;Kab. Sumedang
+Kab. Garut;202006;202;Jawa Barat;Kab. Garut
+Kab. Tasikmalaya;202007;202;Jawa Barat;Kab. Tasikmalaya
+Kab. Ciamis;202008;202;Jawa Barat;Kab. Ciamis
+Kab. Kuningan;202009;202;Jawa Barat;Kab. Kuningan
+Kab. Majalengka;202010;202;Jawa Barat;Kab. Majalengka
+Kab. Cirebon;202011;202;Jawa Barat;Kab. Cirebon
+Kab. Indramayu;202012;202;Jawa Barat;Kab. Indramayu
+Kab. Subang;202013;202;Jawa Barat;Kab. Subang
+Kab. Purwakarta;202014;202;Jawa Barat;Kab. Purwakarta
+Kab. Karawang;202015;202;Jawa Barat;Kab. Karawang
+Kab. Bekasi;202016;202;Jawa Barat;Kab. Bekasi
+Kota Bandung;202017;202;Jawa Barat;Kota Bandung
+Kota Bogor;202018;202;Jawa Barat;Kota Bogor
+Kota Sukabumi;202019;202;Jawa Barat;Kota Sukabumi
+Kota Cirebon;202020;202;Jawa Barat;Kota Cirebon
+Kota Bekasi;202021;202;Jawa Barat;Kota Bekasi
+Kota Depok;202022;202;Jawa Barat;Kota Depok
+Kota Cimahi;202023;202;Jawa Barat;Kota Cimahi
+Kota Tasikmalaya;202024;202;Jawa Barat;Kota Tasikmalaya
+Kota Banjar;202025;202;Jawa Barat;Kota Banjar
+Kab. Bandung Barat;202026;202;Jawa Barat;Kab. Bandung Barat
+Kab. Pangandaran;202031;202;Jawa Barat;Kab. Pangandaran
+Kab. Cilacap;203001;203;Jawa Tengah;Kab. Cilacap
+Kab. Banyumas;203002;203;Jawa Tengah;Kab. Banyumas
+Kab. Purbalingga;203003;203;Jawa Tengah;Kab. Purbalingga
+Kab. Banjarnegara;203004;203;Jawa Tengah;Kab. Banjarnegara
+Kab. Kebumen;203005;203;Jawa Tengah;Kab. Kebumen
+Kab. Purworejo;203006;203;Jawa Tengah;Kab. Purworejo
+Kab. Wonosobo;203007;203;Jawa Tengah;Kab. Wonosobo
+Kab. Magelang;203008;203;Jawa Tengah;Kab. Magelang
+Kab. Boyolali;203009;203;Jawa Tengah;Kab. Boyolali
+Kab. Klaten;203010;203;Jawa Tengah;Kab. Klaten
+Kab. Sukoharjo;203011;203;Jawa Tengah;Kab. Sukoharjo
+Kab. Wonogiri;203012;203;Jawa Tengah;Kab. Wonogiri
+Kab. Karanganyar;203013;203;Jawa Tengah;Kab. Karanganyar
+Kab. Sragen;203014;203;Jawa Tengah;Kab. Sragen
+Kab. Grobogan;203015;203;Jawa Tengah;Kab. Grobogan
+Kab. Blora;203016;203;Jawa Tengah;Kab. Blora
+Kab. Rembang;203017;203;Jawa Tengah;Kab. Rembang
+Kab. Pati;203018;203;Jawa Tengah;Kab. Pati
+Kab. Kudus;203019;203;Jawa Tengah;Kab. Kudus
+Kab. Jepara;203020;203;Jawa Tengah;Kab. Jepara
+Kab. Demak;203021;203;Jawa Tengah;Kab. Demak
+Kab. Semarang;203022;203;Jawa Tengah;Kab. Semarang
+Kab. Temanggung;203023;203;Jawa Tengah;Kab. Temanggung
+Kab. Kendal;203024;203;Jawa Tengah;Kab. Kendal
+Kab. Batang;203025;203;Jawa Tengah;Kab. Batang
+Kab. Pekalongan;203026;203;Jawa Tengah;Kab. Pekalongan
+Kab. Pemalang;203027;203;Jawa Tengah;Kab. Pemalang
+Kab. Tegal;203028;203;Jawa Tengah;Kab. Tegal
+Kab. Brebes;203029;203;Jawa Tengah;Kab. Brebes
+Kota Magelang;203030;203;Jawa Tengah;Kota Magelang
+Kota Surakarta;203031;203;Jawa Tengah;Kota Surakarta
+Kota Salatiga;203032;203;Jawa Tengah;Kota Salatiga
+Kota Semarang;203033;203;Jawa Tengah;Kota Semarang
+Kota Pekalongan;203034;203;Jawa Tengah;Kota Pekalongan
+Kota Tegal;203035;203;Jawa Tengah;Kota Tegal
+Kab. Bantul;204001;204;DI Yogyakarta;Kab. Bantul
+Kab. Sleman;204002;204;DI Yogyakarta;Kab. Sleman
+Kab. Gunung Kidul;204003;204;DI Yogyakarta;Kab. Gunungkidul
+Kab. Kulonprogo;204004;204;DI Yogyakarta;Kab. Kulon Progo
+Kota Yogyakarta;204005;204;DI Yogyakarta;Kota Yogyakarta
+Kab. Gresik;205001;205;Jawa Timur;Kab. Gresik
+Kab. Sidoarjo;205002;205;Jawa Timur;Kab. Sidoarjo
+Kab. Mojokerto;205003;205;Jawa Timur;Kab. Mojokerto
+Kab. Jombang;205004;205;Jawa Timur;Kab. Jombang
+Kab. Bojonegoro;205005;205;Jawa Timur;Kab. Bojonegoro
+Kab. Tuban;205006;205;Jawa Timur;Kab. Tuban
+Kab. Lamongan;205007;205;Jawa Timur;Kab. Lamongan
+Kab. Madiun;205008;205;Jawa Timur;Kab. Madiun
+Kab. Ngawi;205009;205;Jawa Timur;Kab. Ngawi
+Kab. Magetan;205010;205;Jawa Timur;Kab. Magetan
+Kab. Ponorogo;205011;205;Jawa Timur;Kab. Ponorogo
+Kab. Pacitan;205012;205;Jawa Timur;Kab. Pacitan
+Kab. Kediri;205013;205;Jawa Timur;Kab. Kediri
+Kab. Nganjuk;205014;205;Jawa Timur;Kab. Nganjuk
+Kab. Blitar;205015;205;Jawa Timur;Kab. Blitar
+Kab. Tulungagung;205016;205;Jawa Timur;Kab. Tulungagung
+Kab. Trenggalek;205017;205;Jawa Timur;Kab. Trenggalek
+Kab. Malang;205018;205;Jawa Timur;Kab. Malang
+Kab. Pasuruan;205019;205;Jawa Timur;Kab. Pasuruan
+Kab. Probolinggo;205020;205;Jawa Timur;Kab. Probolinggo
+Kab. Lumajang;205021;205;Jawa Timur;Kab. Lumajang
+Kab. Bondowoso;205022;205;Jawa Timur;Kab. Bondowoso
+Kab. Situbondo;205023;205;Jawa Timur;Kab. Situbondo
+Kab. Jember;205024;205;Jawa Timur;Kab. Jember
+Kab. Banyuwangi;205025;205;Jawa Timur;Kab. Banyuwangi
+Kab. Pamekasan;205026;205;Jawa Timur;Kab. Pamekasan
+Kab. Sampang;205027;205;Jawa Timur;Kab. Sampang
+Kab. Sumenep;205028;205;Jawa Timur;Kab. Sumenep
+Kab. Bangkalan;205029;205;Jawa Timur;Kab. Bangkalan
+Kota Surabaya;205030;205;Jawa Timur;Kota Surabaya
+Kota Malang;205031;205;Jawa Timur;Kota Malang
+Kota Madiun;205032;205;Jawa Timur;Kota Madiun
+Kota Kediri;205033;205;Jawa Timur;Kota Kediri
+Kota Mojokerto;205034;205;Jawa Timur;Kota Mojokerto
+Kota Blitar;205035;205;Jawa Timur;Kota Blitar
+Kota Pasuruan;205036;205;Jawa Timur;Kota Pasuruan
+Kota Probolinggo;205037;205;Jawa Timur;Kota Probolinggo
+Kota Batu;205038;205;Jawa Timur;Kota Batu
+Kab. Pandeglang;206001;206;Banten;Kab. Pandeglang
+Kab. Lebak;206002;206;Banten;Kab. Lebak
+Kab. Tangerang;206003;206;Banten;Kab. Tangerang
+Kab. Serang;206004;206;Banten;Kab. Serang
+Kota Cilegon;206005;206;Banten;Kota Cilegon
+Kota Tangerang;206006;206;Banten;Kota Tangerang
+Kota Tangerang Selatan;206007;206;Banten;Kota Tangerang Selatan
+Kota Serang;206008;206;Banten;Kota Serang
+Kab. Sambas;301001;301;Kalimantan Barat;Kab. Sambas
+Kab. Mempawah;301002;301;Kalimantan Barat;Kab. Mempawah
+Kab. Sanggau;301003;301;Kalimantan Barat;Kab. Sanggau
+Kab. Sintang;301004;301;Kalimantan Barat;Kab. Sintang
+Kab. Ketapang;301006;301;Kalimantan Barat;Kab. Ketapang
+Kab. Bengkayang;301007;301;Kalimantan Barat;Kab. Bengkayang
+Kota Pontianak;301010;301;Kalimantan Barat;Kota Pontianak
+Kota Singkawang;301011;301;Kalimantan Barat;Kota Singkawang
+Kab. Kayong Utara;301013;301;Kalimantan Barat;Kab. Kayong Utara
+Kab. Kubu Raya;301014;301;Kalimantan Barat;Kab. Kubu Raya
+Kab. Kapuas;302001;302;Kalimantan Tengah;Kab. Kapuas
+Kab. Barito Selatan;302002;302;Kalimantan Tengah;Kab. Barito Selatan
+Kab. Barito Utara;302003;302;Kalimantan Tengah;Kab. Barito Utara
+Kab. Kotawaringin Timur;302004;302;Kalimantan Tengah;Kab. Kotawaringin Timur
+Kab. Kotawaringin Barat;302005;302;Kalimantan Tengah;Kab. Kotawaringin Barat
+Kab. Pulang Pisau;302006;302;Kalimantan Tengah;Kab. Pulang Pisau
+Kab. Gunung Mas;302007;302;Kalimantan Tengah;Kab. Gunung Mas
+Kab. Barito Timur;302008;302;Kalimantan Tengah;Kab. Barito Timur
+Kab. Sukamara;302009;302;Kalimantan Tengah;Kab. Sukamara
+Kab. Katingan;302010;302;Kalimantan Tengah;Kab. Katingan
+Kab. Lamandau;302011;302;Kalimantan Tengah;Kab. Lamandau
+Kab. Seruyan;302012;302;Kalimantan Tengah;Kab. Seruyan
+Kab. Murung Raya;302013;302;Kalimantan Tengah;Kab. Murung Raya
+Kota Palangkaraya;302014;302;Kalimantan Tengah;Kota Palangkaraya
+Kab. Banjar;303001;303;Kalimantan Selatan;Kab. Banjar
+Kab. Tanah Laut;303002;303;Kalimantan Selatan;Kab. Tanah Laut
+Kab. Barito Kuala;303003;303;Kalimantan Selatan;Kab. Barito Kuala
+Kab. Tapin;303004;303;Kalimantan Selatan;Kab. Tapin
+Kab. Hulu Sungai Selatan;303005;303;Kalimantan Selatan;Kab. Hulu Sungai Selatan
+Kab. Hulu Sungai Tengah;303006;303;Kalimantan Selatan;Kab. Hulu Sungai Tengah
+Kab. Hulu Sungai Utara;303007;303;Kalimantan Selatan;Kab. Hulu Sungai Utara
+Kab. Tabalong;303008;303;Kalimantan Selatan;Kab. Tabalong
+Kab. Kotabaru;303009;303;Kalimantan Selatan;Kab. Kotabaru
+Kab. Tanah Bumbu;303010;303;Kalimantan Selatan;Kab. Tanah Bumbu
+Kab. Balangan;303011;303;Kalimantan Selatan;Kab. Balangan
+Kota Banjarmasin;303012;303;Kalimantan Selatan;Kota Banjarmasin
+Kota Banjarbaru;303013;303;Kalimantan Selatan;Kota Banjarbaru
+Kab. Paser;304001;304;Kalimantan Timur;Kab. Paser
+Kab. Kutai Kartanegara;304002;304;Kalimantan Timur;Kab. Kutai Kartanegara
+Kab. Berau;304003;304;Kalimantan Timur;Kab. Berau
+Kab. Nunukan;304006;304;Kalimantan Timur;Kota Bontang
+Kab. Kutai Timur;304008;304;Kalimantan Timur;Kab. Kutai Timur
+Kab. Penajam Paser Utara;304009;304;Kalimantan Timur;Kab. Penajam Paser Utara
+Kota Samarinda;304010;304;Kalimantan Timur;Kota Samarinda
+Kota Balikpapan;304011;304;Kalimantan Timur;Kota Balikpapan
+Kota Bontang;304013;304;Kalimantan Timur;Kota Bontang
+Kota Tarakan;305001;305;Kalimantan Utara;Kota Tarakan
+Kab. Bulungan;305002;305;Kalimantan Utara;Kab. Bulungan
+Kab. Nunukan;305004;305;Kalimantan Utara;Kab. Nunukan
+Kab. Bolaang Mongondow;401001;401;Sulawesi Utara;Kab. Bolaang Mongondow
+Kab. Minahasa;401002;401;Sulawesi Utara;Kab. Minahasa
+Kab. Kepulauan Sangihe;401003;401;Sulawesi Utara;Kab. Kepulauan Sangihe
+Kab. Minahasa Utara;401006;401;Sulawesi Utara;Kab. Minahasa Utara
+Kota Manado;401007;401;Sulawesi Utara;Kota Manado
+Kota Bitung;401008;401;Sulawesi Utara;Kota Bitung
+Kota Tomohon;401009;401;Sulawesi Utara;Kota Tomohon
+Kab. Bolaang Mongondow Utara;401010;401;Sulawesi Utara;Kab. Bolaang Mongondow Utara
+Kab. Minahasa Tenggara;401012;401;Sulawesi Utara;Kab. Minahasa Tenggara
+Kota Kotamobagu;401013;401;Sulawesi Utara;Kota Kotamobagu
+Kab. Bolaang Mongondow Selatan;401015;401;Sulawesi Utara;Kab. Bolaang Mongondow Selatan
+Kab. Banggai Kepulauan;402001;402;Sulawesi Tengah;Kab. Banggai Kepulauan
+Kab. Donggala;402002;402;Sulawesi Tengah;Kab. Donggala
+Kab. Poso;402003;402;Sulawesi Tengah;Kab. Poso
+Kab. Banggai;402004;402;Sulawesi Tengah;Kab. Banggai
+Kab. Buol;402005;402;Sulawesi Tengah;Kab. Buol
+Kab. Toli Toli;402006;402;Sulawesi Tengah;Kab. Tolitoli
+Kab. Morowali;402007;402;Sulawesi Tengah;Kab. Morowali
+Kab. Parigi Moutong;402008;402;Sulawesi Tengah;Kab. Parigi Moutong
+Kab. Tojo Una-Una;402009;402;Sulawesi Tengah;Kab. Tojo Una-Una
+Kota Palu;402010;402;Sulawesi Tengah;Kota Palu
+Kab. Sigi;402011;402;Sulawesi Tengah;Kab. Sigi
+Kab. Banggai Laut;402012;402;Sulawesi Tengah;Kab. Banggai Laut
+Kab. Morowali Utara;402013;402;Sulawesi Tengah;Kab. Morowali Utara
+Kab. Maros;403001;403;Sulawesi Selatan;Kab. Maros
+Kab. Pangkajene Kepulauan;403002;403;Sulawesi Selatan;Kab. Pangkajene dan Kepulauan
+Kab. Gowa;403003;403;Sulawesi Selatan;Kab. Gowa
+Kab. Takalar;403004;403;Sulawesi Selatan;Kab. Takalar
+Kab. Jeneponto;403005;403;Sulawesi Selatan;Kab. Jeneponto
+Kab. Barru;403006;403;Sulawesi Selatan;Kab. Barru
+Kab. Bone;403007;403;Sulawesi Selatan;Kab. Bone
+Kab. Wajo;403008;403;Sulawesi Selatan;Kab. Wajo
+Kab. Soppeng;403009;403;Sulawesi Selatan;Kab. Soppeng
+Kab. Bantaeng;403010;403;Sulawesi Selatan;Kab. Bantaeng
+Kab. Bulukumba;403011;403;Sulawesi Selatan;Kab. Bulukumba
+Kab. Sinjai;403012;403;Sulawesi Selatan;Kab. Sinjai
+Kab. Kepulauan Selayar;403013;403;Sulawesi Selatan;Kab. Kepulauan Selayar
+Kab. Pinrang;403014;403;Sulawesi Selatan;Kab. Pinrang
+Kab. Sidenreng Rappang;403015;403;Sulawesi Selatan;Kab. Sidenreng Rappang
+Kab. Enrekang;403016;403;Sulawesi Selatan;Kab. Enrekang
+Kab. Luwu;403017;403;Sulawesi Selatan;Kab. Luwu
+Kab. Tana Toraja;403018;403;Sulawesi Selatan;Kab. Tana Toraja
+Kab. Luwu Utara;403019;403;Sulawesi Selatan;Kab. Luwu Utara
+Kab. Luwu Timur;403020;403;Sulawesi Selatan;Kab. Luwu Timur
+Kota Makassar;403021;403;Sulawesi Selatan;Kota Makassar
+Kota Pare Pare;403022;403;Sulawesi Selatan;Kota Parepare
+Kota Palopo;403023;403;Sulawesi Selatan;Kota Palopo
+Kab. Toraja Utara;403024;403;Sulawesi Selatan;Kab. Toraja Utara
+Kab. Konawe;404001;404;Sulawesi Tenggara;Kab. Konawe
+Kab. Muna;404002;404;Sulawesi Tenggara;Kab. Muna
+Kab. Buton;404003;404;Sulawesi Tenggara;Kab. Buton
+Kab. Kolaka;404004;404;Sulawesi Tenggara;Kab. Kolaka
+Kab. Konawe Selatan;404005;404;Sulawesi Tenggara;Kab. Konawe Selatan
+Kab. Kolaka Utara;404006;404;Sulawesi Tenggara;Kab. Kolaka Utara
+Kab. Wakatobi;404007;404;Sulawesi Tenggara;Kab. Wakatobi
+Kab. Bombana;404008;404;Sulawesi Tenggara;Kab. Bombana
+Kota Kendari;404009;404;Sulawesi Tenggara;Kota Kendari
+Kota Bau-Bau;404010;404;Sulawesi Tenggara;Kota Baubau
+Kab. Buton Utara;404011;404;Sulawesi Tenggara;Kab. Buton Utara
+Kab. Kolaka Timur;404013;404;Sulawesi Tenggara;Kab. Kolaka Timur
+Kab. Buton Tengah;404016;404;Sulawesi Tenggara;Kab. Buton Tengah
+Kab. Muna Barat;404017;404;Sulawesi Tenggara;Kab. Muna Barat
+Kab. Boalemo;405001;405;Gorontalo;Kab. Boalemo
+Kab. Gorontalo;405002;405;Gorontalo;Kab. Gorontalo
+Kab. Pohuwato;405003;405;Gorontalo;Kab. Pohuwato
+Kab. Bonebolango;405004;405;Gorontalo;Kab. Bone Bolango
+Kota Gorontalo;405005;405;Gorontalo;Kota Gorontalo
+Kab. Gorontalo Utara;405006;405;Gorontalo;Kab. Gorontalo Utara
+Kab. Mamuju;406001;406;Sulawesi Barat;Kab. Mamuju
+Kab. Pasangkayu;406002;406;Sulawesi Barat;Kab. Pasangkayu
+Kab. Polewali Mandar;406003;406;Sulawesi Barat;Kab. Polewali Mandar
+Kab. Mamasa;406004;406;Sulawesi Barat;Kab. Mamasa
+Kab. Majene;406005;406;Sulawesi Barat;Kab. Majene
+Kab. Mamuju Tengah;406006;406;Sulawesi Barat;Kab. Mamuju Tengah
+Kab. Buleleng;501001;501;Bali;Kab. Buleleng
+Kab. Jembrana;501002;501;Bali;Kab. Jembrana
+Kab. Tabanan;501003;501;Bali;Kab. Tabanan
+Kab. Badung;501004;501;Bali;Kab. Badung
+Kab. Gianyar;501005;501;Bali;Kab. Gianyar
+Kab. Bangli;501007;501;Bali;Kab. Bangli
+Kab. Karang Asem;501008;501;Bali;Kab. Karangasem
+Kota Denpasar;501009;501;Bali;Kota Denpasar
+Kab. Lombok Barat;502001;502;Nusa Tenggara Barat;Kab. Lombok Barat
+Kab. Lombok Tengah;502002;502;Nusa Tenggara Barat;Kab. Lombok Tengah
+Kab. Lombok Timur;502003;502;Nusa Tenggara Barat;Kab. Lombok Timur
+Kab. Sumbawa;502004;502;Nusa Tenggara Barat;Kab. Sumbawa
+Kab. Dompu;502005;502;Nusa Tenggara Barat;Kab. Dompu
+Kab. Bima;502006;502;Nusa Tenggara Barat;Kab. Bima
+Kab. Sumbawa Barat;502007;502;Nusa Tenggara Barat;Kab. Sumbawa Barat
+Kota Mataram;502008;502;Nusa Tenggara Barat;Kota Mataram
+Kota Bima;502009;502;Nusa Tenggara Barat;Kota Bima
+Kab. Lombok Utara;502010;502;Nusa Tenggara Barat;Kab. Lombok Utara
+Kab. Kupang;503001;503;Nusa Tenggara Timur;Kab. Kupang
+Kab. Timor Tengah Utara;503003;503;Nusa Tenggara Timur;Kab. Timor Tengah Utara
+Kab. Belu;503004;503;Nusa Tenggara Timur;Kab. Belu
+Kab. Alor;503005;503;Nusa Tenggara Timur;Kab. Alor
+Kab. Flores Timur;503006;503;Nusa Tenggara Timur;Kab. Flores Timur
+Kab. Sikka;503007;503;Nusa Tenggara Timur;Kab. Sikka
+Kab. Ende;503008;503;Nusa Tenggara Timur;Kab. Ende
+Kab. Ngada;503009;503;Nusa Tenggara Timur;Kab. Ngada
+Kab. Manggarai;503010;503;Nusa Tenggara Timur;Kab. Manggarai
+Kab. Sumba Timur;503011;503;Nusa Tenggara Timur;Kab. Sumba Timur
+Kab. Sumba Barat;503012;503;Nusa Tenggara Timur;Kab. Sumba Barat
+Kab. Lembata;503013;503;Nusa Tenggara Timur;Kab. Lembata
+Kab. Manggarai Barat;503015;503;Nusa Tenggara Timur;Kab. Manggarai Barat
+Kota Kupang;503016;503;Nusa Tenggara Timur;Kota Kupang
+Kab. Nagekeo;503017;503;Nusa Tenggara Timur;Kab. Nagekeo
+Kab. Sumba Barat Daya;503018;503;Nusa Tenggara Timur;Kab. Sumba Barat Daya
+Kab. Manggarai Timur;503020;503;Nusa Tenggara Timur;Kab. Manggarai Timur
+Kab. Maluku Tengah;601001;601;Maluku;Kab. Maluku Tengah
+Kab. Buru;601003;601;Maluku;Kab. Buru
+Kab. Kepulauan Tanimbar;601004;601;Maluku;Kab. Kepulauan Tanimbar
+Kab. Seram Bagian Barat;601005;601;Maluku;Kab. Seram Bagian Barat
+Kab. Seram Bagian Timur;601006;601;Maluku;Kab. Seram Bagian Timur
+Kota Ambon;601008;601;Maluku;Kota Ambon
+Kab. Buru Selatan;601010;601;Maluku;Kab. Buru Selatan
+Kab. Halmahera Barat;602001;602;Maluku Utara;Kab. Halmahera Barat
+Kab. Halmahera Tengah;602002;602;Maluku Utara;Kab. Halmahera Tengah
+Kab. Halmahera Utara;602003;602;Maluku Utara;Kab. Halmahera Utara
+Kab. Halmahera Selatan;602004;602;Maluku Utara;Kab. Halmahera Selatan
+Kab. Halmahera Timur;602006;602;Maluku Utara;Kab. Halmahera Timur
+Kota Ternate;602007;602;Maluku Utara;Kota Ternate
+Kota Tidore Kepulauan;602008;602;Maluku Utara;Kota Tidore Kepulauan
+Kab. Pulau Morotai;602009;602;Maluku Utara;Kab. Pulau Morotai
+Kab. Pulau Taliabu;602010;602;Maluku Utara;Kab. Pulau Taliabu
+Kab. Kepulauan Yapen;603003;603;Papua;Kab. Kepulauan Yapen
+Kab. Keerom;603010;603;Papua;Kab. Keerom
+Kota Jayapura;603020;603;Papua;Kota Jayapura
+Kab. Fak-Fak;604001;604;Papua Barat;Kab. Fakfak
+Kab. Sorong;604002;604;Papua Barat Daya;Kab. Sorong
+Kab. Manokwari;604003;604;Papua Barat;Kab. Manokwari
+Kota Sorong;604009;604;Papua Barat Daya;Kota Sorong

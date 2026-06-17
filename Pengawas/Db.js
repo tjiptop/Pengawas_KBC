@@ -14,12 +14,12 @@ function getAppDb_() {
 }
 
 /**
- * Mendapatkan spreadsheet master Madrasah (MASTER_MADRASAH_DB_ID) dengan pattern singleton
+ * Mendapatkan spreadsheet master (MASTER_DB_ID) dengan pattern singleton
  * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
  */
 function getMasterDb_() {
   if (!globalThis._masterDb) {
-    globalThis._masterDb = SpreadsheetApp.openById(MASTER_MADRASAH_DB_ID);
+    globalThis._masterDb = SpreadsheetApp.openById(MASTER_DB_ID);
   }
   return globalThis._masterDb;
 }

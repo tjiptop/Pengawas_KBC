@@ -5,7 +5,7 @@
 // Global database and template configurations
 // Mengambil dari Script Properties (Environment Variables), jika kosong maka gunakan ID production
 const APP_DB_ID              = PropertiesService.getScriptProperties().getProperty('APP_DB_ID')              || '1sIIdTzW_vBQJZoizefj_6tWBrHib1OOo2TbUPPZsDYw';
-const MASTER_MADRASAH_DB_ID  = PropertiesService.getScriptProperties().getProperty('MASTER_MADRASAH_DB_ID')  || '119pUNbQxQLaLtqcuHebrbwbzXkXUU3h7n5I1OxyMu4w';
+const MASTER_DB_ID           = PropertiesService.getScriptProperties().getProperty('MASTER_DB_ID')           || PropertiesService.getScriptProperties().getProperty('MASTER_MADRASAH_DB_ID')  || '119pUNbQxQLaLtqcuHebrbwbzXkXUU3h7n5I1OxyMu4w';
 const SK_TEMPLATE_DOC_ID     = PropertiesService.getScriptProperties().getProperty('SK_TEMPLATE_DOC_ID')     || '1iROegKV9VGGpLWDedovrwaXuDvbX4jEzM4TwsSfeZIc';
 
 // Environment & Operational Config (dapat diubah di Script Properties tanpa deploy ulang)

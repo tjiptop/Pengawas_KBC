@@ -168,6 +168,21 @@ function parsePrePostYaml_(yamlStr) {
 }
 
 /**
+ * Mengambil konfigurasi test dari sel database (format JSON).
+ * @param {string} cellValue
+ * @returns {object} Parsed test configuration
+ */
+function getTestConfigFromCell_(cellValue) {
+  if (!cellValue) return null;
+  try {
+    return JSON.parse(cellValue);
+  } catch(e) {
+    Logger.log("getTestConfigFromCell_ JSON parse error: " + e.toString());
+    return null;
+  }
+}
+
+/**
  * LCG (Linear Congruential Generator) seeded random
  * @param {string} seedStr
  * @returns {function} Rand function returning float 0-1
@@ -227,7 +242,7 @@ function apiCreatePrePostSoal(pelatihanId, yamlDef) {
     const newRow = [
       soalId,
       pelatihanId,
-      yamlDef,
+      JSON.stringify(parsed), // Cache dan simpan sebagai JSON agar lebih cepat
       'draft', // status_pre
       'draft', // status_post
       '', // pre_dibuka_pada
@@ -272,7 +287,7 @@ function apiUpdatePrePostSoal(soalId, yamlDef) {
           return apiError('Soal tidak dapat diubah karena test sudah pernah dibuka.', 'INVALID_STATUS');
         }
         
-        sheet.getRange(i + 1, idxYaml + 1).setValue(yamlDef);
+        sheet.getRange(i + 1, idxYaml + 1).setValue(JSON.stringify(parsed)); // Cache dan simpan sebagai JSON
         return apiSuccess(null, 'Definisi soal Pre/Post Test berhasil diperbarui.');
       }
     }
@@ -438,7 +453,7 @@ function apiGetTestUntukPeserta(soalId, nipPeserta, tipe) {
     }
     
     // 5. Parse dan acak soal
-    const testConfig = parsePrePostYaml_(soalRow[idxYaml]);
+    const testConfig = getTestConfigFromCell_(soalRow[idxYaml]);
     if (!testConfig) return apiError('Gagal memproses definisi soal.', 'YAML_PARSE_ERROR');
     
     const rand = createRandom_(seed);
@@ -570,7 +585,7 @@ function apiSubmitTestJawaban(soalId, nipPeserta, tipe, jawaban) {
     }
     
     // 3. Load YAML asli untuk grading
-    const testConfig = parsePrePostYaml_(soalRow[idxYaml]);
+    const testConfig = getTestConfigFromCell_(soalRow[idxYaml]);
     if (!testConfig) return apiError('Gagal memproses soal YAML.', 'YAML_PARSE_ERROR');
     
     // 4. Hitung Skor Otomatis
