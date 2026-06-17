@@ -73,7 +73,13 @@ function apiSuccess(data, message) {
  * @returns {object} API response
  */
 function apiError(message, code) {
-  return { success: false, error: message || 'Terjadi kesalahan.', code: code || 'UNKNOWN' };
+  let finalCode = code || 'UNKNOWN';
+  let finalMessage = message || 'Terjadi kesalahan.';
+  if (finalMessage.includes('UNAUTHORIZED') || finalMessage.includes('Sesi tidak valid')) {
+    finalCode = 'UNAUTHORIZED';
+    finalMessage = 'Sesi tidak valid atau kedaluwarsa. Silakan login kembali.';
+  }
+  return { success: false, error: finalMessage, code: finalCode };
 }
 
 // ============================================================

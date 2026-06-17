@@ -107,10 +107,11 @@ function validateSession_(sessionToken) {
  * @returns {boolean}
  */
 function checkPelatihanOwnership_(pelatihanId, sessionToken) {
+  const nip = validateSession_(sessionToken);
+  if (!nip) {
+    throw new Error('UNAUTHORIZED');
+  }
   try {
-    const nip = validateSession_(sessionToken);
-    if (!nip) return false;
-    
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Pelatihan');
     if (!sheet) return false;
@@ -139,6 +140,10 @@ function checkPelatihanOwnership_(pelatihanId, sessionToken) {
  * @returns {boolean}
  */
 function checkSoalOwnership_(soalId, sessionToken) {
+  const nip = validateSession_(sessionToken);
+  if (!nip) {
+    throw new Error('UNAUTHORIZED');
+  }
   try {
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('PrePostSoal');

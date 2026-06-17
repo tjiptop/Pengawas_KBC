@@ -6,7 +6,25 @@
     const proxy = new Proxy(runner, {
       get(target, prop, receiver) {
         if (prop === '__wrapped') return true;
-        if (prop === 'withSuccessHandler' || prop === 'withFailureHandler') {
+        if (prop === 'withSuccessHandler') {
+          return function(originalSuccessHandler) {
+            const wrappedSuccess = function(res) {
+              if (res && res.success === false && (res.code === 'UNAUTHORIZED' || (res.error && res.error.includes('Sesi tidak valid')))) {
+                App.loading(false);
+                App.alert(res.error || 'Sesi Anda telah berakhir. Silakan login kembali.', 'Sesi Berakhir', () => {
+                  App.logout();
+                });
+                return;
+              }
+              if (typeof originalSuccessHandler === 'function') {
+                originalSuccessHandler(res);
+              }
+            };
+            const result = target[prop](wrappedSuccess);
+            return wrapRunner(result);
+          };
+        }
+        if (prop === 'withFailureHandler') {
           return function(...args) {
             const result = target[prop](...args);
             return wrapRunner(result);
