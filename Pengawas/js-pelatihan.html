@@ -155,11 +155,14 @@ const PelatihanViews = {
                         </div>
                     </div>
 
-                    <div style="border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
-                        <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:12px;color:var(--color-text);">📚 Pilih Materi Pelatihan</h3>
-                        <div id="plt-materi-checkboxes" style="display:flex;flex-direction:column;gap:10px;">
-                            <div style="color:var(--color-text-light);font-size:0.85em;">Memuat materi...</div>
-                        </div>
+                    <div class="form-group" style="margin-bottom:14px;border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
+                        <label class="form-label" for="plt-kategori">Kategori Pelatihan</label>
+                        <select id="plt-kategori" class="form-control" required style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">
+                            <option value="">-- Pilih Kategori --</option>
+                        </select>
+                        <small style="color:var(--color-text-light);font-size:0.75em;display:block;margin-top:6px;">
+                            ℹ️ Template survey, soal pre/post test, materi, dan sertifikat otomatis disesuaikan dengan kategori yang dipilih.
+                        </small>
                     </div>
 
                     <button type="submit" class="btn btn-primary" style="width:100%;margin-top:24px;padding:12px;">💾 Simpan Jadwal</button>
@@ -271,23 +274,16 @@ const PelatihanViews = {
 
             <!-- Tab Content: Pre/Post Test -->
             <div id="tab-test" class="pelatihan-tab-content">
-                <!-- Bagian Info Soal dari Materi -->
+                <!-- Bagian Info Soal dari Kategori -->
                 <div class="card" style="margin-bottom:16px;">
-                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">📝 Soal Per-Materi Pelatihan</h3>
-                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Soal Pre-Test &amp; Post-Test diambil otomatis dari <code>soal.yaml</code> di folder masing-masing materi. Sinkronisasi terlebih dahulu di tab <strong>Materi</strong> sebelum mengaktifkan test.</p>
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">📝 Soal Test Kategori</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Soal Pre-Test &amp; Post-Test otomatis mengikuti template kategori pelatihan ini.</p>
                     <div id="soal-per-materi-container">
-                        <div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.85em;">Memuat daftar soal materi...</div>
+                        <div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.85em;">Memuat daftar soal kategori...</div>
                     </div>
                 </div>
 
-                <!-- Preview Ujian Aktif Section -->
-                <div class="card" id="soal-combined-preview-section" style="display:none;margin-bottom:16px;background:rgba(26,115,232,0.02);border-color:var(--color-border);">
-                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:6px;color:var(--color-primary);">👁️ Preview Soal Ujian Aktif</h3>
-                    <p style="font-size:0.78rem;color:var(--color-text-secondary);margin-bottom:12px;">Berikut adalah set soal gabungan yang saat ini aktif untuk Pre-Test &amp; Post-Test pelatihan ini.</p>
-                    <button class="btn" style="width:100%;padding:10px;background:var(--color-bg-elevated);border:1.5px solid var(--color-primary);color:var(--color-primary);font-weight:600;border-radius:8px;" onclick="PelatihanManager.previewUjianAktif()">👁️ Preview Seluruh Soal Ujian</button>
-                </div>
-
-                <!-- Kontrol Aktivasi Pre/Post Test (dari soal utama pelatihan / materi pertama) -->
+                <!-- Kontrol Aktivasi Pre/Post Test -->
                 <div class="card" id="test-control-section" style="display:none;margin-bottom:16px;">
                     <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:12px;">Kontrol Pelaksanaan Test</h3>
                     
@@ -314,13 +310,6 @@ const PelatihanViews = {
                             <!-- buttons -->
                         </div>
                     </div>
-                </div>
-
-                <!-- Tombol buat soal dari materi (hanya tampil jika ada soal tersinkronisasi) -->
-                <div class="card" id="soal-create-section" style="display:none;margin-bottom:16px;background:rgba(26,115,232,0.04);border-color:rgba(26,115,232,0.2);">
-                    <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:8px;color:var(--color-primary);">⚡ Aktifkan Soal dari Materi</h3>
-                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:12px;">Soal akan diambil dari materi pertama yang memiliki <code>soal.yaml</code> tersinkronisasi. Jika ada beberapa materi, soal akan digabungkan.</p>
-                    <button class="btn btn-primary" id="btn-create-soal-from-materi" onclick="PelatihanManager.createSoalFromMateri('${pelatihanId}')" style="width:100%;padding:10px;">✨ Buat Set Soal dari Materi Terpilih</button>
                 </div>
             </div>
 
@@ -417,7 +406,7 @@ const PelatihanManager = {
                         </div>
                     </div>
                     <h3 style="font-size:0.95rem;font-weight:700;color:var(--color-text);margin:0 0 4px 0;">${item.judul}</h3>
-                    <div style="font-size:0.76rem;color:var(--color-text-light);margin-bottom:10px;">📍 ${item.provinsi} · 📅 ${dateStr}</div>
+                    <div style="font-size:0.76rem;color:var(--color-text-light);margin-bottom:10px;">🏷️ <b>${item.kategori || 'Umum'}</b> · 📍 ${item.provinsi} · 📅 ${dateStr}</div>
                     <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--color-text-light);border-top:1px dashed var(--color-border-light);padding-top:8px;">
                         <span>👥 <b>${item.peserta_count}</b> Peserta</span>
                         <span>📚 <b>${item.materi_count}</b> Materi</span>
@@ -450,14 +439,18 @@ const PelatihanManager = {
     // ---- CREATE/EDIT FORM ----
     formJadwal(params) {
         const isEdit = !!(params && params.id);
-        const container = document.getElementById('plt-materi-checkboxes');
         
         App.loading(true, 'Memuat data form...');
         
-        // Fetch available forms
-        google.script.run.withSuccessHandler(materiRes => {
-            if (materiRes.success) {
-                this.availableMateri = materiRes.data || [];
+        // Fetch categories from Drive templates folder
+        google.script.run.withSuccessHandler(catRes => {
+            if (catRes.success) {
+                const categories = catRes.data || [];
+                const selectEl = document.getElementById('plt-kategori');
+                if (selectEl) {
+                    selectEl.innerHTML = '<option value="">-- Pilih Kategori --</option>' + 
+                        categories.map(c => `<option value="${c}">${c}</option>`).join('');
+                }
                 
                 if (isEdit) {
                     // Fetch existing details
@@ -466,12 +459,12 @@ const PelatihanManager = {
                         if (detailRes.success) {
                             const detail = detailRes.data;
                             document.getElementById('plt-judul').value = detail.pelatihan.judul;
-                            document.getElementById('plt-deskripsi').value = detail.pelatihan.deskripsi;
+                            document.getElementById('plt-deskripsi').value = detail.pelatihan.deskripsi || '';
                             document.getElementById('plt-tgl-mulai').value = detail.pelatihan.tanggal_mulai ? detail.pelatihan.tanggal_mulai.split('T')[0] : '';
                             document.getElementById('plt-tgl-selesai').value = detail.pelatihan.tanggal_selesai ? detail.pelatihan.tanggal_selesai.split('T')[0] : '';
-                            
-                            const selectedIds = new Set(detail.materi.map(m => m.materi_id));
-                            this.renderMateriCheckboxes(selectedIds);
+                            if (selectEl) {
+                                selectEl.value = detail.pelatihan.kategori || 'Umum';
+                            }
                         } else {
                             App.alert(detailRes.error, 'Gagal');
                             App.router('pelatihan');
@@ -482,39 +475,15 @@ const PelatihanManager = {
                     }).apiGetPelatihanDetail(params.id);
                 } else {
                     App.loading(false);
-                    this.renderMateriCheckboxes(new Set());
                 }
             } else {
                 App.loading(false);
-                App.alert(materiRes.error, 'Gagal memuat materi');
+                App.alert(catRes.error, 'Gagal memuat kategori');
             }
         }).withFailureHandler(err => {
             App.loading(false);
             App.alert(err.message, 'System Error');
-        }).apiGetAvailableMateri();
-    },
-
-    renderMateriCheckboxes(selectedSet) {
-        const container = document.getElementById('plt-materi-checkboxes');
-        if (!container) return;
-        
-        if (this.availableMateri.length === 0) {
-            container.innerHTML = '<div style="color:var(--color-text-light);font-size:0.85em;">Belum ada instrumen form terdaftar di sistem.</div>';
-            return;
-        }
-        
-        container.innerHTML = this.availableMateri.map(m => {
-            const isChecked = selectedSet.has(m.id) ? 'checked' : '';
-            return `
-                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;font-size:0.85em;">
-                    <input type="checkbox" name="plt-materi-ids" value="${m.id}" ${isChecked} style="margin-top:2px;transform:scale(1.2);">
-                    <div>
-                        <strong style="color:var(--color-text);">${m.title}</strong>
-                        <div style="color:var(--color-text-light);font-size:0.9em;margin-top:1px;">Group: ${m.group} · ${m.description}</div>
-                    </div>
-                </label>
-            `;
-        }).join('');
+        }).apiGetKategoriPelatihan();
     },
 
     saveJadwal(editId) {
@@ -522,23 +491,10 @@ const PelatihanManager = {
         const deskripsi = document.getElementById('plt-deskripsi').value;
         const tglMulai = document.getElementById('plt-tgl-mulai').value;
         const tglSelesai = document.getElementById('plt-tgl-selesai').value;
+        const kategori = document.getElementById('plt-kategori').value;
         
-        // Get selected materias
-        const checkboxes = document.getElementsByName('plt-materi-ids');
-        let listMateri = [];
-        checkboxes.forEach(cb => {
-            if (cb.checked) {
-                // Find original title
-                let orig = this.availableMateri.find(m => m.id === cb.value);
-                listMateri.push({
-                    materi_id: cb.value,
-                    judul_materi: orig ? orig.title : cb.value
-                });
-            }
-        });
-        
-        if (listMateri.length === 0) {
-            return App.alert('Harap pilih minimal 1 materi pelatihan.', 'Validasi');
+        if (!kategori) {
+            return App.alert('Harap pilih kategori pelatihan.', 'Validasi');
         }
         
         const payload = {
@@ -547,33 +503,20 @@ const PelatihanManager = {
             nip_pelatih: App.state.user['NIP'],
             provinsi: App.state.user['Provinsi'],
             tanggal_mulai: tglMulai,
-            tanggal_selesai: tglSelesai
+            tanggal_selesai: tglSelesai,
+            kategori: kategori
         };
         
         App.loading(true, 'Menyimpan jadwal pelatihan...');
         
-        const handleMateriSave = (pid) => {
-            google.script.run.withSuccessHandler(mRes => {
-                App.loading(false);
-                if (mRes.success) {
-                    App.toast('💾 Jadwal dan materi berhasil disimpan', 'success');
-                    PelatihanManager.runSetupWizard(pid, listMateri, !!editId);
-                } else {
-                    App.alert(mRes.error, 'Gagal menyimpan materi');
-                }
-            }).withFailureHandler(err => {
-                App.loading(false);
-                App.alert(err.message, 'Error');
-            }).apiSetMateri(pid, listMateri);
-        };
-        
         if (editId) {
             // Edit
             google.script.run.withSuccessHandler(res => {
+                App.loading(false);
                 if (res.success) {
-                    handleMateriSave(editId);
+                    App.toast('💾 Jadwal pelatihan berhasil diperbarui', 'success');
+                    PelatihanManager.runSetupWizard(editId, [], true);
                 } else {
-                    App.loading(false);
                     App.alert(res.error, 'Gagal');
                 }
             }).withFailureHandler(err => {
@@ -583,10 +526,11 @@ const PelatihanManager = {
         } else {
             // Create
             google.script.run.withSuccessHandler(res => {
+                App.loading(false);
                 if (res.success) {
-                    handleMateriSave(res.data.pelatihan_id);
+                    App.toast('💾 Jadwal pelatihan berhasil dibuat', 'success');
+                    PelatihanManager.runSetupWizard(res.data.pelatihan_id, [], false);
                 } else {
-                    App.loading(false);
                     App.alert(res.error, 'Gagal');
                 }
             }).withFailureHandler(err => {
@@ -739,8 +683,8 @@ const PelatihanManager = {
                 <div class="wizard-step" id="wizard-step-1">
                     <div class="step-icon" style="width:24px; height:24px; border-radius:50%; background:var(--color-border-light, #e8eaed); display:flex; align-items:center; justify-content:center; font-size:0.85em; font-weight:700; color:var(--color-text-light, #80868b); transition: all 0.3s ease; flex-shrink:0;">1</div>
                     <div style="flex:1;">
-                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Deteksi & Inisialisasi Ujian</div>
-                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Memeriksa konfigurasi set soal yang sudah ada...</div>
+                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Setup Survey & Soal Kategori</div>
+                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Membaca dan memproses survey.yaml dan soal.yaml dari folder template...</div>
                     </div>
                 </div>
                 
@@ -748,9 +692,8 @@ const PelatihanManager = {
                 <div class="wizard-step" id="wizard-step-2">
                     <div class="step-icon" style="width:24px; height:24px; border-radius:50%; background:var(--color-border-light, #e8eaed); display:flex; align-items:center; justify-content:center; font-size:0.85em; font-weight:700; color:var(--color-text-light, #80868b); transition: all 0.3s ease; flex-shrink:0;">2</div>
                     <div style="flex:1;">
-                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Sinkronisasi Materi Pelatihan</div>
-                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Mengunduh file konfigurasi & soal.yaml dari Google Drive...</div>
-                        <div id="wizard-materi-sublist" style="margin-top:8px; padding-left:4px; display:flex; flex-direction:column; gap:6px; font-size:0.85em; max-height:140px; overflow-y:auto; border:1px solid var(--color-border-light, #e8eaed); border-radius:8px; padding:8px; background:var(--color-bg, #f8f9fa); display:none;"></div>
+                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Setup Feedback & Sertifikat</div>
+                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Menghubungkan template_sertifikat dan feedback.yaml...</div>
                     </div>
                 </div>
                 
@@ -758,8 +701,8 @@ const PelatihanManager = {
                 <div class="wizard-step" id="wizard-step-3">
                     <div class="step-icon" style="width:24px; height:24px; border-radius:50%; background:var(--color-border-light, #e8eaed); display:flex; align-items:center; justify-content:center; font-size:0.85em; font-weight:700; color:var(--color-text-light, #80868b); transition: all 0.3s ease; flex-shrink:0;">3</div>
                     <div style="flex:1;">
-                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Penggabungan & Aktivasi Ujian</div>
-                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Menyusun set Pre/Post Test gabungan dari seluruh materi...</div>
+                        <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Aktivasi & Finalisasi</div>
+                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Menyelesaikan konfigurasi pelatihan...</div>
                     </div>
                 </div>
             </div>
@@ -886,164 +829,46 @@ const PelatihanManager = {
     async runSetupWizard(pid, listMateri, isEdit) {
         this.createWizardOverlay();
         
-        let existingSoalId = null;
-        let synchronizedSoals = [];
         let hasErrors = false;
         let errorList = [];
         
-        // --- STEP 1: INITIALIZE ---
+        // --- STEP 1: INITIALIZE SURVEY & TEST ---
         this.setStepState(1, 'running');
         try {
-            const detailRes = await this.runScriptPromise('apiGetPelatihanDetail', pid);
-            existingSoalId = (detailRes.data && detailRes.data.test) ? detailRes.data.test.soal_id : null;
-            this.setStepState(1, 'done', 'Inisialisasi berhasil. ' + (existingSoalId ? 'Ditemukan set soal yang sudah ada.' : 'Set soal baru akan dibuat.'));
+            const res = await this.runScriptPromise('apiSetupTrainingSurveyAwal', pid);
+            if (res.success) {
+                this.setStepState(1, 'done', 'Inisialisasi survey awal dan soal test berhasil.');
+            } else {
+                throw new Error(res.error || 'Gagal setup survey');
+            }
         } catch (err) {
             hasErrors = true;
-            errorList.push('Gagal memeriksa detail pelatihan: ' + err.message);
+            errorList.push('Gagal inisialisasi: ' + err.message);
             this.setStepState(1, 'error', 'Inisialisasi gagal: ' + err.message);
         }
         
-        // --- STEP 2: SYNC MATERIALS ---
+        // --- STEP 2: SETUP FEEDBACK & CERTIFICATE ---
         const statusGlobal = document.getElementById('wizard-global-status');
         if (statusGlobal) statusGlobal.textContent = 'Menjalankan langkah 2/3...';
         this.setStepState(2, 'running');
         
-        const sublistContainer = document.getElementById('wizard-materi-sublist');
-        if (sublistContainer) {
-            sublistContainer.style.display = 'flex';
-            sublistContainer.innerHTML = listMateri.map(m => `
-                <div id="substep-mat-${m.materi_id}" style="color:var(--color-text-secondary); display:flex; align-items:center; gap:8px;">
-                    <div class="substep-spinner" style="display:none; width: 10px; height: 10px; border: 1.5px solid var(--color-primary-light); border-top-color: transparent; border-radius: 50%; animation: wizard-spin 0.8s linear infinite;"></div>
-                    <span class="substep-icon">⏳</span>
-                    <span class="substep-text">${m.judul_materi}</span>
-                </div>
-            `).join('');
-        }
-        
-        for (const m of listMateri) {
-            const itemEl = document.getElementById(`substep-mat-${m.materi_id}`);
-            if (itemEl) {
-                const spinner = itemEl.querySelector('.substep-spinner');
-                const icon = itemEl.querySelector('.substep-icon');
-                if (spinner) spinner.style.display = 'block';
-                if (icon) icon.style.display = 'none';
-                itemEl.style.color = 'var(--color-primary)';
-            }
-            
-            try {
-                const res = await this.runScriptPromise('apiGetMateriYaml', m.materi_id);
-                if (res.success) {
-                    const yamlData = res.data;
-                    const jsonObj = jsyaml.load(yamlData.yaml);
-                    const jsonString = JSON.stringify(jsonObj);
-                    const soalYamlRaw = yamlData.soalYaml || '';
-                    
-                    await this.runScriptPromise('apiSaveMateriConfig', m.materi_id, jsonString, soalYamlRaw);
-                    
-                    if (soalYamlRaw && soalYamlRaw.trim()) {
-                        synchronizedSoals.push({
-                            judul_materi: m.judul_materi,
-                            soalYaml: soalYamlRaw
-                        });
-                    } else {
-                        throw new Error('soal.yaml kosong');
-                    }
-                    
-                    if (itemEl) {
-                        const spinner = itemEl.querySelector('.substep-spinner');
-                        const icon = itemEl.querySelector('.substep-icon');
-                        if (spinner) spinner.style.display = 'none';
-                        if (icon) {
-                            icon.style.display = 'inline';
-                            icon.textContent = '✅';
-                        }
-                        itemEl.style.color = 'var(--color-success)';
-                    }
-                } else {
-                    throw new Error(res.error || 'Gagal sinkronisasi');
-                }
-            } catch (err) {
-                hasErrors = true;
-                errorList.push(`Materi "${m.judul_materi}": ` + err.message);
-                if (itemEl) {
-                    const spinner = itemEl.querySelector('.substep-spinner');
-                    const icon = itemEl.querySelector('.substep-icon');
-                    if (spinner) spinner.style.display = 'none';
-                    if (icon) {
-                        icon.style.display = 'inline';
-                        icon.textContent = '❌';
-                    }
-                    itemEl.style.color = 'var(--color-danger)';
-                    const text = itemEl.querySelector('.substep-text');
-                    if (text) text.textContent += ` (${err.message})`;
-                }
-            }
-        }
-        
-        if (synchronizedSoals.length === 0) {
-            hasErrors = true;
-            this.setStepState(2, 'error', 'Sinkronisasi selesai dengan error. Tidak ada soal.yaml yang berhasil disinkronkan.');
-        } else if (hasErrors) {
-            this.setStepState(2, 'error', 'Sinkronisasi selesai dengan beberapa materi gagal.');
-        } else {
-            this.setStepState(2, 'done', 'Semua materi berhasil disinkronkan.');
-        }
-        
-        // --- STEP 3: COMPILE & ACTIVATE ---
-        if (statusGlobal) statusGlobal.textContent = 'Menjalankan langkah 3/3...';
-        this.setStepState(3, 'running');
-        
-        if (synchronizedSoals.length === 0) {
-            this.setStepState(3, 'error', 'Dibatalkan: Tidak ada soal.yaml yang berhasil disinkronkan.');
-            this.finishWizard(pid, hasErrors, errorList);
-            return;
-        }
-        
         try {
-            let allQuestions = [];
-            let title = '';
-            let timeLimit = 30;
-            
-            synchronizedSoals.forEach(m => {
-                try {
-                    const soalObj = jsyaml.load(m.soalYaml);
-                    if (soalObj.questions) {
-                        allQuestions = allQuestions.concat(soalObj.questions);
-                    }
-                    if (!title && soalObj.title) title = soalObj.title;
-                    if (soalObj.time_limit_minutes) timeLimit = Math.max(timeLimit, soalObj.time_limit_minutes);
-                } catch (e) {
-                    console.warn('Gagal parse soal.yaml dari ' + m.judul_materi, e);
-                }
-            });
-            
-            if (allQuestions.length === 0) {
-                throw new Error('Tidak ada soal yang ditemukan setelah mem-parsing file YAML.');
-            }
-            
-            const combined = {
-                title: title || 'Pre/Post Test Pelatihan',
-                description: 'Soal evaluasi dari materi pelatihan',
-                shuffle_questions: true,
-                shuffle_options: true,
-                time_limit_minutes: timeLimit,
-                questions: allQuestions
-            };
-            
-            const yamlStr = jsyaml.dump(combined, { indent: 2, lineWidth: 120 });
-            
-            if (existingSoalId) {
-                await this.runScriptPromise('apiUpdatePrePostSoal', existingSoalId, yamlStr);
+            const res = await this.runScriptPromise('apiSetupTrainingFeedbackAndCert', pid);
+            if (res.success) {
+                this.setStepState(2, 'done', 'Setup feedback dan sertifikat berhasil.');
             } else {
-                await this.runScriptPromise('apiCreatePrePostSoal', pid, yamlStr);
+                throw new Error(res.error || 'Gagal setup feedback');
             }
-            
-            this.setStepState(3, 'done', `Ujian berhasil dibuat & diaktifkan (${allQuestions.length} soal).`);
         } catch (err) {
             hasErrors = true;
-            errorList.push('Gagal membuat set soal: ' + err.message);
-            this.setStepState(3, 'error', 'Penyusunan ujian gagal: ' + err.message);
+            errorList.push('Gagal setup feedback/sertifikat: ' + err.message);
+            this.setStepState(2, 'error', 'Setup feedback/sertifikat gagal: ' + err.message);
         }
+        
+        // --- STEP 3: ACTIVATION & FINALIZATION ---
+        if (statusGlobal) statusGlobal.textContent = 'Menjalankan langkah 3/3...';
+        this.setStepState(3, 'running');
+        this.setStepState(3, 'done', 'Aktivasi pelatihan berhasil.');
         
         // --- FINISH ---
         if (statusGlobal) statusGlobal.style.display = 'none';
@@ -1385,92 +1210,25 @@ const PelatihanManager = {
                     </div>
                     <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
                         ${previewBtn}
-                        <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8em; border-radius: 6px; width: auto !important; margin: 0;" onclick="PelatihanManager.syncMateriTemplate('${m.materi_id}')">🔄 Sinkronisasi Template YAML</button>
                     </div>
                 </div>
             `;
         }).join('');
     },
 
-    syncMateriTemplate(materiId) {
-        App.loading(true, 'Sinkronisasi template & soal YAML dari Google Drive...');
-        google.script.run.withSuccessHandler(res => {
-            if (res.success) {
-                try {
-                    const jsonObj = jsyaml.load(res.data.yaml);
-                    const jsonString = JSON.stringify(jsonObj);
-
-                    // soal.yaml disimpan apa adanya sebagai raw YAML string (tidak di-parse ke JSON)
-                    const soalYamlRaw = res.data.soalYaml || '';
-                    
-                    App.loading(true, 'Menyimpan konfigurasi JSON & soal YAML...');
-                    google.script.run.withSuccessHandler(res2 => {
-                        App.loading(false);
-                        if (res2.success) {
-                            App.toast('✅ Berhasil sinkronisasi template & soal ke Sheet!', 'success');
-                            if (confirm('Sinkronisasi Berhasil!\n\nApakah Anda ingin membuka Folder Google Drive materi ini untuk mengelola file YAML?')) {
-                                window.open(res.data.folderUrl, '_blank');
-                            }
-                        } else {
-                            App.alert(res2.error, 'Gagal');
-                        }
-                    }).withFailureHandler(err => {
-                        App.loading(false);
-                        App.alert(err.message, 'Error');
-                    }).apiSaveMateriConfig(materiId, jsonString, soalYamlRaw);
-                    
-                } catch(e) {
-                    App.loading(false);
-                    App.alert('Gagal mem-parsing YAML: ' + e.message, 'Error Parsing');
-                }
-            } else {
-                App.loading(false);
-                App.alert(res.error, 'Gagal Sinkronisasi');
-            }
-        }).withFailureHandler(err => {
-            App.loading(false);
-            App.alert(err.message, 'Error');
-        }).apiGetMateriYaml(materiId);
-    },
-
     renderPrePostTestSection() {
         const detail = this.detailData;
         const test = detail.test;
-        const materi = detail.materi || [];
 
-        // Render daftar soal per-materi
-        this.renderSoalPerMateri(materi);
+        // Render daftar soal kategori
+        this.renderSoalKategori();
 
-        // Tampilkan tombol "Buat Soal dari Materi" jika belum ada soal tapi ada soal.yaml
-        const createSection = document.getElementById('soal-create-section');
-        const hasSoalYaml = materi.some(m => m.soalYaml);
-        if (!test && hasSoalYaml && createSection) {
-            createSection.style.display = 'block';
-        } else if (createSection) {
-            createSection.style.display = 'none';
-        }
-
-        // Tampilkan kontrol aktivasi & preview jika sudah ada test set
-        const previewSection = document.getElementById('soal-combined-preview-section');
+        // Tampilkan kontrol aktivasi jika sudah ada test set
         if (test) {
             document.getElementById('test-control-section').style.display = 'block';
             this.renderTestControls(test);
-            
-            if (previewSection) {
-                previewSection.style.display = 'block';
-                let jmlSoal = 0;
-                try {
-                    const soalObj = jsyaml.load(test.yaml_definition);
-                    if (soalObj && soalObj.questions) jmlSoal = soalObj.questions.length;
-                } catch(e) {}
-                const previewBtn = previewSection.querySelector('button');
-                if (previewBtn) {
-                    previewBtn.textContent = `👁️ Preview Seluruh Soal Ujian (${jmlSoal} Soal)`;
-                }
-            }
         } else {
             document.getElementById('test-control-section').style.display = 'none';
-            if (previewSection) previewSection.style.display = 'none';
         }
     },
 
@@ -2084,129 +1842,51 @@ const PelatihanManager = {
         }, 500);
     },
 
-    renderSoalPerMateri(materi) {
+    renderSoalKategori() {
         const container = document.getElementById('soal-per-materi-container');
         if (!container) return;
-
-        if (!materi || materi.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.85em;">Belum ada materi terpilih. Tambahkan materi di tab <strong>Materi</strong> terlebih dahulu.</div>';
+        
+        const test = this.detailData.test;
+        if (!test || !test.yaml_definition) {
+            container.innerHTML = '<div style="color:var(--color-text-light);font-size:0.85em;padding:12px 0;">Belum ada soal ujian terdaftar.</div>';
             return;
         }
-
-        container.innerHTML = materi.map((m, idx) => {
-            let soalInfo = '';
-            if (m.soalYaml) {
-                try {
-                    const soalObj = jsyaml.load(m.soalYaml);
-                    const jmlSoal = soalObj.questions ? soalObj.questions.length : 0;
-                    const waktu = soalObj.time_limit_minutes || '?';
-                    const title = soalObj.title || m.judul_materi;
-                    soalInfo = `
-                        <div style="margin-top:10px; padding:10px; background:rgba(52,168,83,0.08); border:1px solid rgba(52,168,83,0.25); border-radius:8px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                <span style="font-size:0.8em; font-weight:700; color:#2d7d32;">✅ soal.yaml tersinkronisasi</span>
-                                <span style="font-size:0.75em; color:var(--color-text-light);">${jmlSoal} soal · ${waktu} menit</span>
-                            </div>
-                            <div style="font-size:0.78em; color:var(--color-text-light); font-style:italic;">"${title}"</div>
-                            <details style="margin-top:8px;">
-                                <summary style="font-size:0.75em; color:var(--color-primary); cursor:pointer; user-select:none;">Lihat preview soal (${jmlSoal} item)</summary>
-                                <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px;">
-                                    ${(soalObj.questions || []).slice(0, 5).map((q, qi) => `
-                                        <div style="font-size:0.75em; padding:6px 8px; background:var(--color-bg-elevated); border-radius:4px; border-left:3px solid var(--color-primary);">
-                                            <span style="font-weight:600; color:var(--color-text-light);">[${(q.type||'?').toUpperCase()}]</span>
-                                            <span style="color:var(--color-text);"> ${q.label || q.name}</span>
-                                        </div>
-                                    `).join('')}
-                                    ${jmlSoal > 5 ? `<div style="font-size:0.75em; color:var(--color-text-light); text-align:center; padding:4px;">... dan ${jmlSoal - 5} soal lainnya</div>` : ''}
-                                </div>
-                            </details>
-                        </div>
-                    `;
-                } catch(e) {
-                    soalInfo = `<div style="margin-top:8px; padding:8px 10px; background:rgba(234,67,53,0.08); border-radius:6px; font-size:0.78em; color:var(--color-danger);">⚠️ soal.yaml gagal di-parse: ${e.message}</div>`;
-                }
-            } else {
-                soalInfo = `
-                    <div style="margin-top:8px; padding:8px 10px; background:var(--color-bg-elevated); border-radius:6px; font-size:0.78em; color:var(--color-text-light);">
-                        ⏳ Belum tersinkronisasi — klik <strong>🔄 Sinkronisasi Template YAML</strong> di tab Materi untuk memuat soal.yaml
+        
+        try {
+            const soalObj = JSON.parse(test.yaml_definition);
+            const jmlSoal = soalObj.questions ? soalObj.questions.length : 0;
+            const waktu = soalObj.time_limit_minutes || '?';
+            const title = soalObj.title || 'Pre/Post Test Kategori';
+            
+            container.innerHTML = `
+                <div style="padding:10px; background:rgba(52,168,83,0.08); border:1px solid rgba(52,168,83,0.25); border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="font-size:0.8em; font-weight:700; color:#2d7d32;">✅ Soal Kategori Aktif</span>
+                        <span style="font-size:0.75em; color:var(--color-text-light);">${jmlSoal} soal · ${waktu} menit</span>
                     </div>
-                `;
-            }
-
-            return `
-                <div style="padding:12px 14px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px; margin-bottom:10px;">
-                    <div style="font-size:0.85em; font-weight:700; color:var(--color-text);">${idx+1}. ${m.judul_materi}</div>
-                    <div style="font-size:0.75em; color:var(--color-text-light); margin-top:2px;">ID: ${m.materi_id}</div>
-                    ${soalInfo}
+                    <div style="font-size:0.78em; color:var(--color-text-light); font-style:italic;">"${title}"</div>
+                    <details style="margin-top:8px;">
+                        <summary style="font-size:0.75em; color:var(--color-primary); cursor:pointer; user-select:none;">Lihat list soal (${jmlSoal} item)</summary>
+                        <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height: 250px; overflow-y: auto;">
+                            ${(soalObj.questions || []).map((q, qi) => `
+                                <div style="font-size:0.75em; padding:6px 8px; background:var(--color-bg-elevated); border-radius:4px; border-left:3px solid var(--color-primary); display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="font-weight:600; color:var(--color-text-light);">[${(q.type||'?').toUpperCase()}]</span>
+                                        <span style="color:var(--color-text);"> ${q.label || q.name}</span>
+                                    </div>
+                                    <span style="font-size: 0.72em; background: rgba(0,0,0,0.05); padding: 1px 4px; border-radius: 4px; color: var(--color-text-secondary);">${q.category || 'Umum'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </details>
                 </div>
             `;
-        }).join('');
-    },
-
-    createSoalFromMateri(pelatihanId) {
-        const detail = this.detailData;
-        const materi = (detail.materi || []).filter(m => m.soalYaml);
-
-        if (materi.length === 0) {
-            App.alert('Tidak ada materi yang memiliki soal.yaml tersinkronisasi. Silakan sinkronisasi terlebih dahulu di tab Materi.', 'Peringatan');
-            return;
+        } catch(e) {
+            container.innerHTML = `<div style="padding:8px 10px; background:rgba(234,67,53,0.08); border-radius:6px; font-size:0.78em; color:var(--color-danger);">⚠️ Gagal memuat soal: ${e.message}</div>`;
         }
-
-        App.confirm(
-            `Buat set soal dari ${materi.length} materi yang memiliki soal.yaml?\n\nSoal dari semua materi akan digabungkan menjadi 1 set Pre/Post Test.`,
-            'Konfirmasi Buat Soal',
-            () => {
-                // Gabungkan soal dari semua materi
-                let allQuestions = [];
-                let title = '';
-                let timeLimit = 30;
-
-                materi.forEach(m => {
-                    try {
-                        const soalObj = jsyaml.load(m.soalYaml);
-                        if (soalObj.questions) {
-                            allQuestions = allQuestions.concat(soalObj.questions);
-                        }
-                        if (!title && soalObj.title) title = soalObj.title;
-                        if (soalObj.time_limit_minutes) timeLimit = Math.max(timeLimit, soalObj.time_limit_minutes);
-                    } catch(e) {
-                        console.warn('Gagal parse soal.yaml dari materi ' + m.judul_materi, e);
-                    }
-                });
-
-                if (allQuestions.length === 0) {
-                    App.alert('Tidak ada soal yang berhasil diparse dari soal.yaml materi.', 'Gagal');
-                    return;
-                }
-
-                // Buat objek YAML gabungan
-                const combined = {
-                    title: title || 'Pre/Post Test Pelatihan',
-                    description: 'Soal evaluasi dari materi pelatihan',
-                    shuffle_questions: true,
-                    shuffle_options: true,
-                    time_limit_minutes: timeLimit,
-                    questions: allQuestions
-                };
-
-                const yamlStr = jsyaml.dump(combined, { indent: 2, lineWidth: 120 });
-
-                App.loading(true, 'Membuat set soal dari materi...');
-                google.script.run.withSuccessHandler(res => {
-                    App.loading(false);
-                    if (res.success) {
-                        App.toast(`✅ Set soal berhasil dibuat (${allQuestions.length} soal)`, 'success');
-                        this.loadDetail(pelatihanId);
-                    } else {
-                        App.alert(res.error, 'Gagal membuat soal');
-                    }
-                }).withFailureHandler(err => {
-                    App.loading(false);
-                    App.alert(err.message, 'Error');
-                }).apiCreatePrePostSoal(pelatihanId, yamlStr);
-            }
-        );
     },
+
+
 
 
     renderTestControls(test) {

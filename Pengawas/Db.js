@@ -218,3 +218,24 @@ function updateField_(sheetName, keyColName, keyValue, targetColName, newValue) 
   }
 }
 
+/**
+ * Executes a function with ScriptLock to prevent data corruption during concurrent writes.
+ * @param {Function} callback The callback to execute.
+ * @param {number} timeoutMs Lock timeout in milliseconds (default: 15000).
+ * @returns {*}
+ */
+function executeWithLock_(callback, timeoutMs) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(timeoutMs || 15000);
+  } catch (e) {
+    throw new Error('SYSTEM_BUSY');
+  }
+  
+  try {
+    return callback();
+  } finally {
+    lock.releaseLock();
+  }
+}
+

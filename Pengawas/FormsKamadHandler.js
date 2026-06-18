@@ -159,150 +159,152 @@ function archiveRowToLog(ss, targetSheetName, activeHeaders, rowValues) {
  * @returns {object} Response standard
  */
 function kamadSubmitForm(payload) {
-  try {
-    const nsm    = sanitizeHtml(String(payload.nsm    || '').trim());
-    const formId = sanitizeHtml(String(payload.formId || '').trim());
-    let data     = payload.data || {};
-    if (!nsm || !formId) return apiError('NSM dan formId wajib diisi.', 'VALIDATION');
-    const madrasah = getMadrasahByNsm(nsm);
-    if (!madrasah) return apiError('NSM tidak valid.', 'NOT_FOUND');
-    const definitions = getMadrasahFormDefinitions();
-    const yaml = definitions[formId];
-    if (!yaml) return apiError('Form tidak ditemukan.', 'NOT_FOUND');
-    const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
-    const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
-    
-    const submitterRole = payload.role === 'district' ? 'district' : 'kamad';
-    if (submitterRole === 'district') {
-      if (!allowed.includes('district')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
-    } else {
-      if (allowed.length > 0 && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
-    }
+  return executeWithLock_(() => {
+    try {
+      const nsm    = sanitizeHtml(String(payload.nsm    || '').trim());
+      const formId = sanitizeHtml(String(payload.formId || '').trim());
+      let data     = payload.data || {};
+      if (!nsm || !formId) return apiError('NSM dan formId wajib diisi.', 'VALIDATION');
+      const madrasah = getMadrasahByNsm(nsm);
+      if (!madrasah) return apiError('NSM tidak valid.', 'NOT_FOUND');
+      const definitions = getMadrasahFormDefinitions();
+      const yaml = definitions[formId];
+      if (!yaml) return apiError('Form tidak ditemukan.', 'NOT_FOUND');
+      const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
+      const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
+      
+      const submitterRole = payload.role === 'district' ? 'district' : 'kamad';
+      if (submitterRole === 'district') {
+        if (!allowed.includes('district')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+      } else {
+        if (allowed.length > 0 && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+      }
 
-    // Process attachments for kamad files
-    data = processFormAttachments(nsm, data);
+      // Process attachments for kamad files
+      data = processFormAttachments(nsm, data);
 
-    const sM = yaml.match(/^target_sheet:\s*(.+)$/m);
-    const targetSheet = sM ? sM[1].trim() : formId;
-    const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
-    const limit = sL ? parseInt(sL[1].trim()) : -1;
+      const sM = yaml.match(/^target_sheet:\s*(.+)$/m);
+      const targetSheet = sM ? sM[1].trim() : formId;
+      const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
+      const limit = sL ? parseInt(sL[1].trim()) : -1;
 
-    const ss = getAppDb_();
-    let sheet = ss.getSheetByName(targetSheet);
-    if (!sheet) sheet = ss.insertSheet(targetSheet);
-    const timestamp = new Date().toISOString();
-    const flat = sanitizeObject(data);
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['timestamp', 'nsm', 'madrasah_nama', 'form_id', 'role', ...Object.keys(flat)]);
-      sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#d9ead3');
-      sheet.setFrozenRows(1);
-    }
-    const hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
-    
-    // Auto-Column Add (Safe) for dynamic drift
-    const payloadKeys = Object.keys(flat);
-    const missing = payloadKeys.filter(k => !hdrs.includes(k));
-    if (missing.length > 0) {
-      sheet.getRange(1, hdrs.length + 1, 1, missing.length).setValues([missing]);
-      sheet.getRange(1, hdrs.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#d9ead3');
-      hdrs.push(...missing);
-    }
+      const ss = getAppDb_();
+      let sheet = ss.getSheetByName(targetSheet);
+      if (!sheet) sheet = ss.insertSheet(targetSheet);
+      const timestamp = new Date().toISOString();
+      const flat = sanitizeObject(data);
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['timestamp', 'nsm', 'madrasah_nama', 'form_id', 'role', ...Object.keys(flat)]);
+        sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#d9ead3');
+        sheet.setFrozenRows(1);
+      }
+      const hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+      
+      // Auto-Column Add (Safe) for dynamic drift
+      const payloadKeys = Object.keys(flat);
+      const missing = payloadKeys.filter(k => !hdrs.includes(k));
+      if (missing.length > 0) {
+        sheet.getRange(1, hdrs.length + 1, 1, missing.length).setValues([missing]);
+        sheet.getRange(1, hdrs.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#d9ead3');
+        hdrs.push(...missing);
+      }
 
-    const row = hdrs.map(h => {
-      if (h === 'timestamp')     return timestamp;
-      if (h === 'nsm')           return nsm;
-      if (h === 'madrasah_nama') return madrasah.nama || '';
-      if (h === 'form_id')       return formId;
-      if (h === 'role')          return submitterRole;
-      const v = flat[h];
-      return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
-    });
+      const row = hdrs.map(h => {
+        if (h === 'timestamp')     return timestamp;
+        if (h === 'nsm')           return nsm;
+        if (h === 'madrasah_nama') return madrasah.nama || '';
+        if (h === 'form_id')       return formId;
+        if (h === 'role')          return submitterRole;
+        const v = flat[h];
+        return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
+      });
 
-    // Respect submission limit (0, 1, or higher) and automatically archive older rows
-    if (limit >= 0) {
-      const activeLimit = limit === 0 ? 1 : limit;
-      const nsmIdx = hdrs.indexOf('nsm');
-      const formIdIdx = hdrs.indexOf('form_id');
+      // Respect submission limit (0, 1, or higher) and automatically archive older rows
+      if (limit >= 0) {
+        const activeLimit = limit === 0 ? 1 : limit;
+        const nsmIdx = hdrs.indexOf('nsm');
+        const formIdIdx = hdrs.indexOf('form_id');
 
-      if (nsmIdx !== -1 && sheet.getLastRow() > 1) {
-        const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-        const matchingRows = [];
-        for (let i = 0; i < dataRange.length; i++) {
-          const rowValues = dataRange[i];
-          const rowNsm = String(rowValues[nsmIdx]).trim();
-          const rowFormId = formIdIdx !== -1 ? String(rowValues[formIdIdx]).trim() : '';
+        if (nsmIdx !== -1 && sheet.getLastRow() > 1) {
+          const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+          const matchingRows = [];
+          for (let i = 0; i < dataRange.length; i++) {
+            const rowValues = dataRange[i];
+            const rowNsm = String(rowValues[nsmIdx]).trim();
+            const rowFormId = formIdIdx !== -1 ? String(rowValues[formIdIdx]).trim() : '';
 
-          const nsmMatch = rowNsm === String(nsm).trim();
-          const formIdMatch = formIdIdx !== -1 ? rowFormId === String(formId).trim() : true;
+            const nsmMatch = rowNsm === String(nsm).trim();
+            const formIdMatch = formIdIdx !== -1 ? rowFormId === String(formId).trim() : true;
 
-          if (nsmMatch && formIdMatch) {
-            matchingRows.push({
-              rowNum: i + 2,
-              values: rowValues
-            });
+            if (nsmMatch && formIdMatch) {
+              matchingRows.push({
+                rowNum: i + 2,
+                values: rowValues
+              });
+            }
           }
-        }
 
-        if (matchingRows.length + 1 > activeLimit) {
-          const numToArchive = (matchingRows.length + 1) - activeLimit;
-          const rowsToArchive = matchingRows.slice(0, numToArchive);
+          if (matchingRows.length + 1 > activeLimit) {
+            const numToArchive = (matchingRows.length + 1) - activeLimit;
+            const rowsToArchive = matchingRows.slice(0, numToArchive);
 
-          // Archive detail rows
-          rowsToArchive.forEach(r => {
-            archiveRowToLog(ss, targetSheet, hdrs, r.values);
-          });
+            // Archive detail rows
+            rowsToArchive.forEach(r => {
+              archiveRowToLog(ss, targetSheet, hdrs, r.values);
+            });
 
-          // Delete detail rows from active sheet in descending order of row index
-          const rowsToDelete = [...rowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
-          rowsToDelete.forEach(r => {
-            sheet.deleteRow(r.rowNum);
-          });
+            // Delete detail rows from active sheet in descending order of row index
+            const rowsToDelete = [...rowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+            rowsToDelete.forEach(r => {
+              sheet.deleteRow(r.rowNum);
+            });
 
-          // Move transaction records in KamadSubmissions to KamadSubmissions_Log
-          const log = getKamadSheet(ss, 'KamadSubmissions');
-          if (log.getLastRow() > 1) {
-            const logData = log.getRange(2, 1, log.getLastRow() - 1, log.getLastColumn()).getValues();
-            const logMatchingRows = [];
-            for (let i = 0; i < logData.length; i++) {
-              const rNsm = String(logData[i][1]).trim();
-              const rFormId = String(logData[i][2]).trim();
-              if (rNsm === String(nsm).trim() && rFormId === String(formId).trim()) {
-                logMatchingRows.push({
-                  rowNum: i + 2,
-                  values: logData[i]
+            // Move transaction records in KamadSubmissions to KamadSubmissions_Log
+            const log = getKamadSheet(ss, 'KamadSubmissions');
+            if (log.getLastRow() > 1) {
+              const logData = log.getRange(2, 1, log.getLastRow() - 1, log.getLastColumn()).getValues();
+              const logMatchingRows = [];
+              for (let i = 0; i < logData.length; i++) {
+                const rNsm = String(logData[i][1]).trim();
+                const rFormId = String(logData[i][2]).trim();
+                if (rNsm === String(nsm).trim() && rFormId === String(formId).trim()) {
+                  logMatchingRows.push({
+                    rowNum: i + 2,
+                    values: logData[i]
+                  });
+                }
+              }
+
+              if (logMatchingRows.length + 1 > activeLimit) {
+                const logNumToArchive = (logMatchingRows.length + 1) - activeLimit;
+                const logRowsToArchive = logMatchingRows.slice(0, logNumToArchive);
+
+                const subLogSheet = getKamadSheet(ss, 'KamadSubmissions_Log');
+                logRowsToArchive.forEach(r => {
+                  subLogSheet.appendRow(r.values);
+                });
+
+                const logRowsToDelete = [...logRowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+                logRowsToDelete.forEach(r => {
+                  log.deleteRow(r.rowNum);
                 });
               }
-            }
-
-            if (logMatchingRows.length + 1 > activeLimit) {
-              const logNumToArchive = (logMatchingRows.length + 1) - activeLimit;
-              const logRowsToArchive = logMatchingRows.slice(0, logNumToArchive);
-
-              const subLogSheet = getKamadSheet(ss, 'KamadSubmissions_Log');
-              logRowsToArchive.forEach(r => {
-                subLogSheet.appendRow(r.values);
-              });
-
-              const logRowsToDelete = [...logRowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
-              logRowsToDelete.forEach(r => {
-                log.deleteRow(r.rowNum);
-              });
             }
           }
         }
       }
+
+      // Selalu tambahkan submission baru ke sheet yang aktif
+      sheet.appendRow(row);
+
+      const log = getKamadSheet(ss, 'KamadSubmissions');
+      log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
+
+      return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal submit form Kamad: ' + e.toString());
     }
-
-    // Selalu tambahkan submission baru ke sheet yang aktif
-    sheet.appendRow(row);
-
-    const log = getKamadSheet(ss, 'KamadSubmissions');
-    log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
-
-    return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
-  } catch (e) {
-    return apiError('Gagal submit form Kamad: ' + e.toString());
-  }
+  });
 }
 
 /**

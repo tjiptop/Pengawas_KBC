@@ -12,6 +12,7 @@ function onOpen(e) {
 }
 
 function SetupAwal() {
+  cleanDummyData_();
   const ss = getAppDb_();
   
   // 1. Setup Sheet Users
@@ -20,7 +21,8 @@ function SetupAwal() {
   // 1b. Setup Pelatihan Sheets
   setupSheet(ss, 'Pelatihan', [
     'pelatihan_id', 'judul', 'deskripsi', 'nip_pelatih', 'provinsi', 
-    'tanggal_mulai', 'tanggal_selesai', 'status', 'created_at', 'updated_at'
+    'tanggal_mulai', 'tanggal_selesai', 'status', 'created_at', 'updated_at',
+    'invite_code', 'invite_status', 'sertifikat_doc_id', 'kategori'
   ]);
   setupSheet(ss, 'PelatihanPeserta', [
     'pelatihan_id', 'nip_peserta', 'nama_peserta', 'kabupaten', 'status'
@@ -37,10 +39,23 @@ function SetupAwal() {
     'jawaban_json', 'skor_total', 'skor_kategori_json', 'seed', 'timestamp'
   ]);
   
+  // 1c. Setup Sheets Survey, Feedback, Sertifikat
+  setupSheet(ss, 'SurveyAwal', [
+    'response_id', 'pelatihan_id', 'nip_peserta', 'jawaban_json', 'timestamp'
+  ]);
+  setupSheet(ss, 'FeedbackPelatihan', [
+    'response_id', 'pelatihan_id', 'nip_peserta', 'rating_overall', 'jawaban_json', 'timestamp'
+  ]);
+  setupSheet(ss, 'SertifikatLog', [
+    'sertifikat_id', 'pelatihan_id', 'nip_peserta', 'nama_peserta',
+    'nomor_sertifikat', 'google_doc_id', 'pdf_url', 'generated_at'
+  ]);
+
   const sheetMateriPel = setupSheet(ss, 'Materi_Pelatihan', [
     'materi_id', 'judul_materi', 'deskripsi', 'konfigurasi_template', 'konfigurasi_soal'
   ]);
   if (sheetMateriPel.getLastRow() <= 1) {
+
     sheetMateriPel.appendRow(['MAT-001', 'Kurikulum KBC', 'Materi tentang Kriteria Baseline Cepat untuk madrasah']);
     sheetMateriPel.appendRow(['MAT-002', 'Proses Pembelajaran KBC', 'Standar proses pembelajaran KBC di madrasah']);
     sheetMateriPel.appendRow(['MAT-003', 'Penilaian KBC', 'Standar penilaian dan evaluasi capaian belajar KBC']);
@@ -85,7 +100,25 @@ function SetupAwal() {
   let hasCounter = dataSettings.some(row => row[0] === 'SK_COUNTER');
   if (!hasCounter) {
     sheetSettings.appendRow(['SK_COUNTER', 0]);
-    sheetSettings.appendRow(['PHOTO_FOLDER_ID', '']); // Will be updated below
+  }
+  let hasPhotoFolder = dataSettings.some(row => row[0] === 'PHOTO_FOLDER_ID');
+  if (!hasPhotoFolder) {
+    sheetSettings.appendRow(['PHOTO_FOLDER_ID', '']);
+  }
+  // Hapus KATEGORI_PELATIHAN dari Settings jika ada
+  let kategoriRowIdx = dataSettings.findIndex(row => row[0] === 'KATEGORI_PELATIHAN');
+  if (kategoriRowIdx !== -1) {
+    sheetSettings.deleteRow(kategoriRowIdx + 1);
+  }
+  
+  // Buat folder templates default: KBC, MAGIS, Umum
+  try {
+    ['KBC', 'MAGIS', 'Umum'].forEach(kategori => {
+      createKategoriTemplate_(kategori);
+    });
+    Logger.log('Folder templates default berhasil diinisialisasi.');
+  } catch(e) {
+    Logger.log('Gagal inisialisasi folder templates: ' + e.toString());
   }
   
   // 6. Setup Drive Folder for Photos
@@ -123,6 +156,72 @@ function SetupAwal() {
   }
   
   Logger.log('Setup Selesai!');
+}
+
+function cleanDummyData_() {
+  const ss = getAppDb_();
+  
+  // 1. Clear data rows from sheets (keep header row 1)
+  const sheetsToClear = [
+    'Pelatihan',
+    'PelatihanPeserta',
+    'PelatihanMateri',
+    'PrePostSoal',
+    'PrePostResponses',
+    'SurveyAwal',
+    'FeedbackPelatihan',
+    'SertifikatLog'
+  ];
+  
+  sheetsToClear.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (sheet && sheet.getLastRow() > 1) {
+      sheet.deleteRows(2, sheet.getLastRow() - 1);
+    }
+  });
+  
+  // 2. Remove obsolete columns from sheet Pelatihan: survey_yaml, feedback_yaml, template_yaml
+  const sheetPelatihan = ss.getSheetByName('Pelatihan');
+  if (sheetPelatihan && sheetPelatihan.getLastRow() > 0) {
+    const headers = sheetPelatihan.getRange(1, 1, 1, sheetPelatihan.getLastColumn()).getValues()[0];
+    const colsToDelete = ['survey_yaml', 'feedback_yaml', 'template_yaml'];
+    
+    // Delete columns from right to left to avoid index shifting
+    for (let i = headers.length - 1; i >= 0; i--) {
+      if (colsToDelete.indexOf(headers[i]) !== -1) {
+        sheetPelatihan.deleteColumn(i + 1);
+      }
+    }
+  }
+  
+  // 3. Remove row KATEGORI_PELATIHAN from Settings sheet
+  const sheetSettings = ss.getSheetByName('Settings');
+  if (sheetSettings && sheetSettings.getLastRow() > 1) {
+    const dataSettings = sheetSettings.getDataRange().getValues();
+    for (let i = dataSettings.length - 1; i >= 1; i--) {
+      if (String(dataSettings[i][0]).trim() === 'KATEGORI_PELATIHAN') {
+        sheetSettings.deleteRow(i + 1);
+      }
+    }
+  }
+  
+  // 4. Delete dummy training folders from Drive
+  try {
+    const parentIterator = DriveApp.getFileById(APP_DB_ID).getParents();
+    const appDbFolder = parentIterator.hasNext() ? parentIterator.next() : DriveApp.getRootFolder();
+    
+    const pFolders = appDbFolder.getFoldersByName('pelatihan');
+    if (pFolders.hasNext()) {
+      const pelatihanFolder = pFolders.next();
+      const subfolders = pelatihanFolder.getFolders();
+      while (subfolders.hasNext()) {
+        const sub = subfolders.next();
+        sub.setTrashed(true); // Move to trash (safe delete)
+      }
+    }
+  } catch(e) {
+    Logger.log('Gagal membersihkan folder pelatihan di Drive: ' + e.toString());
+  }
 }
 
 function setupSheet(ss, sheetName, headers) {

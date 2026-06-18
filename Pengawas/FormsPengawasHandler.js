@@ -58,112 +58,114 @@ function apiGetFormDefinition(formId) {
  * @returns {object} Response standard dengan submission ID
  */
 function apiSubmitForm(payload) {
-  if (!payload || !payload.nip || !payload.formId) {
-    return apiError('Payload tidak lengkap.', 'VALIDATION');
-  }
-  try {
-    payload = sanitizeObject(payload);
-
-    // Process and upload base64 attachments to Google Drive in upload/<NIP>/attach/
-    if (payload.data) {
-      payload.data = processFormAttachments(payload.nip, payload.data);
+  return executeWithLock_(() => {
+    if (!payload || !payload.nip || !payload.formId) {
+      return apiError('Payload tidak lengkap.', 'VALIDATION');
     }
+    try {
+      payload = sanitizeObject(payload);
 
-    const ss = getAppDb_();
-    const submissionId = 'SUB-' + Utilities.getUuid().substring(0, 8).toUpperCase();
-    const timestamp = new Date();
-    const dataJson = JSON.stringify(payload.data || {});
-    const nsmMadrasah = payload.nsmMadrasah || 'N/A';
-    const status = 'final';
+      // Process and upload base64 attachments to Google Drive in upload/<NIP>/attach/
+      if (payload.data) {
+        payload.data = processFormAttachments(payload.nip, payload.data);
+      }
 
-    // 1. Tentukan target sheet dari YAML form
-    let target = 'Form_Responses';
-    const forms = getPengawasForms();
-    const yaml = forms[payload.formId] || '';
-    const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
-    if (match) {
-      target = match[2].trim();
-    }
+      const ss = getAppDb_();
+      const submissionId = 'SUB-' + Utilities.getUuid().substring(0, 8).toUpperCase();
+      const timestamp = new Date();
+      const dataJson = JSON.stringify(payload.data || {});
+      const nsmMadrasah = payload.nsmMadrasah || 'N/A';
+      const status = 'final';
 
-    // 2. Tulis ke target sheet spesifik jika berbeda dari Form_Responses
-    if (target !== 'Form_Responses') {
-      let sheet = ss.getSheetByName(target);
-      const keys = Object.keys(payload.data || {});
-      const standardHeaders = ['submission_id', 'madrasah_id', 'timestamp', 'username'];
+      // 1. Tentukan target sheet dari YAML form
+      let target = 'Form_Responses';
+      const forms = getPengawasForms();
+      const yaml = forms[payload.formId] || '';
+      const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
+      if (match) {
+        target = match[2].trim();
+      }
 
-      if (!sheet) {
-        sheet = ss.insertSheet(target);
-        const headers = [...standardHeaders, ...keys];
-        sheet.appendRow(headers);
-        sheet.getRange(1, 1, 1, headers.length)
-             .setFontWeight('bold')
-             .setBackground('#d9ead3');
-        sheet.setFrozenRows(1);
-      } else {
-        // Auto-Column Add (Safe)
-        let headers = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim()) : [];
-        if (headers.length === 0) {
-          headers = [...standardHeaders, ...keys];
+      // 2. Tulis ke target sheet spesifik jika berbeda dari Form_Responses
+      if (target !== 'Form_Responses') {
+        let sheet = ss.getSheetByName(target);
+        const keys = Object.keys(payload.data || {});
+        const standardHeaders = ['submission_id', 'madrasah_id', 'timestamp', 'username'];
+
+        if (!sheet) {
+          sheet = ss.insertSheet(target);
+          const headers = [...standardHeaders, ...keys];
           sheet.appendRow(headers);
           sheet.getRange(1, 1, 1, headers.length)
                .setFontWeight('bold')
                .setBackground('#d9ead3');
           sheet.setFrozenRows(1);
         } else {
-          const missing = keys.filter(k => !headers.includes(k));
-          if (missing.length > 0) {
-            sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
-            sheet.getRange(1, headers.length + 1, 1, missing.length)
+          // Auto-Column Add (Safe)
+          let headers = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim()) : [];
+          if (headers.length === 0) {
+            headers = [...standardHeaders, ...keys];
+            sheet.appendRow(headers);
+            sheet.getRange(1, 1, 1, headers.length)
                  .setFontWeight('bold')
                  .setBackground('#d9ead3');
-            headers = [...headers, ...missing];
+            sheet.setFrozenRows(1);
+          } else {
+            const missing = keys.filter(k => !headers.includes(k));
+            if (missing.length > 0) {
+              sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+              sheet.getRange(1, headers.length + 1, 1, missing.length)
+                   .setFontWeight('bold')
+                   .setBackground('#d9ead3');
+              headers = [...headers, ...missing];
+            }
           }
         }
+
+        // Ambil headers ter-update untuk memetakan row
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+        const row = headers.map(h => {
+          if (h === 'submission_id') return submissionId;
+          if (h === 'madrasah_id') return nsmMadrasah;
+          if (h === 'timestamp') return timestamp;
+          if (h === 'username') return String(payload.nip).trim();
+          let val = (payload.data || {})[h];
+          if (val === undefined || val === null) return '';
+          if (typeof val === 'object') return JSON.stringify(val);
+          return val;
+        });
+        sheet.appendRow(row);
+
+        // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada
+        const tableFields = extractTableFieldsFromYAML(yaml);
+        writeTableDataToSheets(ss, target, tableFields, payload.data || {}, submissionId, nsmMadrasah, timestamp);
       }
 
-      // Ambil headers ter-update untuk memetakan row
-      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
-      const row = headers.map(h => {
-        if (h === 'submission_id') return submissionId;
-        if (h === 'madrasah_id') return nsmMadrasah;
-        if (h === 'timestamp') return timestamp;
-        if (h === 'username') return String(payload.nip).trim();
-        let val = (payload.data || {})[h];
-        if (val === undefined || val === null) return '';
-        if (typeof val === 'object') return JSON.stringify(val);
-        return val;
-      });
-      sheet.appendRow(row);
+      // 4. Selalu catat rekap pusat ke sheet Form_Responses (untuk history & backup)
+      let logSheet = ss.getSheetByName('Form_Responses');
+      if (!logSheet) {
+        logSheet = ss.insertSheet('Form_Responses');
+        const headers = ['Submission_ID', 'Timestamp', 'NIP', 'Form_ID', 'NSM_Madrasah', 'Status', 'Data_JSON'];
+        logSheet.appendRow(headers);
+        logSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#d9ead3');
+        logSheet.setFrozenRows(1);
+      }
+      
+      logSheet.appendRow([
+        submissionId,
+        timestamp,
+        String(payload.nip).trim(),
+        String(payload.formId).trim(),
+        nsmMadrasah,
+        status,
+        dataJson
+      ]);
 
-      // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada
-      const tableFields = extractTableFieldsFromYAML(yaml);
-      writeTableDataToSheets(ss, target, tableFields, payload.data || {}, submissionId, nsmMadrasah, timestamp);
+      return apiSuccess({ submissionId: submissionId }, 'Form berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal menyimpan formulir: ' + e.toString(), 'SUBMIT_ERROR');
     }
-
-    // 4. Selalu catat rekap pusat ke sheet Form_Responses (untuk history & backup)
-    let logSheet = ss.getSheetByName('Form_Responses');
-    if (!logSheet) {
-      logSheet = ss.insertSheet('Form_Responses');
-      const headers = ['Submission_ID', 'Timestamp', 'NIP', 'Form_ID', 'NSM_Madrasah', 'Status', 'Data_JSON'];
-      logSheet.appendRow(headers);
-      logSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#d9ead3');
-      logSheet.setFrozenRows(1);
-    }
-    
-    logSheet.appendRow([
-      submissionId,
-      timestamp,
-      String(payload.nip).trim(),
-      String(payload.formId).trim(),
-      nsmMadrasah,
-      status,
-      dataJson
-    ]);
-
-    return apiSuccess({ submissionId: submissionId }, 'Form berhasil disimpan.');
-  } catch (e) {
-    return apiError('Gagal menyimpan formulir: ' + e.toString(), 'SUBMIT_ERROR');
-  }
+  });
 }
 
 /**

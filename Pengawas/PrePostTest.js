@@ -246,90 +246,100 @@ function shuffleArray_(array, randFn) {
 // ============================================================
 
 function apiCreatePrePostSoal(pelatihanId, yamlDef, sessionToken) {
-  try {
-    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
-      return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal pelatihan ini.', 'FORBIDDEN');
-    }
-    if (!pelatihanId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
-    const ss = getAppDb_();
-    const sheet = ss.getSheetByName('PrePostSoal');
-    if (!sheet) return apiError('Sheet PrePostSoal tidak ditemukan.', 'SYSTEM_ERROR');
-    
-    // Cek apakah sudah ada soal untuk pelatihan ini
-    const data = sheet.getDataRange().getValues();
-    const idxPid = data[0].indexOf('pelatihan_id');
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxPid]).trim() === String(pelatihanId).trim()) {
-        return apiError('Soal pre/post test untuk pelatihan ini sudah ada. Gunakan update.', 'ALREADY_EXISTS');
+  return executeWithLock_(() => {
+    try {
+      if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+        return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal pelatihan ini.', 'FORBIDDEN');
       }
+      if (!pelatihanId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('PrePostSoal');
+      if (!sheet) return apiError('Sheet PrePostSoal tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      // Cek apakah sudah ada soal untuk pelatihan ini
+      const data = sheet.getDataRange().getValues();
+      const idxPid = data[0].indexOf('pelatihan_id');
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxPid]).trim() === String(pelatihanId).trim()) {
+          return apiError('Soal pre/post test untuk pelatihan ini sudah ada. Gunakan update.', 'ALREADY_EXISTS');
+        }
+      }
+      
+      // Validasi parse YAML
+      const parsed = parsePrePostYaml_(yamlDef);
+      if (!parsed || parsed.questions.length === 0) {
+        return apiError('Format YAML tidak valid atau tidak memiliki pertanyaan.', 'YAML_PARSE_ERROR');
+      }
+      
+      const soalId = 'SOAL-' + Utilities.getUuid().substring(0, 8).toUpperCase();
+      const newRow = [
+        soalId,
+        pelatihanId,
+        JSON.stringify(parsed), // Cache dan simpan sebagai JSON agar pemrosesan lebih cepat
+        'draft', // status_pre
+        'draft', // status_post
+        '', // pre_dibuka_pada
+        '', // pre_ditutup_pada
+        '', // post_dibuka_pada
+        ''  // post_ditutup_pada
+      ];
+      
+      sheet.appendRow(newRow);
+      
+      // Drive writing has been removed.
+      
+      return apiSuccess({ soal_id: soalId }, 'Definisi soal Pre/Post Test berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal membuat soal: ' + e.toString(), 'SYSTEM_ERROR');
     }
-    
-    // Validasi parse YAML
-    const parsed = parsePrePostYaml_(yamlDef);
-    if (!parsed || parsed.questions.length === 0) {
-      return apiError('Format YAML tidak valid atau tidak memiliki pertanyaan.', 'YAML_PARSE_ERROR');
-    }
-    
-    const soalId = 'SOAL-' + Utilities.getUuid().substring(0, 8).toUpperCase();
-    const newRow = [
-      soalId,
-      pelatihanId,
-      JSON.stringify(parsed), // Cache dan simpan sebagai JSON agar pemrosesan lebih cepat
-      'draft', // status_pre
-      'draft', // status_post
-      '', // pre_dibuka_pada
-      '', // pre_ditutup_pada
-      '', // post_dibuka_pada
-      ''  // post_ditutup_pada
-    ];
-    
-    sheet.appendRow(newRow);
-    return apiSuccess({ soal_id: soalId }, 'Definisi soal Pre/Post Test berhasil disimpan.');
-  } catch (e) {
-    return apiError('Gagal membuat soal: ' + e.toString(), 'SYSTEM_ERROR');
-  }
+  });
 }
 
 function apiUpdatePrePostSoal(soalId, yamlDef, sessionToken) {
-  try {
-    if (!checkSoalOwnership_(soalId, sessionToken)) {
-      return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal ini.', 'FORBIDDEN');
-    }
-    if (!soalId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
-    const ss = getAppDb_();
-    const sheet = ss.getSheetByName('PrePostSoal');
-    if (!sheet) return apiError('Sheet PrePostSoal tidak ditemukan.', 'SYSTEM_ERROR');
-    
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const idxId = headers.indexOf('soal_id');
-    const idxYaml = headers.indexOf('yaml_definition');
-    const idxSPre = headers.indexOf('status_pre');
-    const idxSPost = headers.indexOf('status_post');
-    
-    // Validasi parse YAML
-    const parsed = parsePrePostYaml_(yamlDef);
-    if (!parsed || parsed.questions.length === 0) {
-      return apiError('Format YAML tidak valid atau tidak memiliki pertanyaan.', 'YAML_PARSE_ERROR');
-    }
-    
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === String(soalId).trim()) {
-        const sPre = String(data[i][idxSPre]).trim().toLowerCase();
-        const sPost = String(data[i][idxSPost]).trim().toLowerCase();
-        
-        if (sPre !== 'draft' || sPost !== 'draft') {
-          return apiError('Soal tidak dapat diubah karena test sudah pernah dibuka.', 'INVALID_STATUS');
-        }
-        
-        sheet.getRange(i + 1, idxYaml + 1).setValue(JSON.stringify(parsed)); // Cache dan simpan sebagai JSON
-        return apiSuccess(null, 'Definisi soal Pre/Post Test berhasil diperbarui.');
+  return executeWithLock_(() => {
+    try {
+      if (!checkSoalOwnership_(soalId, sessionToken)) {
+        return apiError('Anda tidak memiliki akses untuk mengonfigurasi soal ini.', 'FORBIDDEN');
       }
+      if (!soalId || !yamlDef) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('PrePostSoal');
+      if (!sheet) return apiError('Sheet PrePostSoal tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const idxId = headers.indexOf('soal_id');
+      const idxYaml = headers.indexOf('yaml_definition');
+      const idxSPre = headers.indexOf('status_pre');
+      const idxSPost = headers.indexOf('status_post');
+      
+      // Validasi parse YAML
+      const parsed = parsePrePostYaml_(yamlDef);
+      if (!parsed || parsed.questions.length === 0) {
+        return apiError('Format YAML tidak valid atau tidak memiliki pertanyaan.', 'YAML_PARSE_ERROR');
+      }
+      
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxId]).trim() === String(soalId).trim()) {
+          const sPre = String(data[i][idxSPre]).trim().toLowerCase();
+          const sPost = String(data[i][idxSPost]).trim().toLowerCase();
+          
+          if (sPre !== 'draft' || sPost !== 'draft') {
+            return apiError('Soal tidak dapat diubah karena test sudah pernah dibuka.', 'INVALID_STATUS');
+          }
+          
+          sheet.getRange(i + 1, idxYaml + 1).setValue(JSON.stringify(parsed)); // Cache dan simpan sebagai JSON
+          
+          // Drive writing has been removed.
+          
+          return apiSuccess(null, 'Definisi soal Pre/Post Test berhasil diperbarui.');
+        }
+      }
+      return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
+    } catch (e) {
+      return apiError('Gagal memperbarui soal: ' + e.toString(), 'SYSTEM_ERROR');
     }
-    return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
-  } catch (e) {
-    return apiError('Gagal memperbarui soal: ' + e.toString(), 'SYSTEM_ERROR');
-  }
+  });
 }
 
 function apiGetPrePostSoal(soalId) {
@@ -571,229 +581,231 @@ function apiGetTestUntukPeserta(soalId, nipPeserta, tipe) {
  * @returns {object} Response standard dengan hasil skor
  */
 function apiSubmitTestJawaban(soalId, nipPeserta, tipe, jawaban) {
-  try {
-    if (!soalId || !nipPeserta || !tipe || !jawaban) {
-      return apiError('Parameter tidak lengkap.', 'VALIDATION');
-    }
-    
-    const ss = getAppDb_();
-    
-    // 1. Load Soal & status
-    const sheetSoal = ss.getSheetByName('PrePostSoal');
-    if (!sheetSoal) return apiError('Sheet Soal tidak ditemukan.', 'SYSTEM_ERROR');
-    
-    const dataS = sheetSoal.getDataRange().getValues();
-    const idxId = dataS[0].indexOf('soal_id');
-    const idxYaml = dataS[0].indexOf('yaml_definition');
-    const idxSPre = dataS[0].indexOf('status_pre');
-    const idxSPost = dataS[0].indexOf('status_post');
-    const idxPelId = dataS[0].indexOf('pelatihan_id');
-    
-    let soalRow = null;
-    for (let i = 1; i < dataS.length; i++) {
-      if (String(dataS[i][idxId]).trim() === String(soalId).trim()) {
-        soalRow = dataS[i];
-        break;
+  return executeWithLock_(() => {
+    try {
+      if (!soalId || !nipPeserta || !tipe || !jawaban) {
+        return apiError('Parameter tidak lengkap.', 'VALIDATION');
       }
-    }
-    if (!soalRow) return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
-    
-    const pelatihanId = soalRow[idxPelId];
-    const statusPre = String(soalRow[idxSPre]).toLowerCase();
-    const statusPost = String(soalRow[idxSPost]).toLowerCase();
-    
-    // Cek apakah test aktif
-    if (tipe === 'pretest' && statusPre !== 'aktif') {
-      return apiError('Pre-Test tidak aktif.', 'TEST_INACTIVE');
-    }
-    if (tipe === 'posttest' && statusPost !== 'aktif') {
-      return apiError('Post-Test tidak aktif.', 'TEST_INACTIVE');
-    }
-    
-    // Validasi batas waktu pengerjaan
-    const testConfigTmp = getTestConfigFromCell_(soalRow[idxYaml]);
-    if (testConfigTmp && testConfigTmp.time_limit_minutes > 0) {
-      const cache = CacheService.getScriptCache();
-      const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
-      const startTimeStr = cache.get(startKey);
-      if (startTimeStr) {
-        const startTime = new Date(startTimeStr);
-        const now = new Date();
-        const elapsedMinutes = (now - startTime) / 60000;
-        const limitMinutes = parseInt(testConfigTmp.time_limit_minutes);
-        
-        // Batas toleransi delay pengiriman 2 menit
-        if (elapsedMinutes > (limitMinutes + 2)) {
-          return apiError('Batas waktu pengerjaan ujian telah habis. Jawaban Anda tidak dapat diterima.', 'TIME_LIMIT_EXCEEDED');
+      
+      const ss = getAppDb_();
+      
+      // 1. Load Soal & status
+      const sheetSoal = ss.getSheetByName('PrePostSoal');
+      if (!sheetSoal) return apiError('Sheet Soal tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      const dataS = sheetSoal.getDataRange().getValues();
+      const idxId = dataS[0].indexOf('soal_id');
+      const idxYaml = dataS[0].indexOf('yaml_definition');
+      const idxSPre = dataS[0].indexOf('status_pre');
+      const idxSPost = dataS[0].indexOf('status_post');
+      const idxPelId = dataS[0].indexOf('pelatihan_id');
+      
+      let soalRow = null;
+      for (let i = 1; i < dataS.length; i++) {
+        if (String(dataS[i][idxId]).trim() === String(soalId).trim()) {
+          soalRow = dataS[i];
+          break;
         }
       }
-    }
-    
-    // 2. Cek apakah sudah pernah submit tipe ini
-    const sheetResp = ss.getSheetByName('PrePostResponses');
-    if (!sheetResp) return apiError('Sheet responses tidak ditemukan.', 'SYSTEM_ERROR');
-    
-    const dataResp = sheetResp.getDataRange().getValues();
-    const idxPid = dataResp[0].indexOf('pelatihan_id');
-    const idxNip = dataResp[0].indexOf('nip_peserta');
-    const idxType = dataResp[0].indexOf('tipe');
-    
-    const nipStr = String(nipPeserta).trim();
-    for (let i = 1; i < dataResp.length; i++) {
-      if (String(dataResp[i][idxPid]).trim() === String(pelatihanId).trim() && 
-          String(dataResp[i][idxNip]).trim() === nipStr && 
-          String(dataResp[i][idxType]).trim().toLowerCase() === tipe.toLowerCase()) {
-        return apiError('Anda sudah mengumpulkan test ini sebelumnya.', 'ALREADY_SUBMITTED');
+      if (!soalRow) return apiError('Soal tidak ditemukan.', 'NOT_FOUND');
+      
+      const pelatihanId = soalRow[idxPelId];
+      const statusPre = String(soalRow[idxSPre]).toLowerCase();
+      const statusPost = String(soalRow[idxSPost]).toLowerCase();
+      
+      // Cek apakah test aktif
+      if (tipe === 'pretest' && statusPre !== 'aktif') {
+        return apiError('Pre-Test tidak aktif.', 'TEST_INACTIVE');
       }
-    }
-    
-    // 3. Load YAML asli untuk grading
-    const testConfig = getTestConfigFromCell_(soalRow[idxYaml]);
-    if (!testConfig) return apiError('Gagal memproses soal YAML.', 'YAML_PARSE_ERROR');
-    
-    // 4. Hitung Skor Otomatis
-    let totalQuestions = testConfig.questions.length;
-    if (totalQuestions === 0) return apiError('Soal tidak valid.', 'NO_QUESTIONS');
-    
-    let sumScore = 0.0;
-    let categoryScoresMap = {}; // categoryName: { totalPoints: 0, count: 0 }
-    
-    testConfig.questions.forEach(q => {
-      let qName = q.name;
-      let qType = q.type;
-      let qCat = q.category || 'Umum';
-      let qAns = q.answer;
+      if (tipe === 'posttest' && statusPost !== 'aktif') {
+        return apiError('Post-Test tidak aktif.', 'TEST_INACTIVE');
+      }
       
-      let uAns = jawaban[qName];
-      let score = 0.0;
+      // Validasi batas waktu pengerjaan
+      const testConfigTmp = getTestConfigFromCell_(soalRow[idxYaml]);
+      if (testConfigTmp && testConfigTmp.time_limit_minutes > 0) {
+        const cache = CacheService.getScriptCache();
+        const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
+        const startTimeStr = cache.get(startKey);
+        if (startTimeStr) {
+          const startTime = new Date(startTimeStr);
+          const now = new Date();
+          const elapsedMinutes = (now - startTime) / 60000;
+          const limitMinutes = parseInt(testConfigTmp.time_limit_minutes);
+          
+          // Batas toleransi delay pengiriman 2 menit
+          if (elapsedMinutes > (limitMinutes + 2)) {
+            return apiError('Batas waktu pengerjaan ujian telah habis. Jawaban Anda tidak dapat diterima.', 'TIME_LIMIT_EXCEEDED');
+          }
+        }
+      }
       
-      if (uAns !== undefined && uAns !== null) {
-        if (qType === 'radio' || qType === 'boolean') {
-          // Case-insensitive comparison
-          if (String(uAns).trim().toLowerCase() === String(qAns).trim().toLowerCase()) {
-            score = 1.0;
-          }
-        } 
-        else if (qType === 'checkbox') {
-          // Checklist multiple options
-          if (Array.isArray(uAns) && Array.isArray(qAns)) {
-            let userSet = new Set(uAns.map(v => String(v).trim().toLowerCase()));
-            let correctSet = new Set(qAns.map(v => String(v).trim().toLowerCase()));
-            
-            let correctChosen = 0;
-            let wrongChosen = 0;
-            
-            userSet.forEach(item => {
-              if (correctSet.has(item)) correctChosen++;
-              else wrongChosen++;
-            });
-            
-            let pts = correctChosen - wrongChosen;
-            if (pts < 0) pts = 0;
-            score = qAns.length > 0 ? (pts / qAns.length) : 0;
-          }
-        } 
-        else if (qType === 'matching') {
-          // Memasangkan pasangan key-value
-          if (typeof uAns === 'object' && typeof qAns === 'object' && uAns !== null && qAns !== null) {
-            let correctPairs = 0;
-            let totalPairs = Object.keys(qAns).length;
-            
-            for (let leftKey in qAns) {
-              let userVal = uAns[leftKey];
-              let correctVal = qAns[leftKey];
-              if (userVal !== undefined && String(userVal).trim().toLowerCase() === String(correctVal).trim().toLowerCase()) {
-                correctPairs++;
-              }
+      // 2. Cek apakah sudah pernah submit tipe ini
+      const sheetResp = ss.getSheetByName('PrePostResponses');
+      if (!sheetResp) return apiError('Sheet responses tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      const dataResp = sheetResp.getDataRange().getValues();
+      const idxPid = dataResp[0].indexOf('pelatihan_id');
+      const idxNip = dataResp[0].indexOf('nip_peserta');
+      const idxType = dataResp[0].indexOf('tipe');
+      
+      const nipStr = String(nipPeserta).trim();
+      for (let i = 1; i < dataResp.length; i++) {
+        if (String(dataResp[i][idxPid]).trim() === String(pelatihanId).trim() && 
+            String(dataResp[i][idxNip]).trim() === nipStr && 
+            String(dataResp[i][idxType]).trim().toLowerCase() === tipe.toLowerCase()) {
+          return apiError('Anda sudah mengumpulkan test ini sebelumnya.', 'ALREADY_SUBMITTED');
+        }
+      }
+      
+      // 3. Load YAML asli untuk grading
+      const testConfig = getTestConfigFromCell_(soalRow[idxYaml]);
+      if (!testConfig) return apiError('Gagal memproses soal YAML.', 'YAML_PARSE_ERROR');
+      
+      // 4. Hitung Skor Otomatis
+      let totalQuestions = testConfig.questions.length;
+      if (totalQuestions === 0) return apiError('Soal tidak valid.', 'NO_QUESTIONS');
+      
+      let sumScore = 0.0;
+      let categoryScoresMap = {}; // categoryName: { totalPoints: 0, count: 0 }
+      
+      testConfig.questions.forEach(q => {
+        let qName = q.name;
+        let qType = q.type;
+        let qCat = q.category || 'Umum';
+        let qAns = q.answer;
+        
+        let uAns = jawaban[qName];
+        let score = 0.0;
+        
+        if (uAns !== undefined && uAns !== null) {
+          if (qType === 'radio' || qType === 'boolean') {
+            // Case-insensitive comparison
+            if (String(uAns).trim().toLowerCase() === String(qAns).trim().toLowerCase()) {
+              score = 1.0;
             }
-            score = totalPairs > 0 ? (correctPairs / totalPairs) : 0.0;
+          } 
+          else if (qType === 'checkbox') {
+            // Checklist multiple options
+            if (Array.isArray(uAns) && Array.isArray(qAns)) {
+              let userSet = new Set(uAns.map(v => String(v).trim().toLowerCase()));
+              let correctSet = new Set(qAns.map(v => String(v).trim().toLowerCase()));
+              
+              let correctChosen = 0;
+              let wrongChosen = 0;
+              
+              userSet.forEach(item => {
+                if (correctSet.has(item)) correctChosen++;
+                else wrongChosen++;
+              });
+              
+              let pts = correctChosen - wrongChosen;
+              if (pts < 0) pts = 0;
+              score = qAns.length > 0 ? (pts / qAns.length) : 0;
+            }
+          } 
+          else if (qType === 'matching') {
+            // Memasangkan pasangan key-value
+            if (typeof uAns === 'object' && typeof qAns === 'object' && uAns !== null && qAns !== null) {
+              let correctPairs = 0;
+              let totalPairs = Object.keys(qAns).length;
+              
+              for (let leftKey in qAns) {
+                let userVal = uAns[leftKey];
+                let correctVal = qAns[leftKey];
+                if (userVal !== undefined && String(userVal).trim().toLowerCase() === String(correctVal).trim().toLowerCase()) {
+                  correctPairs++;
+                }
+              }
+              score = totalPairs > 0 ? (correctPairs / totalPairs) : 0.0;
+            }
+          }
+        }
+        
+        sumScore += score;
+        
+        // Tambahkan ke kategori
+        if (!categoryScoresMap[qCat]) {
+          categoryScoresMap[qCat] = { sum: 0.0, count: 0 };
+        }
+        categoryScoresMap[qCat].sum += score;
+        categoryScoresMap[qCat].count += 1;
+      });
+      
+      // Hitung persentase skor total (0-100)
+      let skorTotal = (sumScore / totalQuestions) * 100.0;
+      // Rata-rata dibulatkan 2 desimal
+      skorTotal = Math.round(skorTotal * 100) / 100;
+      
+      // Hitung skor per kategori
+      let skorKategoriObj = {};
+      Object.keys(categoryScoresMap).forEach(cat => {
+        let percent = (categoryScoresMap[cat].sum / categoryScoresMap[cat].count) * 100.0;
+        skorKategoriObj[cat] = Math.round(percent * 100) / 100;
+      });
+      
+      // 5. Simpan Response ke Sheet
+      const responseId = 'PPR-' + Utilities.getUuid().substring(0, 8).toUpperCase();
+      const cache = CacheService.getScriptCache();
+      const cacheKey = 'seed_' + soalId + '_' + nipPeserta + '_' + tipe;
+      let seedUsed = cache.get(cacheKey) || '0';
+      
+      const newResponseRow = [
+        responseId,
+        soalId,
+        pelatihanId,
+        nipStr,
+        tipe.toLowerCase(),
+        JSON.stringify(jawaban),
+        skorTotal,
+        JSON.stringify(skorKategoriObj),
+        seedUsed,
+        new Date().toISOString()
+      ];
+      
+      sheetResp.appendRow(newResponseRow);
+      
+      // Update status kehadiran di PelatihanPeserta jika ini pretest
+      if (tipe.toLowerCase() === 'pretest') {
+        const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+        if (sheetPeserta && sheetPeserta.getLastRow() > 1) {
+          const dtPes = sheetPeserta.getDataRange().getValues();
+          const pIdIdx = dtPes[0].indexOf('pelatihan_id');
+          const nipIdx = dtPes[0].indexOf('nip_peserta');
+          const statIdx = dtPes[0].indexOf('status');
+          
+          for (let i = 1; i < dtPes.length; i++) {
+            if (String(dtPes[i][pIdIdx]).trim() === String(pelatihanId).trim() && 
+                String(dtPes[i][nipIdx]).trim() === nipStr) {
+              sheetPeserta.getRange(i + 1, statIdx + 1).setValue('hadir');
+              break;
+            }
+          }
+        }
+      } else if (tipe.toLowerCase() === 'posttest') {
+        // Selesaikan kehadiran di PelatihanPeserta jika ini posttest
+        const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+        if (sheetPeserta && sheetPeserta.getLastRow() > 1) {
+          const dtPes = sheetPeserta.getDataRange().getValues();
+          const pIdIdx = dtPes[0].indexOf('pelatihan_id');
+          const nipIdx = dtPes[0].indexOf('nip_peserta');
+          const statIdx = dtPes[0].indexOf('status');
+          
+          for (let i = 1; i < dtPes.length; i++) {
+            if (String(dtPes[i][pIdIdx]).trim() === String(pelatihanId).trim() && 
+                String(dtPes[i][nipIdx]).trim() === nipStr) {
+              sheetPeserta.getRange(i + 1, statIdx + 1).setValue('selesai');
+              break;
+            }
           }
         }
       }
       
-      sumScore += score;
-      
-      // Tambahkan ke kategori
-      if (!categoryScoresMap[qCat]) {
-        categoryScoresMap[qCat] = { sum: 0.0, count: 0 };
-      }
-      categoryScoresMap[qCat].sum += score;
-      categoryScoresMap[qCat].count += 1;
-    });
-    
-    // Hitung persentase skor total (0-100)
-    let skorTotal = (sumScore / totalQuestions) * 100.0;
-    // Rata-rata dibulatkan 2 desimal
-    skorTotal = Math.round(skorTotal * 100) / 100;
-    
-    // Hitung skor per kategori
-    let skorKategoriObj = {};
-    Object.keys(categoryScoresMap).forEach(cat => {
-      let percent = (categoryScoresMap[cat].sum / categoryScoresMap[cat].count) * 100.0;
-      skorKategoriObj[cat] = Math.round(percent * 100) / 100;
-    });
-    
-    // 5. Simpan Response ke Sheet
-    const responseId = 'PPR-' + Utilities.getUuid().substring(0, 8).toUpperCase();
-    const cache = CacheService.getScriptCache();
-    const cacheKey = 'seed_' + soalId + '_' + nipPeserta + '_' + tipe;
-    let seedUsed = cache.get(cacheKey) || '0';
-    
-    const newResponseRow = [
-      responseId,
-      soalId,
-      pelatihanId,
-      nipStr,
-      tipe.toLowerCase(),
-      JSON.stringify(jawaban),
-      skorTotal,
-      JSON.stringify(skorKategoriObj),
-      seedUsed,
-      new Date().toISOString()
-    ];
-    
-    sheetResp.appendRow(newResponseRow);
-    
-    // Update status kehadiran di PelatihanPeserta jika ini pretest
-    if (tipe.toLowerCase() === 'pretest') {
-      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
-      if (sheetPeserta && sheetPeserta.getLastRow() > 1) {
-        const dtPes = sheetPeserta.getDataRange().getValues();
-        const pIdIdx = dtPes[0].indexOf('pelatihan_id');
-        const nipIdx = dtPes[0].indexOf('nip_peserta');
-        const statIdx = dtPes[0].indexOf('status');
-        
-        for (let i = 1; i < dtPes.length; i++) {
-          if (String(dtPes[i][pIdIdx]).trim() === String(pelatihanId).trim() && 
-              String(dtPes[i][nipIdx]).trim() === nipStr) {
-            sheetPeserta.getRange(i + 1, statIdx + 1).setValue('hadir');
-            break;
-          }
-        }
-      }
-    } else if (tipe.toLowerCase() === 'posttest') {
-      // Selesaikan kehadiran di PelatihanPeserta jika ini posttest
-      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
-      if (sheetPeserta && sheetPeserta.getLastRow() > 1) {
-        const dtPes = sheetPeserta.getDataRange().getValues();
-        const pIdIdx = dtPes[0].indexOf('pelatihan_id');
-        const nipIdx = dtPes[0].indexOf('nip_peserta');
-        const statIdx = dtPes[0].indexOf('status');
-        
-        for (let i = 1; i < dtPes.length; i++) {
-          if (String(dtPes[i][pIdIdx]).trim() === String(pelatihanId).trim() && 
-              String(dtPes[i][nipIdx]).trim() === nipStr) {
-            sheetPeserta.getRange(i + 1, statIdx + 1).setValue('selesai');
-            break;
-          }
-        }
-      }
+      return apiSuccess({ skor: skorTotal }, 'Jawaban berhasil dikirim.');
+    } catch (e) {
+      return apiError('Gagal mengirim jawaban: ' + e.toString(), 'SYSTEM_ERROR');
     }
-    
-    return apiSuccess({ skor: skorTotal }, 'Jawaban berhasil dikirim.');
-  } catch (e) {
-    return apiError('Gagal mengirim jawaban: ' + e.toString(), 'SYSTEM_ERROR');
-  }
+  });
 }
 
 /**

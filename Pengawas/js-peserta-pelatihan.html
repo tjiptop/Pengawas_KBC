@@ -104,7 +104,69 @@ const PesertaViews = {
                 </div>
             </div>
         </div>
+
+        <!-- ===== MODAL: SURVEY AWAL ===== -->
+        <div id="survey-awal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:flex-end; justify-content:center; z-index:10000; backdrop-filter:blur(4px);">
+            <div style="background:var(--color-bg-elevated); border-radius:20px 20px 0 0; padding:24px 20px 32px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; box-shadow:0 -8px 30px rgba(0,0,0,0.2);">
+                <div style="text-align:center; margin-bottom:20px;">
+                    <div style="font-size:2.5rem; margin-bottom:8px;">🗒️</div>
+                    <h3 id="survey-awal-title" style="font-size:1.1rem; font-weight:800; margin:0 0 6px 0; color:var(--color-text);">Survey Awal</h3>
+                    <p id="survey-awal-desc" style="font-size:0.82rem; color:var(--color-text-light); margin:0;">Bantu kami mengenal harapan Anda sebelum memulai pelatihan.</p>
+                </div>
+                <div id="survey-awal-questions" style="display:flex;flex-direction:column;gap:18px;"></div>
+                <div style="margin-top:24px; display:flex; gap:10px;">
+                    <button class="btn btn-secondary" onclick="PesertaManager.skipSurveyAwal()" style="flex:1; padding:12px; font-size:0.85rem;">Lewati</button>
+                    <button class="btn btn-primary" onclick="PesertaManager.submitSurveyAwal()" style="flex:2; padding:12px; font-size:0.9rem; font-weight:700;">Mulai Pelatihan ➜</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MODAL: FEEDBACK AKHIR ===== -->
+        <div id="feedback-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:flex-end; justify-content:center; z-index:10000; backdrop-filter:blur(4px);">
+            <div style="background:var(--color-bg-elevated); border-radius:20px 20px 0 0; padding:24px 20px 32px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; box-shadow:0 -8px 30px rgba(0,0,0,0.2);">
+                <div style="text-align:center; margin-bottom:20px;">
+                    <div style="font-size:2.5rem; margin-bottom:8px;">⭐</div>
+                    <h3 id="feedback-title" style="font-size:1.1rem; font-weight:800; margin:0 0 6px 0; color:var(--color-text);">Feedback Pelatihan</h3>
+                    <p id="feedback-desc" style="font-size:0.82rem; color:var(--color-text-light); margin:0;">Pendapat Anda sangat berharga untuk peningkatan kualitas.</p>
+                </div>
+                <div id="feedback-questions" style="display:flex;flex-direction:column;gap:18px;"></div>
+                <button class="btn btn-primary" onclick="PesertaManager.submitFeedback()" style="width:100%; margin-top:24px; padding:14px; font-size:0.95rem; font-weight:700; border-radius:12px;">Kirim & Ambil Sertifikat 🏅</button>
+            </div>
+        </div>
+
+        <!-- ===== MODAL: SERTIFIKAT ===== -->
+        <div id="sertifikat-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10001; backdrop-filter:blur(4px); padding:20px; box-sizing:border-box;">
+            <div style="background:var(--color-bg-elevated); border-radius:20px; padding:28px 24px; width:100%; max-width:380px; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+                <div id="sertifikat-loading" style="">
+                    <div style="font-size:2.5rem; margin-bottom:12px;">⏳</div>
+                    <p style="font-weight:700; margin:0 0 6px 0;">Membuat Sertifikat Anda...</p>
+                    <p style="font-size:0.8rem; color:var(--color-text-light); margin:0;">Mohon tunggu sebentar</p>
+                </div>
+                <div id="sertifikat-content" style="display:none;">
+                    <div style="font-size:3rem; margin-bottom:8px;">🏅</div>
+                    <h3 style="font-size:1.15rem; font-weight:800; margin:0 0 4px 0; color:var(--color-text);">Sertifikat Siap!</h3>
+                    <p id="sert-nomor" style="font-size:0.75rem; color:var(--color-text-light); margin:0 0 16px 0; font-family:monospace;"></p>
+                    <div style="background:var(--color-bg); border-radius:12px; padding:14px; margin-bottom:20px; text-align:left;">
+                        <div style="font-size:0.78rem; color:var(--color-text-light); margin-bottom:4px;">Peserta</div>
+                        <div id="sert-nama" style="font-size:0.95rem; font-weight:700; color:var(--color-text);"></div>
+                        <div style="font-size:0.78rem; color:var(--color-text-light); margin-top:8px; margin-bottom:4px;">Pelatihan</div>
+                        <div id="sert-pelatihan" style="font-size:0.82rem; color:var(--color-text);"></div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-bottom:16px;">
+                        <a id="sert-pdf-link" href="#" target="_blank" class="btn btn-primary" style="flex:1; padding:12px; font-size:0.85rem; text-decoration:none; display:flex; align-items:center; justify-content:center; border-radius:10px;">⬇ Unduh PDF</a>
+                        <a id="sert-doc-link-modal" href="#" target="_blank" class="btn btn-secondary" style="flex:1; padding:12px; font-size:0.85rem; text-decoration:none; display:flex; align-items:center; justify-content:center; border-radius:10px;">🔗 Buka Docs</a>
+                    </div>
+                    <button onclick="document.getElementById('sertifikat-overlay').style.display='none'" style="background:none; border:none; color:var(--color-text-light); font-size:0.82rem; cursor:pointer; padding:4px;">Tutup</button>
+                </div>
+                <div id="sertifikat-error" style="display:none;">
+                    <div style="font-size:2.5rem; margin-bottom:12px;">❌</div>
+                    <p id="sertifikat-error-msg" style="font-weight:600; margin:0 0 12px 0; color:var(--color-danger);"></p>
+                    <button onclick="document.getElementById('sertifikat-overlay').style.display='none'" class="btn btn-secondary" style="padding:10px 20px;">Tutup</button>
+                </div>
+            </div>
+        </div>
     `,
+
 
     TestUI: (params) => `
         <div class="header">
@@ -226,7 +288,17 @@ const PesertaManager = {
                 App.toast('Berhasil bergabung dengan pelatihan!', 'success');
                 codeInput.value = '';
                 this.hideJoinModal();
-                this.init(); // Refresh list
+
+                // Simpan pelatihanId untuk survey
+                const pelatihanId = res.data && res.data.pelatihan_id;
+                this._pendingSurveyPelatihanId = pelatihanId;
+
+                // Tampilkan Survey Awal
+                if (pelatihanId) {
+                    this.showSurveyAwal(pelatihanId);
+                } else {
+                    this.init();
+                }
             } else {
                 App.alert(res.error, 'Gagal Bergabung');
             }
@@ -235,6 +307,292 @@ const PesertaManager = {
             App.alert(err.message, 'System Error');
         }).apiJoinPelatihanByCode(App.state.user['NIP'], code);
     },
+
+    // ═══════════════════════════════════════════════════════
+    // SURVEY AWAL
+    // ═══════════════════════════════════════════════════════
+
+    _surveyAwalAnswers: {},
+    _pendingSurveyPelatihanId: null,
+
+    showSurveyAwal(pelatihanId) {
+        this._pendingSurveyPelatihanId = pelatihanId;
+        this._surveyAwalAnswers = {};
+        const overlay = document.getElementById('survey-awal-overlay');
+        if (!overlay) { this.init(); return; }
+
+        overlay.style.display = 'flex';
+        document.getElementById('survey-awal-questions').innerHTML =
+            '<div style="text-align:center;padding:20px;color:var(--color-text-light);">⏳ Memuat survey...</div>';
+
+        google.script.run.withSuccessHandler(res => {
+            if (res.success && res.data.config) {
+                const cfg = res.data.config;
+                document.getElementById('survey-awal-title').textContent = cfg.title || 'Survey Awal';
+                document.getElementById('survey-awal-desc').textContent = cfg.description || '';
+                document.getElementById('survey-awal-questions').innerHTML =
+                    this.renderSurveyQuestions(cfg.questions || [], 'sa');
+            } else {
+                overlay.style.display = 'none';
+                this.init();
+            }
+        }).withFailureHandler(() => {
+            overlay.style.display = 'none';
+            this.init();
+        }).apiGetSurveyConfig(pelatihanId);
+    },
+
+    skipSurveyAwal() {
+        const overlay = document.getElementById('survey-awal-overlay');
+        if (overlay) overlay.style.display = 'none';
+        this.init();
+    },
+
+    submitSurveyAwal() {
+        const pid = this._pendingSurveyPelatihanId;
+        const nip = App.state.user['NIP'];
+        if (!pid) { this.skipSurveyAwal(); return; }
+
+        const answers = this.collectSurveyAnswers('sa');
+        App.loading(true, 'Menyimpan survey...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            const overlay = document.getElementById('survey-awal-overlay');
+            if (overlay) overlay.style.display = 'none';
+            this.init();
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.toast('Gagal menyimpan survey, tapi Anda tetap bisa masuk.', 'warning');
+            const overlay = document.getElementById('survey-awal-overlay');
+            if (overlay) overlay.style.display = 'none';
+            this.init();
+        }).apiSubmitSurveyAwal(pid, nip, answers);
+    },
+
+    // ═══════════════════════════════════════════════════════
+    // FEEDBACK AKHIR
+    // ═══════════════════════════════════════════════════════
+
+    _feedbackPelatihanId: null,
+    _feedbackPelatihanJudul: '',
+
+    showFeedbackModal(pelatihanId, judulPelatihan) {
+        this._feedbackPelatihanId = pelatihanId;
+        this._feedbackPelatihanJudul = judulPelatihan || '';
+        const overlay = document.getElementById('feedback-overlay');
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+        document.getElementById('feedback-questions').innerHTML =
+            '<div style="text-align:center;padding:20px;color:var(--color-text-light);">⏳ Memuat feedback...</div>';
+
+        google.script.run.withSuccessHandler(res => {
+            if (res.success && res.data.config) {
+                const cfg = res.data.config;
+                document.getElementById('feedback-title').textContent = cfg.title || 'Feedback Pelatihan';
+                document.getElementById('feedback-desc').textContent = cfg.description || '';
+                document.getElementById('feedback-questions').innerHTML =
+                    this.renderSurveyQuestions(cfg.questions || [], 'fb');
+            } else {
+                App.alert('Gagal memuat konfigurasi feedback.', 'Error');
+                overlay.style.display = 'none';
+            }
+        }).withFailureHandler(err => {
+            App.alert(err.message, 'Error');
+            overlay.style.display = 'none';
+        }).apiGetFeedbackConfig(pelatihanId);
+    },
+
+    submitFeedback() {
+        const pid = this._feedbackPelatihanId;
+        const nip = App.state.user['NIP'];
+        if (!pid) return;
+
+        const answers = this.collectSurveyAnswers('fb');
+        App.loading(true, 'Mengirim feedback...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            const fbOverlay = document.getElementById('feedback-overlay');
+            if (fbOverlay) fbOverlay.style.display = 'none';
+
+            if (res.success) {
+                // Langsung generate sertifikat
+                this.generateSertifikat(pid, this._feedbackPelatihanJudul);
+            } else {
+                App.alert(res.error || 'Gagal mengirim feedback.', 'Error');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error');
+        }).apiSubmitFeedback(pid, nip, answers);
+    },
+
+    // ═══════════════════════════════════════════════════════
+    // SERTIFIKAT
+    // ═══════════════════════════════════════════════════════
+
+    generateSertifikat(pelatihanId, judulPelatihan) {
+        const nip = App.state.user['NIP'];
+        const overlay = document.getElementById('sertifikat-overlay');
+        if (!overlay) return;
+
+        // Reset state modal
+        document.getElementById('sertifikat-loading').style.display = 'block';
+        document.getElementById('sertifikat-content').style.display = 'none';
+        document.getElementById('sertifikat-error').style.display = 'none';
+        overlay.style.display = 'flex';
+
+        google.script.run.withSuccessHandler(res => {
+            document.getElementById('sertifikat-loading').style.display = 'none';
+            if (res.success) {
+                const d = res.data;
+                document.getElementById('sert-nomor').textContent = d.nomor_sertifikat || '';
+                document.getElementById('sert-nama').textContent = d.nama_peserta || nip;
+                document.getElementById('sert-pelatihan').textContent = judulPelatihan || '';
+                const pdfLink = document.getElementById('sert-pdf-link');
+                const docLink = document.getElementById('sert-doc-link-modal');
+                if (pdfLink) pdfLink.href = d.pdf_url || '#';
+                if (docLink) docLink.href = d.doc_url || '#';
+                document.getElementById('sertifikat-content').style.display = 'block';
+            } else {
+                document.getElementById('sertifikat-error-msg').textContent = res.error || 'Sertifikat gagal dibuat.';
+                document.getElementById('sertifikat-error').style.display = 'block';
+            }
+        }).withFailureHandler(err => {
+            document.getElementById('sertifikat-loading').style.display = 'none';
+            document.getElementById('sertifikat-error-msg').textContent = err.message || 'Terjadi kesalahan sistem.';
+            document.getElementById('sertifikat-error').style.display = 'block';
+        }).apiGenerateSertifikat(pelatihanId, nip);
+    },
+
+    // ═══════════════════════════════════════════════════════
+    // RENDER HELPER: Questions renderer (Survey & Feedback)
+    // ═══════════════════════════════════════════════════════
+
+    renderSurveyQuestions(questions, prefix) {
+        if (!questions || questions.length === 0) return '<p style="color:var(--color-text-light);text-align:center;">Tidak ada pertanyaan.</p>';
+        return questions.map((q, i) => {
+            const fid = prefix + '_q_' + i;
+            let inputHtml = '';
+
+            if (q.type === 'rating') {
+                const max = q.max || 5;
+                const stars = Array.from({length: max}, (_, idx) => idx + 1).map(n =>
+                    `<button type="button" onclick="PesertaManager.setRating('${fid}', ${n})" id="${fid}_star_${n}"
+                        style="background:none;border:none;font-size:1.8rem;cursor:pointer;padding:2px;transition:transform 0.1s;"
+                        onmouseover="PesertaManager.previewRating('${fid}',${n},${max})"
+                        onmouseout="PesertaManager.previewRating('${fid}',0,${max})">☆</button>`
+                ).join('');
+                inputHtml = `<input type="hidden" id="${fid}" value="">
+                    <div style="display:flex;gap:4px;justify-content:center;">${stars}</div>
+                    <div id="${fid}_label" style="text-align:center;font-size:0.75rem;color:var(--color-text-light);margin-top:4px;min-height:16px;"></div>`;
+            } else if (q.type === 'radio' && q.options && q.options.length) {
+                inputHtml = q.options.map((opt, oi) =>
+                    `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--color-bg);border-radius:10px;cursor:pointer;border:1.5px solid var(--color-border-light);transition:all 0.15s;"
+                        onclick="PesertaManager.selectRadio('${fid}', ${oi}, this)">
+                        <div id="${fid}_radio_${oi}" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--color-border);flex-shrink:0;transition:all 0.15s;"></div>
+                        <span style="font-size:0.85rem;">${opt}</span>
+                        <input type="hidden" id="${fid}_val_${oi}" data-group="${fid}" value="${opt}">
+                    </label>`
+                ).join('');
+                inputHtml += `<input type="hidden" id="${fid}" value="">`;
+            } else if (q.type === 'textarea') {
+                inputHtml = `<textarea id="${fid}" rows="3" placeholder="${q.placeholder || ''}"
+                    style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;resize:none;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;"></textarea>`;
+            } else {
+                inputHtml = `<input type="text" id="${fid}" placeholder="${q.placeholder || ''}"
+                    style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">`;
+            }
+
+            return `<div>
+                <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--color-text);margin-bottom:8px;">
+                    ${i + 1}. ${q.label}${q.required ? ' <span style="color:var(--color-danger);">*</span>' : ''}
+                </label>
+                ${inputHtml}
+            </div>`;
+        }).join('');
+    },
+
+    setRating(fid, value) {
+        document.getElementById(fid).value = value;
+        const labels = ['', 'Sangat Buruk', 'Buruk', 'Cukup', 'Baik', 'Sangat Baik'];
+        const labelEl = document.getElementById(fid + '_label');
+        if (labelEl) labelEl.textContent = labels[value] || value + ' bintang';
+        // Fill stars up to value
+        const max = 5;
+        for (let i = 1; i <= max; i++) {
+            const star = document.getElementById(fid + '_star_' + i);
+            if (star) {
+                star.textContent = i <= value ? '⭐' : '☆';
+                star.style.transform = i <= value ? 'scale(1.15)' : 'scale(1)';
+            }
+        }
+    },
+
+    previewRating(fid, hoverVal, max) {
+        const currentVal = parseInt(document.getElementById(fid)?.value || '0');
+        for (let i = 1; i <= max; i++) {
+            const star = document.getElementById(fid + '_star_' + i);
+            if (star) {
+                if (hoverVal > 0) {
+                    star.textContent = i <= hoverVal ? '⭐' : '☆';
+                } else {
+                    star.textContent = i <= currentVal ? '⭐' : '☆';
+                }
+            }
+        }
+    },
+
+    selectRadio(fid, selectedIdx, labelEl) {
+        // Deselect all in group
+        const allHidden = document.querySelectorAll(`[data-group="${fid}"]`);
+        allHidden.forEach(h => {
+            const oi = h.id.replace(fid + '_val_', '');
+            const radioEl = document.getElementById(fid + '_radio_' + oi);
+            if (radioEl) {
+                radioEl.style.borderColor = 'var(--color-border)';
+                radioEl.style.background = 'none';
+                radioEl.style.boxShadow = 'none';
+            }
+            if (h.closest('label')) {
+                h.closest('label').style.borderColor = 'var(--color-border-light)';
+                h.closest('label').style.background = 'var(--color-bg)';
+            }
+        });
+        // Select clicked
+        const radioEl = document.getElementById(fid + '_radio_' + selectedIdx);
+        if (radioEl) {
+            radioEl.style.borderColor = 'var(--color-primary)';
+            radioEl.style.background = 'var(--color-primary)';
+            radioEl.style.boxShadow = '0 0 0 3px rgba(26,115,232,0.2)';
+        }
+        if (labelEl) {
+            labelEl.style.borderColor = 'var(--color-primary)';
+            labelEl.style.background = 'rgba(26,115,232,0.05)';
+        }
+        // Set hidden value
+        const selectedHidden = document.getElementById(fid + '_val_' + selectedIdx);
+        const mainHidden = document.getElementById(fid);
+        if (selectedHidden && mainHidden) mainHidden.value = selectedHidden.value;
+    },
+
+    collectSurveyAnswers(prefix) {
+        const answers = {};
+        const allInputs = document.querySelectorAll(`[id^="${prefix}_q_"]`);
+        allInputs.forEach(el => {
+            // Only take direct question inputs (no sub-elements like _star_N or _radio_N or _val_N or _label)
+            const id = el.id;
+            if (id.match(/^[a-z]+_q_\d+$/) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                const key = id.replace(prefix + '_q_', 'q');
+                const val = el.value;
+                if (el.type === 'hidden' || el.tagName === 'TEXTAREA') {
+                    answers[key] = el.type === 'hidden' ? (isNaN(val) ? val : (val !== '' ? Number(val) : '')) : val;
+                }
+            }
+        });
+        return answers;
+    },
+
+
 
     renderList() {
         const container = document.getElementById('peserta-list-container');
@@ -398,6 +756,55 @@ const PesertaManager = {
                 </div>
             </div>
         `;
+
+        // Feedback & Sertifikat (hanya tampil jika pelatihan SELESAI)
+        const statusPelatihan = String(detail.pelatihan.status || '').toLowerCase().trim();
+        if (statusPelatihan === 'selesai') {
+            html += `
+                <div class="card" id="feedback-sertifikat-card" style="margin-bottom:16px;border:2px solid var(--color-primary);background:linear-gradient(135deg,rgba(26,115,232,0.04) 0%,rgba(15,82,186,0.04) 100%);">
+                    <div style="text-align:center;padding:4px 0 12px;">
+                        <div style="font-size:2rem;margin-bottom:4px;">🏅</div>
+                        <h3 style="font-size:0.95rem;font-weight:800;margin:0 0 4px 0;color:var(--color-primary);">Pelatihan Selesai!</h3>
+                        <p style="font-size:0.8rem;color:var(--color-text-light);margin:0;">Isi feedback untuk mendapatkan sertifikat kelulusan.</p>
+                    </div>
+                    <div id="feedback-sertifikat-action" style="text-align:center;">
+                        <div style="font-size:0.8rem;color:var(--color-text-light);">⏳ Memeriksa status...</div>
+                    </div>
+                </div>
+            `;
+            // Async check feedback status
+            const pid = pelatihanId;
+            const judulPlt = detail.pelatihan.judul || '';
+            setTimeout(() => {
+                google.script.run.withSuccessHandler(res => {
+                    const actionDiv = document.getElementById('feedback-sertifikat-action');
+                    if (!actionDiv) return;
+                    if (res.success && res.data.sudah_isi) {
+                        // Feedback sudah diisi → tombol sertifikat langsung
+                        actionDiv.innerHTML = `
+                            <button class="btn btn-primary" onclick="PesertaManager.generateSertifikat('${pid}', '${judulPlt.replace(/'/g,"\\'")}');return false;"
+                                style="width:100%;padding:12px;font-size:0.9rem;font-weight:700;border-radius:10px;background:linear-gradient(135deg,var(--color-primary),#1558a6);">
+                                🏅 Lihat / Unduh Sertifikat
+                            </button>
+                            <p style="font-size:0.75rem;color:var(--color-success);margin:6px 0 0 0;font-weight:600;">✅ Feedback sudah diisi</p>
+                        `;
+                    } else {
+                        // Belum isi feedback
+                        actionDiv.innerHTML = `
+                            <button class="btn btn-primary" onclick="PesertaManager.showFeedbackModal('${pid}', '${judulPlt.replace(/'/g,"\\'")}');return false;"
+                                style="width:100%;padding:12px;font-size:0.9rem;font-weight:700;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);">
+                                ✍️ Isi Feedback & Ambil Sertifikat
+                            </button>
+                        `;
+                    }
+                }).withFailureHandler(() => {
+                    const actionDiv = document.getElementById('feedback-sertifikat-action');
+                    if (actionDiv) actionDiv.innerHTML = `<button class="btn btn-secondary" onclick="PesertaManager.showFeedbackModal('${pid}','${(detail.pelatihan.judul||'').replace(/'/g,"\\'")}')">✍️ Isi Feedback</button>`;
+                }).apiCheckFeedbackStatus(pid, App.state.user['NIP']);
+            }, 200);
+        }
+
+
 
         // Loop Materi & Konfigurasi JSON
         if (detail.materi && detail.materi.length > 0) {

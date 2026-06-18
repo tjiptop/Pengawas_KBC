@@ -78,6 +78,9 @@ function apiError(message, code) {
   if (finalMessage.includes('UNAUTHORIZED') || finalMessage.includes('Sesi tidak valid')) {
     finalCode = 'UNAUTHORIZED';
     finalMessage = 'Sesi tidak valid atau kedaluwarsa. Silakan login kembali.';
+  } else if (finalMessage.includes('SYSTEM_BUSY')) {
+    finalCode = 'SYSTEM_BUSY';
+    finalMessage = 'Sistem sedang memproses antrean data. Silakan coba beberapa saat lagi.';
   }
   return { success: false, error: finalMessage, code: finalCode };
 }
