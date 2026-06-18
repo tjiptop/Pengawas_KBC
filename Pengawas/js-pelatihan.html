@@ -1401,9 +1401,17 @@ const PelatihanManager = {
         
         let soalObj;
         try {
-            soalObj = jsyaml.load(test.yaml_definition);
+            if (typeof test.yaml_definition === 'string' && test.yaml_definition.trim().startsWith('{')) {
+                soalObj = JSON.parse(test.yaml_definition);
+            } else {
+                soalObj = jsyaml.load(test.yaml_definition);
+            }
         } catch (e) {
-            return App.alert('Gagal mem-parsing definisi soal YAML: ' + e.message, 'Error');
+            try {
+                soalObj = jsyaml.load(test.yaml_definition);
+            } catch (err) {
+                return App.alert('Gagal mem-parsing definisi soal: ' + err.message, 'Error');
+            }
         }
         
         const qList = soalObj.questions || [];
@@ -1864,7 +1872,10 @@ const PelatihanManager = {
                         <span style="font-size:0.8em; font-weight:700; color:#2d7d32;">✅ Soal Kategori Aktif</span>
                         <span style="font-size:0.75em; color:var(--color-text-light);">${jmlSoal} soal · ${waktu} menit</span>
                     </div>
-                    <div style="font-size:0.78em; color:var(--color-text-light); font-style:italic;">"${title}"</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+                        <div style="font-size:0.78em; color:var(--color-text-light); font-style:italic;">"${title}"</div>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.72em; border-radius: 6px; width: auto !important; margin: 0; background: var(--color-bg-elevated); border: 1px solid var(--color-border); color: var(--color-text); display: inline-flex; align-items: center; gap: 4px; cursor: pointer;" onclick="PelatihanManager.previewUjianAktif()">👁️ Preview Soal</button>
+                    </div>
                     <details style="margin-top:8px;">
                         <summary style="font-size:0.75em; color:var(--color-primary); cursor:pointer; user-select:none;">Lihat list soal (${jmlSoal} item)</summary>
                         <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height: 250px; overflow-y: auto;">
