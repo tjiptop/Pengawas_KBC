@@ -191,6 +191,7 @@ function apiGetPelatihanDetail(pelatihanId) {
       const jenjangIdx = hProfil.indexOf('Jenjang');
       const kelaminIdx = hProfil.indexOf('Kelamin');
       const namaIdx = hProfil.indexOf('Nama');
+      const fotoIdx = hProfil.indexOf('Foto URL');
       
       for (let i = 1; i < dtProfil.length; i++) {
         let nip = String(dtProfil[i][nipIdx]).trim();
@@ -200,7 +201,8 @@ function apiGetPelatihanDetail(pelatihanId) {
             kabupaten: dtProfil[i][kabIdx],
             provinsi: dtProfil[i][provIdx],
             jenjang: dtProfil[i][jenjangIdx],
-            kelamin: dtProfil[i][kelaminIdx]
+            kelamin: dtProfil[i][kelaminIdx],
+            foto_url: fotoIdx !== -1 ? dtProfil[i][fotoIdx] : ''
           };
         }
       }
@@ -227,7 +229,8 @@ function apiGetPelatihanDetail(pelatihanId) {
             status: dataPes[i][idxStatus],
             provinsi: prof.provinsi || '',
             jenjang: prof.jenjang || '',
-            kelamin: prof.kelamin || ''
+            kelamin: prof.kelamin || '',
+            foto_url: prof.foto_url || ''
           });
         }
       }

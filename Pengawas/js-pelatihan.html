@@ -212,10 +212,16 @@ const PelatihanViews = {
                         <div style="display:flex; gap:8px; align-items:center;">
                             <button id="btn-show-add-peserta" class="btn btn-primary" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center;" onclick="PelatihanManager.showSearchPesertaModal()">+ Add</button>
                             <button id="btn-refresh-peserta" class="btn" onclick="PelatihanManager.loadDetail('${pelatihanId}')" style="padding:0 10px; font-size:1.1rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center; font-weight:bold;" title="Refresh Data">↻</button>
-                            <button id="btn-print-absensi" class="btn btn-secondary" onclick="PelatihanManager.printDaftarHadir()" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">
-                                <span>🖨️ Cetak Absensi</span>
-                            </button>
                         </div>
+                    </div>
+                    
+                    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+                        <button id="btn-print-tag-nama" class="btn btn-secondary" onclick="PelatihanManager.printTagNama()" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">
+                            <span>🖨️ Cetak Tag Nama</span>
+                        </button>
+                        <button id="btn-print-absensi" class="btn btn-secondary" onclick="PelatihanManager.printDaftarHadir()" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">
+                            <span>🖨️ Cetak Absensi</span>
+                        </button>
                     </div>
                     
                     <div style="overflow-x:auto; margin-top:10px;">
@@ -1511,6 +1517,259 @@ const PelatihanManager = {
         `;
         
         this.openPreviewModal(`👁️ Preview Set Ujian Aktif: ${soalObj.title || 'Pre/Post Test'}`, bodyHtml);
+    },
+
+    printTagNama() {
+        const detail = this.detailData;
+        const pelatihan = detail.pelatihan;
+        const peserta = detail.peserta || [];
+        
+        if (peserta.length === 0) {
+            return App.alert('Belum ada peserta pelatihan terdaftar.', 'Peringatan');
+        }
+        
+        const kategori = String(pelatihan.kategori || 'Umum').trim().toUpperCase();
+        let primaryColor = '#7b1fa2'; // purple default
+        let gradientColor = 'linear-gradient(135deg, #4a148c, #7b1fa2)';
+        if (kategori === 'KBC') {
+            primaryColor = '#2d7d32';
+            gradientColor = 'linear-gradient(135deg, #1b5e20, #2d7d32)';
+        } else if (kategori === 'MAGIS') {
+            primaryColor = '#1a73e8';
+            gradientColor = 'linear-gradient(135deg, #0d47a1, #1a73e8)';
+        }
+
+        let pagesHtml = '';
+        for (let i = 0; i < peserta.length; i += 6) {
+            const chunk = peserta.slice(i, i + 6);
+            let cardsHtml = chunk.map(p => {
+                const fotoHtml = p.foto_url 
+                    ? `<img src="${p.foto_url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                       <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:#f5f5f5;">
+                           <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" style="width:36px;height:36px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                       </div>`
+                    : `<div style="display:flex; width:100%; height:100%; align-items:center; justify-content:center; background:#f5f5f5;">
+                           <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" style="width:36px;height:36px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                       </div>`;
+
+                return `
+                    <div class="card">
+                        <!-- Top Banner -->
+                        <div class="card-header">
+                            <div class="header-sub">PELATIHAN PENGAWAS</div>
+                            <div class="header-title">${pelatihan.judul || 'Pelatihan'}</div>
+                        </div>
+                        
+                        <!-- Main Content -->
+                        <div class="card-body">
+                            <div class="photo-frame">
+                                ${fotoHtml}
+                            </div>
+                            <div class="details-frame">
+                                <div class="peserta-name">${p.nama_peserta}</div>
+                                <div class="peserta-nip">NIP. ${p.nip_peserta}</div>
+                                <div class="peserta-meta">📍 ${p.kabupaten || '-'}</div>
+                                <div class="peserta-meta-sub">${p.provinsi || pelatihan.provinsi || '-'}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="card-footer">
+                            <span class="badge">PESERTA</span>
+                            <span class="footer-logo">PENGAWAS Kemenag</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            pagesHtml += `<div class="page">${cardsHtml}</div>`;
+        }
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Cetak Tag Nama - ${pelatihan.judul}</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap');
+                    
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm 10mm;
+                    }
+                    
+                    * {
+                        box-sizing: border-box;
+                    }
+                    
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        background: #fff;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    
+                    .page {
+                        width: 190mm;
+                        height: 275mm;
+                        display: grid;
+                        grid-template-columns: repeat(2, 95mm);
+                        grid-template-rows: repeat(3, 91mm);
+                        gap: 0;
+                        box-sizing: border-box;
+                        page-break-after: always;
+                    }
+                    
+                    .page:last-child {
+                        page-break-after: avoid;
+                    }
+                    
+                    .card {
+                        width: 95mm;
+                        height: 90mm;
+                        border: 1px dashed #bbb;
+                        padding: 8px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        background: #fff;
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .card-header {
+                        background: ${gradientColor};
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        color: #fff;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                    }
+                    
+                    .header-sub {
+                        font-size: 0.65rem;
+                        font-weight: 700;
+                        letter-spacing: 1.5px;
+                        opacity: 0.9;
+                        text-transform: uppercase;
+                    }
+                    
+                    .header-title {
+                        font-size: 0.85rem;
+                        font-weight: 800;
+                        line-height: 1.2;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    
+                    .card-body {
+                        display: flex;
+                        gap: 12px;
+                        align-items: center;
+                        padding: 10px 4px;
+                        flex-grow: 1;
+                    }
+                    
+                    .photo-frame {
+                        width: 76px;
+                        height: 100px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        overflow: hidden;
+                        background: #fcfcfc;
+                        flex-shrink: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        box-shadow: inset 0 0 5px rgba(0,0,0,0.02);
+                    }
+                    
+                    .details-frame {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        overflow: hidden;
+                        text-align: left;
+                    }
+                    
+                    .peserta-name {
+                        font-size: 0.95rem;
+                        font-weight: 700;
+                        color: #111;
+                        line-height: 1.25;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    
+                    .peserta-nip {
+                        font-size: 0.72rem;
+                        color: #666;
+                        font-weight: 600;
+                    }
+                    
+                    .peserta-meta {
+                        font-size: 0.7rem;
+                        color: #444;
+                        font-weight: 600;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    
+                    .peserta-meta-sub {
+                        font-size: 0.65rem;
+                        color: #777;
+                        font-weight: 500;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    
+                    .card-footer {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        border-top: 1px solid #eee;
+                        padding-top: 6px;
+                        margin-top: auto;
+                    }
+                    
+                    .badge {
+                        font-size: 0.65rem;
+                        font-weight: 800;
+                        color: #fff;
+                        background: ${primaryColor};
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        letter-spacing: 1px;
+                    }
+                    
+                    .footer-logo {
+                        font-size: 0.65rem;
+                        font-weight: 700;
+                        color: #888;
+                        text-transform: uppercase;
+                    }
+                </style>
+            </head>
+            <body>
+                ${pagesHtml}
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        
+        setTimeout(() => {
+            printWindow.print();
+        }, 500);
     },
 
     printDaftarHadir() {
