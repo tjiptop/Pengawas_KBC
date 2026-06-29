@@ -213,7 +213,7 @@ function getSurveyYamlForPelatihan_(pelatihanId, type) {
     console.error('getSurveyYamlForPelatihan_ error: ' + e.toString());
   }
 
-  return null;
+  return type === 'survey' ? DEFAULT_SURVEY_AWAL_YAML : DEFAULT_FEEDBACK_YAML;
 }
 
 /**
@@ -223,7 +223,7 @@ function getSurveyYamlForPelatihan_(pelatihanId, type) {
 function ensurePelatihanExtColumns_(sheet) {
   if (!sheet || sheet.getLastRow() < 1) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const needed = ['sertifikat_doc_id', 'kategori'];
+  const needed = ['sertifikat_doc_id', 'kategori', 'zona_waktu'];
   needed.forEach(col => {
     if (headers.indexOf(col) === -1) {
       const newCol = sheet.getLastColumn() + 1;
@@ -277,7 +277,7 @@ function apiSetupTrainingSurveyAwal(pelatihanId) {
         }
         
         if (rowSoal === -1) {
-          const soalFiles = folder.getFilesByName('soal.yaml');
+          const soalFiles = folder.getFilesByName('test.yaml');
           if (soalFiles.hasNext()) {
             const soalYamlStr = soalFiles.next().getBlob().getDataAsString();
             try {
@@ -295,7 +295,7 @@ function apiSetupTrainingSurveyAwal(pelatihanId) {
                 sheetSoal.appendRow(newRow);
               }
             } catch(e) {
-              console.error('Gagal parsing soal.yaml: ' + e.toString());
+              console.error('Gagal parsing test.yaml: ' + e.toString());
             }
           }
         }
@@ -342,11 +342,11 @@ function apiSetupTrainingFeedbackAndCert(pelatihanId) {
       const folder = kFolders.next();
       
       let certDocId = '';
-      const certFiles = folder.getFilesByName('template_sertifikat');
+      const certFiles = folder.getFilesByName('sertifikat');
       if (certFiles.hasNext()) {
         certDocId = certFiles.next().getId();
       } else {
-        certDocId = createDefaultSertifikatTemplateDoc_(folder, 'template_sertifikat', 'Pelatihan ' + kategori);
+        certDocId = createDefaultSertifikatTemplateDoc_(folder, 'sertifikat', 'Pelatihan ' + kategori);
       }
       
       sheet.getRange(row, idxDocId + 1).setValue(certDocId);
@@ -536,6 +536,24 @@ function apiSubmitSurveyAwal(pelatihanId, nipPeserta, jawaban) {
         JSON.stringify(jawaban),
         new Date().toISOString()
       ]);
+
+      // Update status peserta di PelatihanPeserta menjadi 'aktif'
+      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+      if (sheetPeserta) {
+        const dataPes = sheetPeserta.getDataRange().getValues();
+        const idxPid = dataPes[0].indexOf('pelatihan_id');
+        const idxNip = dataPes[0].indexOf('nip_peserta');
+        const idxStatus = dataPes[0].indexOf('status');
+        
+        for (let i = 1; i < dataPes.length; i++) {
+          if (String(dataPes[i][idxPid]).trim() === String(pelatihanId).trim() &&
+              String(dataPes[i][idxNip]).trim() === String(nipPeserta).trim()) {
+            sheetPeserta.getRange(i + 1, idxStatus + 1).setValue('aktif');
+            break;
+          }
+        }
+      }
+
       return apiSuccess({ response_id: responseId }, 'Survey awal berhasil disimpan.');
     } catch(e) {
       return apiError('Gagal menyimpan survey awal: ' + e.toString(), 'SYSTEM_ERROR');
@@ -914,28 +932,92 @@ function apiGenerateSertifikat(pelatihanId, nipPeserta) {
         return apiError('Anda harus mengisi feedback pelatihan terlebih dahulu.', 'FEEDBACK_REQUIRED');
       }
 
-      // 3. Validasi: pre-test dan post-test harus sudah selesai
-      const sheetResp = ss.getSheetByName('PrePostResponses');
-      if (!sheetResp || sheetResp.getLastRow() < 2) {
-        return apiError('Anda belum menyelesaikan Pre-Test dan Post-Test.', 'TEST_REQUIRED');
-      }
-      const dataResp = sheetResp.getDataRange().getValues();
-      const hResp = dataResp[0];
-      const idxRPid = hResp.indexOf('pelatihan_id');
-      const idxRNip = hResp.indexOf('nip_peserta');
-      const idxRTipe = hResp.indexOf('tipe');
-      let pretestDone = false, posttestDone = false;
-      for (let i = 1; i < dataResp.length; i++) {
-        if (String(dataResp[i][idxRPid]).trim() === String(pelatihanId).trim() &&
-            String(dataResp[i][idxRNip]).trim() === nipStr) {
-          const tipe = String(dataResp[i][idxRTipe]).trim().toLowerCase();
-          if (tipe === 'pretest') pretestDone = true;
-          if (tipe === 'posttest') posttestDone = true;
+      // 3. Validasi syarat sertifikat (absensi_penuh ATAU preposttest)
+      const syarat = getSyaratSertifikat_(pelatihanId);
+
+      if (syarat === 'absensi_penuh') {
+        // Hitung rentang hari pelatihan (tanggal_mulai sampai tanggal_selesai)
+        const sheetPltCheck = ss.getSheetByName('Pelatihan');
+        if (!sheetPltCheck) return apiError('Sheet Pelatihan tidak ditemukan.', 'SYSTEM_ERROR');
+        const dpCheck = sheetPltCheck.getDataRange().getValues();
+        const hpCheck = dpCheck[0];
+        const idxPidCheck = hpCheck.indexOf('pelatihan_id');
+        const idxMulaiCheck = hpCheck.indexOf('tanggal_mulai');
+        const idxSelesaiCheck = hpCheck.indexOf('tanggal_selesai');
+        let tglMulaiCheck = '', tglSelesaiCheck = '';
+        for (let i = 1; i < dpCheck.length; i++) {
+          if (String(dpCheck[i][idxPidCheck]).trim() === String(pelatihanId).trim()) {
+            tglMulaiCheck = String(dpCheck[i][idxMulaiCheck] || '').trim();
+            tglSelesaiCheck = String(dpCheck[i][idxSelesaiCheck] || '').trim();
+            break;
+          }
         }
-      }
-      if (!pretestDone || !posttestDone) {
-        const missing = !pretestDone ? 'Pre-Test' : 'Post-Test';
-        return apiError('Anda belum menyelesaikan ' + missing + '. Sertifikat tidak dapat diterbitkan.', 'TEST_REQUIRED');
+        if (!tglMulaiCheck || !tglSelesaiCheck) {
+          return apiError('Tanggal pelatihan tidak valid. Hubungi pelatih.', 'SYSTEM_ERROR');
+        }
+
+        // Buat daftar semua hari dalam rentang
+        const dStart = new Date(tglMulaiCheck);
+        const dEnd   = new Date(tglSelesaiCheck);
+        const allDays = [];
+        for (let d = new Date(dStart); d <= dEnd; d.setDate(d.getDate() + 1)) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          allDays.push(y + '-' + m + '-' + dd);
+        }
+
+        // Cek absensi peserta
+        const sheetAbsenCheck = ss.getSheetByName('PelatihanAbsensi');
+        const hadir = new Set();
+        if (sheetAbsenCheck && sheetAbsenCheck.getLastRow() > 1) {
+          const dataAbs = sheetAbsenCheck.getDataRange().getValues();
+          const hAbs = dataAbs[0];
+          const idxAbsPid = hAbs.indexOf('pelatihan_id');
+          const idxAbsNip = hAbs.indexOf('nip');
+          const idxAbsDate = hAbs.indexOf('tanggal');
+          for (let i = 1; i < dataAbs.length; i++) {
+            if (String(dataAbs[i][idxAbsPid]).trim() === String(pelatihanId).trim() &&
+                String(dataAbs[i][idxAbsNip]).trim() === nipStr) {
+              hadir.add(String(dataAbs[i][idxAbsDate]).trim().substring(0, 10));
+            }
+          }
+        }
+
+        const hariTidakHadir = allDays.filter(h => !hadir.has(h));
+        if (hariTidakHadir.length > 0) {
+          return apiError(
+            'Sertifikat tidak dapat diterbitkan. Anda belum hadir di ' +
+            hariTidakHadir.length + ' hari (' + hariTidakHadir.join(', ') +
+            '). Wajib hadir semua ' + allDays.length + ' hari.',
+            'ABSENSI_REQUIRED'
+          );
+        }
+
+      } else {
+        // Default: preposttest
+        const sheetResp = ss.getSheetByName('PrePostResponses');
+        if (!sheetResp || sheetResp.getLastRow() < 2) {
+          return apiError('Anda belum menyelesaikan Pre-Test dan Post-Test.', 'TEST_REQUIRED');
+        }
+        const dataResp = sheetResp.getDataRange().getValues();
+        const hResp = dataResp[0];
+        const idxRPid = hResp.indexOf('pelatihan_id');
+        const idxRNip = hResp.indexOf('nip_peserta');
+        const idxRTipe = hResp.indexOf('tipe');
+        let pretestDone = false, posttestDone = false;
+        for (let i = 1; i < dataResp.length; i++) {
+          if (String(dataResp[i][idxRPid]).trim() === String(pelatihanId).trim() &&
+              String(dataResp[i][idxRNip]).trim() === nipStr) {
+            const tipe = String(dataResp[i][idxRTipe]).trim().toLowerCase();
+            if (tipe === 'pretest') pretestDone = true;
+            if (tipe === 'posttest') posttestDone = true;
+          }
+        }
+        if (!pretestDone || !posttestDone) {
+          const missing = !pretestDone ? 'Pre-Test' : 'Post-Test';
+          return apiError('Anda belum menyelesaikan ' + missing + '. Sertifikat tidak dapat diterbitkan.', 'TEST_REQUIRED');
+        }
       }
 
       // 4. Ambil data pelatihan & profil peserta
@@ -1008,7 +1090,7 @@ function apiGenerateSertifikat(pelatihanId, nipPeserta) {
 
       if (!templateDocId) {
         // Tidak ada template → buat sertifikat teks sederhana sebagai fallback
-        const fallbackFolder = getOrCreateFolder_('Sertifikat_Pelatihan');
+        const fallbackFolder = getPelatihanSubFolder_(pelatihanId, 'sertifikat');
         const newDoc = DocumentApp.create('Sertifikat - ' + namaPeserta + ' - ' + judulPelatihan);
         const body = newDoc.getBody();
         body.clear();
@@ -1042,7 +1124,7 @@ function apiGenerateSertifikat(pelatihanId, nipPeserta) {
       } else {
         // Ada template → copy & replace placeholders
         const templateFile = DriveApp.getFileById(templateDocId);
-        const sertFolder = getOrCreateFolder_('Sertifikat_Pelatihan');
+        const sertFolder = getPelatihanSubFolder_(pelatihanId, 'sertifikat');
         const newFile = templateFile.makeCopy('Sertifikat - ' + namaPeserta + ' - ' + judulPelatihan, sertFolder);
         newDocId = newFile.getId();
 
@@ -1074,7 +1156,7 @@ function apiGenerateSertifikat(pelatihanId, nipPeserta) {
       // Export sebagai PDF dan simpan di folder yang sama
       const pdfBlob = newFile.getAs('application/pdf');
       pdfBlob.setName('Sertifikat - ' + namaPeserta + '.pdf');
-      const sertFolder = getOrCreateFolder_('Sertifikat_Pelatihan');
+      const sertFolder = getPelatihanSubFolder_(pelatihanId, 'sertifikat');
       const pdfFile = sertFolder.createFile(pdfBlob);
       pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       pdfUrl = 'https://drive.google.com/uc?export=download&id=' + pdfFile.getId();
@@ -1249,7 +1331,7 @@ function apiGetTemplateForKategori(kategori) {
       folder_url: folder.getUrl()
     };
     
-    const templateFiles = folder.getFilesByName('template.yaml');
+    const templateFiles = folder.getFilesByName('materi.yaml');
     if (templateFiles.hasNext()) {
       res.template_yaml = templateFiles.next().getBlob().getDataAsString();
     }
@@ -1259,7 +1341,7 @@ function apiGetTemplateForKategori(kategori) {
       res.survey_yaml = surveyFiles.next().getBlob().getDataAsString();
     }
     
-    const soalFiles = folder.getFilesByName('soal.yaml');
+    const soalFiles = folder.getFilesByName('test.yaml');
     if (soalFiles.hasNext()) {
       res.soal_yaml = soalFiles.next().getBlob().getDataAsString();
     }
@@ -1269,7 +1351,7 @@ function apiGetTemplateForKategori(kategori) {
       res.feedback_yaml = feedbackFiles.next().getBlob().getDataAsString();
     }
     
-    const certFiles = folder.getFilesByName('template_sertifikat');
+    const certFiles = folder.getFilesByName('sertifikat');
     if (certFiles.hasNext()) {
       const file = certFiles.next();
       res.sertifikat_doc_id = file.getId();
@@ -1303,7 +1385,7 @@ materi:
   - judul: "Modul Dasar ${safeKategoriName}"
     url: ""
 `;
-  folder.createFile('template.yaml', defaultTemplate, MimeType.PLAIN_TEXT);
+  folder.createFile('materi.yaml', defaultTemplate, MimeType.PLAIN_TEXT);
   folder.createFile('survey.yaml', DEFAULT_SURVEY_AWAL_YAML, MimeType.PLAIN_TEXT);
   folder.createFile('feedback.yaml', DEFAULT_FEEDBACK_YAML, MimeType.PLAIN_TEXT);
   
@@ -1324,8 +1406,8 @@ questions:
     answer: "Pilihan A"
     category: "Konsep Dasar"
 `;
-  folder.createFile('soal.yaml', defaultSoal, MimeType.PLAIN_TEXT);
-  createDefaultSertifikatTemplateDoc_(folder, 'template_sertifikat', 'Pelatihan ' + safeKategoriName);
+  folder.createFile('test.yaml', defaultSoal, MimeType.PLAIN_TEXT);
+  createDefaultSertifikatTemplateDoc_(folder, 'sertifikat', 'Pelatihan ' + safeKategoriName);
   
   return folder;
 }

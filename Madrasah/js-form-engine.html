@@ -258,9 +258,9 @@
                     if (!Array.isArray(val)) val = [];
                     inp = (q.options || []).map(o => {
                         const isChecked = val.includes(o) ? 'checked' : '';
-                        return `<label style="display:block;padding:8px 0;cursor:pointer">
-                                  <input type="checkbox" name="${q.name}" value="${o}" ${isChecked} style="width:18px;height:18px;margin-right:8px;vertical-align:middle;cursor:pointer"> 
-                                  <span style="vertical-align:middle">${o}</span>
+                        return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;cursor:pointer">
+                                  <input type="checkbox" name="${q.name}" value="${o}" ${isChecked} style="width:18px;height:18px;margin-top:3px;flex-shrink:0;cursor:pointer"> 
+                                  <span>${o}</span>
                                 </label>`;
                     }).join('');
 
@@ -287,7 +287,10 @@
 
             } else if (q.type == 'radio') {
                 inp = (q.options || []).map(o => {
-                    return `<label style="display:block;padding:5px 0;cursor:pointer"><input type="radio" name="${q.name}" value="${o}" ${o === val ? 'checked' : ''}> ${o}</label>`;
+                    return `<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer">
+                              <input type="radio" name="${q.name}" value="${o}" ${o === val ? 'checked' : ''} style="width:18px;height:18px;margin-top:3px;flex-shrink:0;cursor:pointer"> 
+                              <span>${o}</span>
+                            </label>`;
                 }).join('');
 
             } else if (q.type == 'button_group') {
@@ -909,13 +912,30 @@
                 descHtml = `<p class="form-text text-muted" style="font-size:0.85em; color:var(--color-text-secondary); margin-top:-2px; margin-bottom:8px">${descText}</p>`;
             }
 
-            if (q.inline) {
-                // Build label with optional TTS speaker
-                let labelHtml = `${q.label} ${req ? '*' : ''}`;
+            // Build label with optional TTS speaker
+            let labelHtml = '';
+            let optionsMarginStyle = '';
+            const numMatch = q.label.match(/^(\d+\.)\s+([\s\S]*)$/);
+            if (numMatch) {
+                const numPart = numMatch[1];
+                let textPart = numMatch[2] + (req ? ' *' : '');
                 if (q.speech_label || q.voice_label) {
-                    labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+                    textPart += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
                 }
+                labelHtml = `<div style="display:flex;align-items:flex-start;gap:8px">
+                    <span style="flex-shrink:0;min-width:24px">${numPart}</span>
+                    <span style="flex-grow:1">${textPart}</span>
+                </div>`;
+                optionsMarginStyle = `style="margin-left:32px"`;
+            } else {
+                let textPart = q.label + (req ? ' *' : '');
+                if (q.speech_label || q.voice_label) {
+                    textPart += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+                }
+                labelHtml = textPart;
+            }
 
+            if (q.inline) {
                 return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px">
                     <div style="flex-shrink:0;max-width:60%">
                         <label ${labelStyle} style="margin:0;display:block">${labelHtml}</label>
@@ -925,17 +945,21 @@
                 </div>`;
             }
 
-            // Build label with optional TTS speaker
-            let labelHtml = `${q.label} ${req ? '*' : ''}`;
-            if (q.speech_label || q.voice_label) {
-                labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+            if (optionsMarginStyle) {
+                return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
+                    <label ${labelStyle} style="display:block;margin-bottom:8px">${labelHtml}</label>
+                    <div ${optionsMarginStyle}>
+                        ${descHtml}
+                        ${inp}
+                    </div>
+                </div>`;
+            } else {
+                return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
+                    <label ${labelStyle} style="display:block;margin-bottom:8px">${labelHtml}</label>
+                    ${descHtml}
+                    ${inp}
+                </div>`;
             }
-
-            return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
-                <label ${labelStyle}>${labelHtml}</label>
-                ${descHtml}
-                ${inp}
-            </div>`;
         },
 
         renderTableRow(tableName, rowIdx, columns, rowData, isFixed = false) {

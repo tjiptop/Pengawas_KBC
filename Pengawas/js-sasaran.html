@@ -37,6 +37,15 @@ const SasaranViews = {
             </div>
         </div>
 
+        <!-- Footer khusus untuk list view (Daftar Sasaran) -->
+        <div id="sasaran-list-footer" class="sasaran-footer" style="display:none; position:fixed; bottom:0; left:0; width:100%; box-shadow:0 -4px 16px rgba(0,0,0,0.1); background:var(--color-bg-elevated); z-index:100; border-top:1px solid var(--color-border-light); padding:8px 16px; box-sizing:border-box;">
+            <div style="max-width:800px; margin:0 auto; display:flex; justify-content:flex-end; align-items:center; width:100%;">
+                <button class="btn btn-primary" onclick="SasaranManager.generateSK()" style="width:auto; padding:5px 12px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:4px; margin:0; border-radius:6px; background:var(--color-primary); border:none; color:white; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                    📄 Download SK
+                </button>
+            </div>
+        </div>
+
         <!-- Footer khusus untuk panel-sasaran-manage -->
         <div id="sasaran-footer" class="sasaran-footer" style="display:none; position:fixed; bottom:0; left:0; width:100%; box-shadow:0 -4px 16px rgba(0,0,0,0.1); background:var(--color-bg-elevated); z-index:100; border-top:1px solid var(--color-border-light); padding:16px; box-sizing:border-box;">
             <div style="max-width:800px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; width:100%;">
@@ -84,14 +93,23 @@ const SasaranViews = {
         ) : '';
 
         const actionButton = (isChecked && !isKamadAktif) ? `
-        <button
-            onclick="SasaranManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
-            title="Salin Link Setup Kamad"
-            class="wa-link-btn"
-            style="background:var(--color-primary); border:none; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.15); flex-shrink:0; margin-left:8px;"
-            aria-label="Salin Link Setup Kamad ke kamad ${item.nama}">
-            🔗
-        </button>` : '';
+        <div style="display: flex; gap: 6px; align-items: center; margin-left: 8px;">
+            <button
+                onclick="SasaranManager.shareKamadLinkWa('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
+                title="Kirim Link via WhatsApp"
+                style="background:#25D366; border:none; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.85rem; box-shadow:0 1px 3px rgba(0,0,0,0.15); flex-shrink:0;"
+                aria-label="Kirim Link via WhatsApp ke kamad ${item.nama}">
+                ✆
+            </button>
+            <button
+                onclick="SasaranManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')"
+                title="Salin Link Setup Kamad"
+                class="wa-link-btn"
+                style="background:var(--color-primary); border:none; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.85rem; box-shadow:0 1px 3px rgba(0,0,0,0.15); flex-shrink:0;"
+                aria-label="Salin Link Setup Kamad ke kamad ${item.nama}">
+                🔗
+            </button>
+        </div>` : '';
 
         return `
         <div class="madrasah-item-wrap" style="display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed var(--color-border-light);">
@@ -157,6 +175,7 @@ const SasaranManager = {
             document.getElementById('panel-sasaran-list').style.display = 'block';
             document.getElementById('panel-sasaran-manage').style.display = 'none';
             document.getElementById('sasaran-footer').style.display = 'none';
+            document.getElementById('sasaran-list-footer').style.display = 'block';
             this.renderSasaranList();
         } else {
             document.getElementById('sasaran-title').textContent = 'Pilih Madrasah Binaan';
@@ -165,6 +184,7 @@ const SasaranManager = {
             document.getElementById('panel-sasaran-list').style.display = 'none';
             document.getElementById('panel-sasaran-manage').style.display = 'block';
             document.getElementById('sasaran-footer').style.display = 'block';
+            document.getElementById('sasaran-list-footer').style.display = 'none';
             this.renderTree('');
         }
     },
@@ -218,13 +238,22 @@ const SasaranManager = {
             const rightActionButton = item.kamad_aktif ? `
                 <span style="color: var(--color-text-secondary); opacity: 0.3; font-size: 1.2rem; font-weight: bold; margin-right: 8px;">›</span>
             ` : `
-                <button onclick="event.stopPropagation(); SasaranManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')" 
-                        title="Salin Link Aktivasi"
-                        style="width: 36px; height: 36px; border-radius: 50%; background: #1a73e8; border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: background 0.2s;"
-                        onmouseover="this.style.background='#1557b0'"
-                        onmouseout="this.style.background='#1a73e8'">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                </button>
+                <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
+                    <button onclick="SasaranManager.shareKamadLinkWa('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')" 
+                            title="Kirim Link via WhatsApp"
+                            style="width: 28px; height: 28px; border-radius: 50%; background: #25D366; border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: opacity 0.2s;"
+                            onmouseover="this.style.opacity='0.85'"
+                            onmouseout="this.style.opacity='1'">
+                        <span style="font-size: 0.85rem;">✆</span>
+                    </button>
+                    <button onclick="SasaranManager.sendKamadLink('${item.nsm}', '${item.nama.replace(/'/g, "\\'")}')" 
+                            title="Salin Link Aktivasi"
+                            style="width: 28px; height: 28px; border-radius: 50%; background: #1a73e8; border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: background 0.2s;"
+                            onmouseover="this.style.background='#1557b0'"
+                            onmouseout="this.style.background='#1a73e8'">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                    </button>
+                </div>
             `;
 
             return `
@@ -269,9 +298,21 @@ const SasaranManager = {
 
     viewMadrasahAsKamad(nsm, namaMadrasah) {
         App.state.isSupervisorViewAs = true;
+        const sasaranItem = (App.state.madrasahSasaran || []).find(s => String(s.nsm).trim() === String(nsm).trim());
         App.state.kamad = {
             nsm: nsm,
-            madrasah_name: namaMadrasah
+            madrasah_name: namaMadrasah,
+            madrasahInfo: sasaranItem ? {
+                nsm: sasaranItem.nsm,
+                nama: sasaranItem.nama,
+                jenjang: sasaranItem.level,
+                provinsi: sasaranItem.province,
+                kabupaten: sasaranItem.district,
+                kecamatan: sasaranItem.subdistrict,
+                desa: sasaranItem.village,
+                village_id: sasaranItem.village_id,
+                alamat: sasaranItem.address
+            } : null
         };
         App.router('kamad-dashboard');
     },
@@ -373,7 +414,7 @@ const SasaranManager = {
             App.loading(false);
             if (res.success) {
                 App.toast('Daftar madrasah sasaran berhasil disimpan!', 'success');
-                App.state.madrasahSasaran = this.selectedData;
+                App.state.madrasahSasaran = res.data || [];
                 this.activeView = 'list';
                 this.renderView();
             } else {
@@ -435,6 +476,50 @@ const SasaranManager = {
                 App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
             })
             .generateKamadSetupLink(nsm, nip);
+    },
+
+    shareKamadLinkWa(nsm, namaMadrasah) {
+        const nip = App.state.user['NIP'];
+        App.loading(true, `Membuat link setup untuk ${namaMadrasah}...`);
+        
+        google.script.run
+            .withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    let linkUrl = res.data.setup_url;
+                    if (linkUrl) {
+                        const separator = linkUrl.indexOf('?') !== -1 ? '&' : '?';
+                        linkUrl = `${linkUrl}${separator}cb=${Date.now()}`;
+                    }
+                    const text = `Mohon aktifkan akun Kamad Madrasah ${namaMadrasah} melalui link berikut: ${linkUrl}`;
+                    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+                    window.open(waUrl, '_blank');
+                } else {
+                    App.alert(res.error || 'Gagal membuat link.', 'Gagal');
+                }
+            })
+            .withFailureHandler(err => {
+                App.loading(false);
+                App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+            })
+            .generateKamadSetupLink(nsm, nip);
+    },
+
+    generateSK() {
+        App.loading(true, 'Memproses SK... Mohon tunggu beberapa saat...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.alert('SK berhasil di-generate! Klik OK untuk membuka PDF.', 'Berhasil', () => {
+                    window.open(res.data.url, '_blank');
+                });
+            } else {
+                App.alert(res.error || res.message || 'Gagal generate SK. Pastikan Anda memiliki madrasah sasaran KBC.', 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+        }).generateSK(App.state.user['NIP']);
     }
 };
 </script>

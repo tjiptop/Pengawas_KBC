@@ -315,3 +315,387 @@ function isProfileSavedInSheet(nip) {
     return false;
   }
 }
+
+/**
+ * API: Mengambil daftar pelatihan dari sub-profil
+ */
+function apiGetProfilPelatihanList(nip) {
+  try {
+    if (!nip) return apiError('NIP harus diisi.', 'VALIDATION');
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('ProfilPelatihan');
+    if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('id');
+    const idxNip = headers.indexOf('NIP');
+    const idxJudul = headers.indexOf('Judul Pelatihan');
+    const idxPenyelenggara = headers.indexOf('Penyelenggara');
+    const idxTglMulai = headers.indexOf('Tanggal Mulai');
+    const idxTglSelesai = headers.indexOf('Tanggal Selesai');
+    const idxPeran = headers.indexOf('Peran');
+    const idxSumber = headers.indexOf('Sumber');
+    
+    const list = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idxNip]).trim() === String(nip).trim()) {
+        let tglMulai = data[i][idxTglMulai];
+        let tglSelesai = data[i][idxTglSelesai];
+        if (tglMulai instanceof Date) {
+          tglMulai = Utilities.formatDate(tglMulai, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        }
+        if (tglSelesai instanceof Date) {
+          tglSelesai = Utilities.formatDate(tglSelesai, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        }
+        
+        list.push({
+          id: String(data[i][idxId]).trim(),
+          judul_pelatihan: data[i][idxJudul] || '',
+          penyelenggara: data[i][idxPenyelenggara] || '',
+          tanggal_mulai: tglMulai || '',
+          tanggal_selesai: tglSelesai || '',
+          peran: data[i][idxPeran] || '',
+          sumber: data[i][idxSumber] || 'manual'
+        });
+      }
+    }
+    
+    // Sort by tanggal_mulai descending
+    list.sort((a, b) => new Date(b.tanggal_mulai) - new Date(a.tanggal_mulai));
+    
+    return apiSuccess(list);
+  } catch (e) {
+    return apiError('Gagal memuat daftar pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Menambahkan data pelatihan manual ke sub-profil
+ */
+function apiAddProfilPelatihan(payload) {
+  return executeWithLock_(() => {
+    try {
+      const { nip, judul_pelatihan, penyelenggara, tanggal_mulai, tanggal_selesai, peran } = payload;
+      if (!nip || !judul_pelatihan || !penyelenggara || !tanggal_mulai || !tanggal_selesai || !peran) {
+        return apiError('Data tidak lengkap.', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      const sheet = setupSheet(ss, 'ProfilPelatihan', [
+        'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Sumber', 'created_at'
+      ]);
+      
+      const id = Utilities.getUuid();
+      const nowStr = new Date().toISOString();
+      
+      sheet.appendRow([
+        id,
+        String(nip).trim(),
+        judul_pelatihan,
+        penyelenggara,
+        tanggal_mulai,
+        tanggal_selesai,
+        peran,
+        'manual',
+        nowStr
+      ]);
+      
+      return apiSuccess({ id }, 'Pelatihan berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal menambahkan pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Menghapus data pelatihan manual dari sub-profil
+ */
+function apiDeleteProfilPelatihan(id, nip) {
+  return executeWithLock_(() => {
+    try {
+      if (!id || !nip) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('ProfilPelatihan');
+      if (!sheet || sheet.getLastRow() < 2) return apiError('Data kosong.', 'NOT_FOUND');
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const idxId = headers.indexOf('id');
+      const idxNip = headers.indexOf('NIP');
+      const idxSumber = headers.indexOf('Sumber');
+      
+      let rowToDelete = -1;
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxId]).trim() === String(id).trim() &&
+            String(data[i][idxNip]).trim() === String(nip).trim()) {
+          
+          const sumber = String(data[i][idxSumber]).trim().toLowerCase();
+          if (sumber === 'sistem') {
+            return apiError('Pelatihan sistem tidak dapat dihapus.', 'FORBIDDEN');
+          }
+          rowToDelete = i + 1;
+          break;
+        }
+      }
+      
+      if (rowToDelete === -1) {
+        return apiError('Data tidak ditemukan.', 'NOT_FOUND');
+      }
+      
+      sheet.deleteRow(rowToDelete);
+      return apiSuccess(null, 'Pelatihan berhasil dihapus.');
+    } catch (e) {
+      return apiError('Gagal menghapus pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Mengambil daftar penghargaan dari sub-profil
+ */
+function apiGetPenghargaanList(nip) {
+  try {
+    if (!nip) return apiError('NIP harus diisi.', 'VALIDATION');
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('ProfilPenghargaan');
+    if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('id');
+    const idxNip = headers.indexOf('NIP');
+    const idxNama = headers.indexOf('Nama Penghargaan');
+    const idxPemberi = headers.indexOf('Pemberi');
+    const idxTahun = headers.indexOf('Tahun');
+    const idxDesc = headers.indexOf('Deskripsi');
+    const idxSumber = headers.indexOf('Sumber');
+    
+    const list = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idxNip]).trim() === String(nip).trim()) {
+        list.push({
+          id: String(data[i][idxId]).trim(),
+          nama_penghargaan: data[i][idxNama] || '',
+          pemberi: data[i][idxPemberi] || '',
+          tahun: data[i][idxTahun] || '',
+          deskripsi: data[i][idxDesc] || '',
+          sumber: data[i][idxSumber] || 'manual'
+        });
+      }
+    }
+    
+    // Sort by tahun descending
+    list.sort((a, b) => b.tahun - a.tahun);
+    
+    return apiSuccess(list);
+  } catch (e) {
+    return apiError('Gagal memuat daftar penghargaan: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Menambahkan data penghargaan ke sub-profil
+ */
+function apiAddPenghargaan(payload) {
+  return executeWithLock_(() => {
+    try {
+      const { nip, nama_penghargaan, pemberi, tahun, deskripsi } = payload;
+      if (!nip || !nama_penghargaan || !pemberi || !tahun) {
+        return apiError('Data tidak lengkap.', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      const sheet = setupSheet(ss, 'ProfilPenghargaan', [
+        'id', 'NIP', 'Nama Penghargaan', 'Pemberi', 'Tahun', 'Deskripsi', 'Sumber', 'created_at'
+      ]);
+      
+      const id = Utilities.getUuid();
+      const nowStr = new Date().toISOString();
+      
+      sheet.appendRow([
+        id,
+        String(nip).trim(),
+        nama_penghargaan,
+        pemberi,
+        tahun,
+        deskripsi || '',
+        'manual',
+        nowStr
+      ]);
+      
+      return apiSuccess({ id }, 'Penghargaan berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal menambahkan penghargaan: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Menghapus data penghargaan dari sub-profil
+ */
+function apiDeletePenghargaan(id, nip) {
+  return executeWithLock_(() => {
+    try {
+      if (!id || !nip) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('ProfilPenghargaan');
+      if (!sheet || sheet.getLastRow() < 2) return apiError('Data kosong.', 'NOT_FOUND');
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const idxId = headers.indexOf('id');
+      const idxNip = headers.indexOf('NIP');
+      const idxSumber = headers.indexOf('Sumber');
+      
+      let rowToDelete = -1;
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxId]).trim() === String(id).trim() &&
+            String(data[i][idxNip]).trim() === String(nip).trim()) {
+          
+          const sumber = String(data[i][idxSumber]).trim().toLowerCase();
+          if (sumber === 'sistem') {
+            return apiError('Penghargaan sistem tidak dapat dihapus.', 'FORBIDDEN');
+          }
+          rowToDelete = i + 1;
+          break;
+        }
+      }
+      
+      if (rowToDelete === -1) {
+        return apiError('Data tidak ditemukan.', 'NOT_FOUND');
+      }
+      
+      sheet.deleteRow(rowToDelete);
+      return apiSuccess(null, 'Penghargaan berhasil dihapus.');
+    } catch (e) {
+      return apiError('Gagal menghapus penghargaan: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Mengambil daftar sertifikat Master Trainer dari sub-profil
+ */
+function apiGetMasterTrainerList(nip) {
+  try {
+    if (!nip) return apiError('NIP harus diisi.', 'VALIDATION');
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('ProfilMasterTrainer');
+    if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('id');
+    const idxNip = headers.indexOf('NIP');
+    const idxBidang = headers.indexOf('Bidang Keahlian');
+    const idxLembaga = headers.indexOf('Lembaga');
+    const idxTahun = headers.indexOf('Tahun');
+    const idxNoSert = headers.indexOf('No Sertifikat');
+    const idxSumber = headers.indexOf('Sumber');
+    
+    const list = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idxNip]).trim() === String(nip).trim()) {
+        list.push({
+          id: String(data[i][idxId]).trim(),
+          bidang_keahlian: data[i][idxBidang] || '',
+          lembaga: data[i][idxLembaga] || '',
+          tahun: data[i][idxTahun] || '',
+          no_sertifikat: data[i][idxNoSert] || '',
+          sumber: data[i][idxSumber] || 'manual'
+        });
+      }
+    }
+    
+    // Sort by tahun descending
+    list.sort((a, b) => b.tahun - a.tahun);
+    
+    return apiSuccess(list);
+  } catch (e) {
+    return apiError('Gagal memuat daftar master trainer: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Menambahkan data Master Trainer ke sub-profil
+ */
+function apiAddMasterTrainer(payload) {
+  return executeWithLock_(() => {
+    try {
+      const { nip, bidang_keahlian, lembaga, tahun, no_sertifikat } = payload;
+      if (!nip || !bidang_keahlian || !lembaga || !tahun) {
+        return apiError('Data tidak lengkap.', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      const sheet = setupSheet(ss, 'ProfilMasterTrainer', [
+        'id', 'NIP', 'Bidang Keahlian', 'Lembaga', 'Tahun', 'No Sertifikat', 'Sumber', 'created_at'
+      ]);
+      
+      const id = Utilities.getUuid();
+      const nowStr = new Date().toISOString();
+      
+      sheet.appendRow([
+        id,
+        String(nip).trim(),
+        bidang_keahlian,
+        lembaga,
+        tahun,
+        no_sertifikat || '',
+        'manual',
+        nowStr
+      ]);
+      
+      return apiSuccess({ id }, 'Sertifikat Master Trainer berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal menambahkan master trainer: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Menghapus data Master Trainer dari sub-profil
+ */
+function apiDeleteMasterTrainer(id, nip) {
+  return executeWithLock_(() => {
+    try {
+      if (!id || !nip) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('ProfilMasterTrainer');
+      if (!sheet || sheet.getLastRow() < 2) return apiError('Data kosong.', 'NOT_FOUND');
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const idxId = headers.indexOf('id');
+      const idxNip = headers.indexOf('NIP');
+      const idxSumber = headers.indexOf('Sumber');
+      
+      let rowToDelete = -1;
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxId]).trim() === String(id).trim() &&
+            String(data[i][idxNip]).trim() === String(nip).trim()) {
+          
+          const sumber = String(data[i][idxSumber]).trim().toLowerCase();
+          if (sumber === 'sistem') {
+            return apiError('Sertifikat Master Trainer sistem tidak dapat dihapus.', 'FORBIDDEN');
+          }
+          rowToDelete = i + 1;
+          break;
+        }
+      }
+      
+      if (rowToDelete === -1) {
+        return apiError('Data tidak ditemukan.', 'NOT_FOUND');
+      }
+      
+      sheet.deleteRow(rowToDelete);
+      return apiSuccess(null, 'Sertifikat Master Trainer berhasil dihapus.');
+    } catch (e) {
+      return apiError('Gagal menghapus master trainer: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}

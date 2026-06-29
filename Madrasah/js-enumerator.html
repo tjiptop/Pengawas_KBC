@@ -572,35 +572,7 @@
                         // Sort descending
                         mySubs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                        // ✨ LIST-ONLY VIEW for subordinates
-                        if (!isAllowed && def.subordinate_visibility === 'list') {
-                            const count = mySubs.length;
-                            const listId = `hist-${k}`;
-                            const historyList = mySubs.map(s => `
-                                <div class="history-item" style="cursor:default;opacity:0.7">
-                                    <span>${Utils.formatDate(s.timestamp)}</span>
-                                    <span>🚫</span>
-                                </div>
-                            `).join('');
-
-                            return `
-                            <div class="form-row">
-                                <div class="form-btn-group">
-                                    <button class="form-btn-main" style="cursor:default;opacity:0.8;background:var(--color-bg-elevated);color:var(--color-text)">
-                                        ${title} <small style="opacity:0.6">(District Only)</small>
-                                    </button>
-                                    <div class="form-count-badge" onclick="document.getElementById('${listId}').classList.toggle('open')">
-                                        ${count} &nbsp; &#10095;
-                                    </div>
-                                </div>
-                                <div id="${listId}" class="history-slide">
-                                    ${historyList || '<div style="padding:10px;color:#999;font-size:0.9em">No history</div>'}
-                                </div>
-                            </div>`;
-                        }
-
-                        // ✨ DELEGASI BUTTON (Common Logic)
-                        // Check if there are active delegations
+                        // ✨ DELEGASI BUTTON & ACTIVE LINKS (Common Logic)
                         const myActiveTokens = (App.state.my_tokens || []).filter(t => t.form_id === k);
                         const hasActiveDelegation = myActiveTokens.some(t => {
                             const isExpired = new Date(t.expires_at) < new Date();
@@ -618,9 +590,41 @@
                                    </span>`)
                             : '';
 
-                        // ✨ ACTIVE LINKS LIST (Common Logic)
                         const activeLinksHtml = DelegateManager.renderActiveLinksList(myActiveTokens, App.state.user.username, k, m.madrasah_id);
                         const activeLinksSection = def.enable_delegation ? `<div id="active-links-${k}" style="margin-bottom:10px">${activeLinksHtml}</div>` : '';
+
+                        // ✨ LIST-ONLY VIEW for subordinates
+                        if (!isAllowed && def.subordinate_visibility === 'list') {
+                            const count = mySubs.length;
+                            const listId = `hist-${k}`;
+                            const historyList = mySubs.map(s => `
+                                <div class="history-item" style="cursor:default;opacity:0.7">
+                                    <span>${Utils.formatDate(s.timestamp)}</span>
+                                    <span>🚫</span>
+                                </div>
+                            `).join('');
+
+                            const label = allowedRoles.length > 0
+                                ? allowedRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ') + ' Only'
+                                : 'View Only';
+
+                            return `
+                            <div class="form-row">
+                                <div class="form-btn-group">
+                                    <button class="form-btn-main" style="cursor:default;opacity:0.8;background:var(--color-bg-elevated);color:var(--color-text)">
+                                        ${title} <small style="opacity:0.6">(${label})</small>
+                                    </button>
+                                    ${delegasiBtn}
+                                    <div class="form-count-badge" onclick="document.getElementById('${listId}').classList.toggle('open')">
+                                        ${count} &nbsp; &#10095;
+                                    </div>
+                                </div>
+                                <div id="${listId}" class="history-slide">
+                                    ${activeLinksSection}
+                                    ${historyList || '<div style="padding:10px;color:#999;font-size:0.9em">No history</div>'}
+                                </div>
+                            </div>`;
+                        }
 
                         // ✨ FULL VIEW (Read-only) for subordinates
                         const isReadOnly = !isAllowed && def.subordinate_visibility === 'full';

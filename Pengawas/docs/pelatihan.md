@@ -89,7 +89,7 @@ Menyimpan definisi pustaka materi global yang tersedia di sistem.
 | `materi_id` | String | ID materi unik | Primary Key |
 | `judul_materi` | String | Judul modul/materi | Required |
 | `deskripsi` | String | Keterangan singkat materi | - |
-| `konfigurasi_template` | JSON String | Struktur materi & link LK hasil parse `template.yaml`| Saved JSON |
+| `konfigurasi_template` | JSON String | Struktur materi & link LK hasil parse `materi.yaml`| Saved JSON |
 | `konfigurasi_soal` | String | Teks YAML mentah yang berisi soal-soal evaluasi | Saved YAML string |
 
 ### 3.5 Skema `PrePostSoal`
@@ -206,12 +206,12 @@ Integrasi data materi dirancang fleksibel melalui dokumen berbasis teks YAML yan
 graph TD
     A[Mulai Sinkronisasi] --> B[Cari Folder Pelatihan di Parent APP_DB_ID]
     B --> C[Temukan/Buat Folder berdasar Judul Materi]
-    C --> D[Baca/Tulis template.yaml & soal.yaml]
+    C --> D[Baca/Tulis materi.yaml & test.yaml]
     D --> E[Parse YAML ke JSON & Validasi Soal]
     E --> F[Simpan Hasil ke Materi_Pelatihan di Google Sheets]
 ```
 
-### 5.2 Contoh Format File `soal.yaml`
+### 5.2 Contoh Format File `test.yaml`
 ```yaml
 title: "Evaluasi Pemahaman Dasar KBC"
 description: "Soal evaluasi pemahaman baseline untuk pengawas"

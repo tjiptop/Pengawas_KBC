@@ -88,7 +88,7 @@ const App = {
     this.applyDarkMode(this.state.darkMode);
 
     // Tampilkan label versi aktif secara dinamis di pojok kanan bawah
-    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v.2.5.2';
+    const appVersion = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.app_version ? window.SERVER_PARAMS.app_version : 'v.2.6.0';
     const badgeEl = document.getElementById('version-badge');
     if (badgeEl) {
       badgeEl.textContent = appVersion;
@@ -123,6 +123,28 @@ const App = {
           </div>
         </div>`;
       KamadAuth.handleSetupToken(kamadSetupToken);
+      return;
+    }
+
+    // Cek apakah ada survey_token dari server (Google Apps Script iframe safe)
+    let surveyToken = typeof window.SERVER_PARAMS !== 'undefined' && window.SERVER_PARAMS.survey_token ? window.SERVER_PARAMS.survey_token : null;
+    if (!surveyToken) {
+      const urlParams = new URLSearchParams(window.location.search);
+      surveyToken = urlParams.get('survey_token');
+    }
+    if (surveyToken === 'null' || surveyToken === 'undefined' || surveyToken === '') {
+      surveyToken = null;
+    }
+
+    if (surveyToken) {
+      document.getElementById('app').innerHTML = `
+        <div class="center-screen" style="display:flex;justify-content:center;align-items:center;height:100vh;">
+          <div class="card" style="max-width:340px;text-align:center;padding:24px;background:var(--color-bg-elevated);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.1);border:1px solid var(--color-border);">
+            <div class="spinner" style="margin:0 auto 16px;"></div>
+            <p style="color:var(--color-text-secondary);margin:0;font-weight:600;">Memuat survey...</p>
+          </div>
+        </div>`;
+      App.loadTokenSurvey(surveyToken);
       return;
     }
 
@@ -175,7 +197,14 @@ const App = {
     } else if (view === 'profile') {
       try {
         el.innerHTML = ProfileViews.Form(this.state.user || {});
-        setTimeout(() => ProfileManager.updateKabupaten(), 0);
+        setTimeout(() => {
+          const hasName = App.state.user && App.state.user['Nama'];
+          if (hasName) {
+            ProfileManager.switchTab('pelatihan');
+          } else {
+            ProfileManager.switchTab('edit');
+          }
+        }, 0);
       } catch(e) {
         el.innerHTML = '<div class="content"><div class="card"><p style="color:red;font-weight:bold;">Terjadi kesalahan saat memuat form profil:</p><pre style="background:#f4f4f4;padding:10px;border-radius:5px;overflow:auto;font-size:12px;">' + e.message + '\n' + e.stack + '</pre><button class="btn" onclick="App.router(\'dashboard\')" style="margin-top:15px;">Kembali</button></div></div>';
         console.error('Profile view error:', e);
@@ -227,11 +256,12 @@ const App = {
         localStorage.setItem('kamad_session', JSON.stringify(this.state.kamad));
       }
       KamadDashboard.init();
+    } else if (view === 'kamad-kanban') {
+      KanbanManager.init();
     } else if (view === 'kamad-forms') {
       KamadForms.init();
     } else if (view === 'kamad-history') {
       KamadForms.init();
-      setTimeout(() => KamadForms.switchTab('history'), 100);
     } else if (view === 'pelatihan') {
       el.innerHTML = PelatihanViews.Main();
       PelatihanManager.init();

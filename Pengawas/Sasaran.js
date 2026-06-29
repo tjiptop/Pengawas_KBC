@@ -202,9 +202,99 @@ function getSasaran(nip) {
     if (data.length < 2) return [];
 
     const headers = data[0];
-    let idxNsm = headers.findIndex(h => h.toString().toUpperCase() === 'NSM' || h.toString().toUpperCase().includes('NSM'));
-    let idxNama = headers.findIndex(h => h.toString().toUpperCase().includes('NAMA') || h.toString().toUpperCase() === 'NAME');
-    
+    let idxNsm = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'NSM' || u.includes('NSM');
+    });
+    let idxNama = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'NAMA' || u === 'NAME' || u === 'NAMA_MADRASAH' || u === 'MADRASAH_NAME';
+    });
+    if (idxNama === -1) {
+      idxNama = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return (u.includes('NAMA') || u.includes('NAME')) && !u.includes('SUB') && !u.includes('KAB') && !u.includes('KEC') && !u.includes('PROV');
+      });
+    }
+
+    let idxKab = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA' || u === 'DISTRICT';
+    });
+    if (idxKab === -1) {
+      idxKab = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        if (u.includes('KODE') || u.includes('CODE') || u.includes('ID') || u.includes('NO')) return false;
+        return u.includes('KAB') || u.includes('KOTA') || u.includes('DISTRICT');
+      });
+    }
+
+    let idxProv = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'PROVINSI' || u === 'PROVINCE' || u === 'STATE';
+    });
+    if (idxProv === -1) {
+      idxProv = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('PROV') || u.includes('PROVINCE') || u.includes('PROVINSI');
+      });
+    }
+
+    let idxKec = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'SUB_DISTRICT' || u === 'KECAMATAN' || u === 'KEC' || u === 'SUBDISTRICT';
+    });
+    if (idxKec === -1) {
+      idxKec = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('SUB_DISTRICT') || u.includes('SUBDISTRICT') || u.includes('KECAMATAN');
+      });
+    }
+
+    let idxJenjang = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'LEVEL' || u === 'JENJANG' || u === 'BENTUK';
+    });
+    if (idxJenjang === -1) {
+      idxJenjang = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('LEVEL') || u.includes('JENJANG') || u.includes('BENTUK');
+      });
+    }
+
+    let idxDesa = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'DESA' || u === 'VILLAGE' || u === 'KELURAHAN';
+    });
+    if (idxDesa === -1) {
+      idxDesa = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('DESA') || u.includes('VILLAGE') || u.includes('KELURAHAN');
+      });
+    }
+
+    let idxDesaId = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'KODE_DESA' || u === 'KD_DESA' || u === 'VILLAGE_ID' || u === 'KODE_KELURAHAN';
+    });
+    if (idxDesaId === -1) {
+      idxDesaId = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('KD_DESA') || u.includes('KODE_DESA') || u.includes('VILLAGE_ID') || u.includes('VILLAGEID');
+      });
+    }
+
+    let idxAlamat = headers.findIndex(h => {
+      const u = h.toString().toUpperCase();
+      return u === 'ALAMAT' || u === 'ADDRESS';
+    });
+    if (idxAlamat === -1) {
+      idxAlamat = headers.findIndex(h => {
+        const u = h.toString().toUpperCase();
+        return u.includes('ALAMAT') || u.includes('ADDRESS');
+      });
+    }
+
     if (idxNsm === -1) idxNsm = 2;
     if (idxNama === -1) idxNama = 3;
 
@@ -238,10 +328,39 @@ function getSasaran(nip) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0]).trim() == nipStr) {
         const nsmVal = String(data[i][idxNsm]).trim();
+        
+        let districtVal = idxKab !== -1 ? String(data[i][idxKab]).trim() : '';
+        let provinceVal = idxProv !== -1 ? String(data[i][idxProv]).trim() : '';
+        let levelVal = idxJenjang !== -1 ? String(data[i][idxJenjang]).trim() : '';
+        let subdistrictVal = idxKec !== -1 ? String(data[i][idxKec]).trim() : '';
+        let villageVal = idxDesa !== -1 ? String(data[i][idxDesa]).trim() : '';
+        let villageIdVal = idxDesaId !== -1 ? String(data[i][idxDesaId]).trim() : '';
+        let addressVal = idxAlamat !== -1 ? String(data[i][idxAlamat]).trim() : '';
+        let namaVal = idxNama !== -1 ? String(data[i][idxNama]).trim() : '';
+
+        // Fallback to Master database if district, province, or nama is empty
+        if (!districtVal || !provinceVal || !namaVal) {
+          const masterInfo = getMadrasahByNsm(nsmVal);
+          if (masterInfo) {
+            if (!namaVal) namaVal = masterInfo.nama || '';
+            if (!districtVal) districtVal = masterInfo.kabupaten || '';
+            if (!provinceVal) provinceVal = masterInfo.provinsi || '';
+            if (!levelVal) levelVal = masterInfo.jenjang || '';
+            if (!subdistrictVal) subdistrictVal = masterInfo.kecamatan || '';
+          }
+        }
+
         sasaran.push({ 
           nsm: nsmVal, 
-          nama: data[i][idxNama],
-          kamad_aktif: activeKamadNsms.has(nsmVal)
+          nama: namaVal,
+          kamad_aktif: activeKamadNsms.has(nsmVal),
+          level: levelVal,
+          province: provinceVal,
+          district: districtVal,
+          subdistrict: subdistrictVal,
+          village: villageVal,
+          village_id: villageIdVal,
+          address: addressVal
         });
       }
     }
@@ -311,7 +430,7 @@ function saveSasaranList(nip, nsmListArray) {
       }
     }
 
-    return apiSuccess(null, 'Daftar sasaran berhasil diupdate.');
+    return apiSuccess(getSasaran(nip), 'Daftar sasaran berhasil diupdate.');
   } catch (e) {
     return apiError('Kesalahan sistem saat menyimpan daftar sasaran: ' + e.toString(), 'SYSTEM_ERROR');
   }

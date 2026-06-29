@@ -977,8 +977,7 @@ const PelatihanManager = {
         const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
         App.confirm(`Apakah Anda yakin ingin membuka ${act} sekarang? Peserta pelatihan akan dapat mengakses dan mengerjakannya.`, `Buka ${act}`, () => {
             App.loading(true, `Membuka ${act}...`);
-            const runFn = tipe === 'pre' ? google.script.run.apiBukaPreTest : google.script.run.apiBukaPostTest;
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast(`🟢 ${act} dibuka`, 'success');
@@ -989,7 +988,9 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(soalId);
+            });
+            const method = tipe === 'pre' ? 'apiBukaPreTest' : 'apiBukaPostTest';
+            runner[method](soalId);
         });
     },
 
@@ -997,8 +998,7 @@ const PelatihanManager = {
         const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
         App.confirm(`Apakah Anda yakin ingin menutup ${act} sekarang? Peserta tidak akan bisa mengerjakannya lagi.`, `Tutup ${act}`, () => {
             App.loading(true, `Menutup ${act}...`);
-            const runFn = tipe === 'pre' ? google.script.run.apiTutupPreTest : google.script.run.apiTutupPostTest;
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast(`⏹ ${act} ditutup`, 'success');
@@ -1009,7 +1009,9 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(soalId);
+            });
+            const method = tipe === 'pre' ? 'apiTutupPreTest' : 'apiTutupPostTest';
+            runner[method](soalId);
         });
     },
 
@@ -1020,10 +1022,7 @@ const PelatihanManager = {
         App.loading(true, 'Menyimpan soal YAML...');
         
         const handleSave = (soalId) => {
-            const runFn = soalId ? google.script.run.apiUpdatePrePostSoal : google.script.run.apiCreatePrePostSoal;
-            const arg1 = soalId ? soalId : pelatihanId;
-            
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast('💾 Soal YAML berhasil disimpan', 'success');
@@ -1034,7 +1033,13 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(arg1, yaml);
+            });
+
+            if (soalId) {
+                runner.apiUpdatePrePostSoal(soalId, yaml);
+            } else {
+                runner.apiCreatePrePostSoal(pelatihanId, yaml);
+            }
         };
         
         const existingSoalId = this.detailData.test ? this.detailData.test.soal_id : null;

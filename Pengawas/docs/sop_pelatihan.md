@@ -52,11 +52,11 @@ Aplikasi membaca dan menulis file konfigurasi materi dari Google Drive. Struktur
 [Parent Folder Aplikasi] (APP_DB_ID)
 └── pelatihan/                     # Dibuat otomatis oleh sistem jika belum ada
     ├── Pelatihan_KBC_Angkatan_1/  # Folder sesuai nama/judul materi (sanitized)
-    │   ├── template.yaml          # Deskripsi materi & Lembar Kerja (LK)
-    │   └── soal.yaml              # Bank soal ujian Pre & Post Test
+    │   ├── materi.yaml            # Deskripsi materi & Lembar Kerja (LK)
+    │   └── test.yaml              # Bank soal ujian Pre & Post Test
     └── Manajemen_Madrasah/
-        ├── template.yaml
-        └── soal.yaml
+        ├── materi.yaml
+        └── test.yaml
 ```
 
 ---
@@ -65,7 +65,7 @@ Aplikasi membaca dan menulis file konfigurasi materi dari Google Drive. Struktur
 
 Pengembang wajib mengikuti struktur YAML berikut agar proses parsing di file `PrePostTest.js` (`parsePrePostYaml_`) tidak menghasilkan error.
 
-### 3.1 Spesifikasi `template.yaml` (Materi & Lembar Kerja)
+### 3.1 Spesifikasi `materi.yaml` (Materi & Lembar Kerja)
 File ini mendefinisikan pustaka dokumen pendukung materi dan lembar kerja yang wajib diakses oleh peserta.
 
 ```yaml
@@ -83,7 +83,7 @@ materi:
     url: "https://drive.google.com/file/d/ID_FILE_MODUL/view"
 ```
 
-### 3.2 Spesifikasi `soal.yaml` (Pre-Test & Post-Test)
+### 3.2 Spesifikasi `test.yaml` (Pre-Test & Post-Test)
 File ini mendefinisikan seluruh butir soal ujian evaluasi. Terdapat 4 tipe soal yang didukung:
 
 ```yaml
@@ -176,8 +176,8 @@ flowchart TD
 ### SOP 2: Pembuatan Berkas YAML di Google Drive
 1.  Buka dashboard Pelatih pada aplikasi web.
 2.  Masuk ke menu **Materi** dan pilih tombol **Sinkronisasi YAML** pada materi terkait.
-3.  Sistem secara otomatis akan membuat folder khusus materi tersebut di Google Drive aplikasi dan membuat file contoh: `template.yaml` serta `soal.yaml`.
-4.  Buka link Google Drive tersebut, edit isi file `template.yaml` (tambahkan url LK) dan `soal.yaml` (tulis butir-butir soal evaluasi sesungguhnya) sesuai spesifikasi pada Bab 3.
+3.  Sistem secara otomatis akan membuat folder khusus materi tersebut di Google Drive aplikasi dan membuat file contoh: `materi.yaml` serta `test.yaml`.
+4.  Buka link Google Drive tersebut, edit isi file `materi.yaml` (tambahkan url LK) dan `test.yaml` (tulis butir-butir soal evaluasi sesungguhnya) sesuai spesifikasi pada Bab 3.
 
 ### SOP 3: Sinkronisasi YAML ke Google Sheets
 1.  Kembali ke aplikasi web, pada halaman sinkronisasi materi, klik tombol **Sinkronkan Data**.

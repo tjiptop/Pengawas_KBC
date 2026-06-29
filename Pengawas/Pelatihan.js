@@ -76,7 +76,7 @@ function apiGetPelatihanList(nipPelatih) {
           const folder = subfolders.next();
           const catName = folder.getName();
           let mCount = 0;
-          const templateFiles = folder.getFilesByName('template.yaml');
+          const templateFiles = folder.getFilesByName('materi.yaml');
           if (templateFiles.hasNext()) {
             const yamlStr = templateFiles.next().getBlob().getDataAsString();
             try {
@@ -245,7 +245,7 @@ function apiGetPelatihanDetail(pelatihanId) {
       const kFolders = templatesFolder.getFoldersByName(kategori);
       if (kFolders.hasNext()) {
         const folder = kFolders.next();
-        const templateFiles = folder.getFilesByName('template.yaml');
+        const templateFiles = folder.getFilesByName('materi.yaml');
         if (templateFiles.hasNext()) {
           const yamlStr = templateFiles.next().getBlob().getDataAsString();
           const parsed = jsyaml.load(yamlStr);
@@ -383,6 +383,9 @@ function apiCreatePelatihan(payload, sessionToken) {
       if (headersP.indexOf('kategori') !== -1 && payload.kategori) {
         newRow[headersP.indexOf('kategori')] = payload.kategori;
       }
+      if (headersP.indexOf('zona_waktu') !== -1 && payload.zona_waktu) {
+        newRow[headersP.indexOf('zona_waktu')] = payload.zona_waktu;
+      }
       
       sheet.appendRow(newRow);
       return apiSuccess({ pelatihan_id: pelatihanId }, 'Jadwal pelatihan berhasil dibuat sebagai draft.');
@@ -439,6 +442,10 @@ function apiUpdatePelatihan(pelatihanId, payload, sessionToken) {
       const idxKategori = updatedHeaders.indexOf('kategori');
       if (idxKategori !== -1 && payload.kategori !== undefined) {
         sheet.getRange(row, idxKategori + 1).setValue(payload.kategori);
+      }
+      const idxZonaWaktu = updatedHeaders.indexOf('zona_waktu');
+      if (idxZonaWaktu !== -1 && payload.zona_waktu !== undefined) {
+        sheet.getRange(row, idxZonaWaktu + 1).setValue(payload.zona_waktu);
       }
       
       sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
@@ -735,7 +742,7 @@ function apiJoinPelatihanByCode(nipPeserta, inviteCode) {
       nipPeserta,
       namaPeserta,
       kabPeserta,
-      'terdaftar'
+      'aktif'
     ]);
     
     return apiSuccess({ pelatihan_id: targetPelatihanId }, 'Berhasil bergabung dengan pelatihan.');
@@ -898,72 +905,7 @@ function apiSetPeserta(pelatihanId, listNIP, sessionToken) {
   });
 }
 
-/**
- * Mengatur materi terpilih untuk suatu pelatihan
- * @param {string} pelatihanId
- * @param {Array<object>} listMateri Array dari { materi_id, judul_materi }
- * @returns {object} Response standard
- */
-function apiSetMateri(pelatihanId, listMateri, sessionToken) {
-  return executeWithLock_(() => {
-    try {
-      if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
-        return apiError('Anda tidak memiliki akses untuk mengatur materi pelatihan ini.', 'FORBIDDEN');
-      }
-      if (!pelatihanId || !listMateri) return apiError('Parameter tidak lengkap.', 'VALIDATION');
-      const ss = getAppDb_();
-      
-      // 1. Cek status pelatihan
-      const sheetP = ss.getSheetByName('Pelatihan');
-      if (!sheetP) return apiError('Sheet Pelatihan tidak ditemukan.', 'SYSTEM_ERROR');
-      const dataP = sheetP.getDataRange().getValues();
-      const idxId = dataP[0].indexOf('pelatihan_id');
-      const idxStatus = dataP[0].indexOf('status');
-      
-      let isSelesai = false;
-      for (let i = 1; i < dataP.length; i++) {
-        if (String(dataP[i][idxId]).trim() === String(pelatihanId).trim()) {
-          isSelesai = String(dataP[i][idxStatus]).trim().toLowerCase() === 'selesai';
-          break;
-        }
-      }
-      if (isSelesai) {
-        return apiError('Tidak dapat mengubah materi pada pelatihan yang sudah SELESAI.', 'INVALID_STATUS');
-      }
-      
-      // 2. Hapus materi lama
-      const sheetMat = ss.getSheetByName('PelatihanMateri');
-      if (!sheetMat) return apiError('Sheet PelatihanMateri tidak ditemukan.', 'SYSTEM_ERROR');
-      
-      const dtMat = sheetMat.getDataRange().getValues();
-      const idxPid = dtMat[0].indexOf('pelatihan_id');
-      for (let i = dtMat.length - 1; i >= 1; i--) {
-        if (String(dtMat[i][idxPid]).trim() === String(pelatihanId).trim()) {
-          sheetMat.deleteRow(i + 1);
-        }
-      }
-      
-      // 3. Tambah materi baru
-      if (listMateri.length > 0) {
-        let rowsToInsert = [];
-        for (let i = 0; i < listMateri.length; i++) {
-          let item = listMateri[i];
-          rowsToInsert.push([
-            pelatihanId,
-            item.materi_id,
-            i + 1, // urutan
-            item.judul_materi
-          ]);
-        }
-        sheetMat.getRange(sheetMat.getLastRow() + 1, 1, rowsToInsert.length, rowsToInsert[0].length).setValues(rowsToInsert);
-      }
-      
-      return apiSuccess(null, 'Materi pelatihan berhasil diperbarui.');
-    } catch (e) {
-      return apiError('Gagal mengatur materi pelatihan: ' + e.toString(), 'SYSTEM_ERROR');
-    }
-  });
-}
+// apiSetMateri has been deleted.
 
 /**
  * Mengambil daftar pelatihan yang diikuti oleh pengawas tertentu (untuk dashboard peserta)
@@ -1092,196 +1034,60 @@ function apiGetDashboardPelatihan(pelatihanId, nipPeserta) {
       }
     }
     
+    // 4. Calculate attendance count and total days
+    const syarat = getSyaratSertifikat_(pelatihanId);
+    detail.pelatihan.syarat_sertifikat = syarat;
+    
+    if (syarat === 'absensi_penuh') {
+      const dStart = detail.pelatihan.tanggal_mulai ? new Date(detail.pelatihan.tanggal_mulai) : null;
+      const dEnd = detail.pelatihan.tanggal_selesai ? new Date(detail.pelatihan.tanggal_selesai) : null;
+      const allDays = [];
+      if (dStart && dEnd) {
+        for (let d = new Date(dStart); d <= dEnd; d.setDate(d.getDate() + 1)) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          allDays.push(y + '-' + m + '-' + dd);
+        }
+      }
+      
+      const sheetAbsen = ss.getSheetByName('PelatihanAbsensi');
+      let hadirCount = 0;
+      if (sheetAbsen && sheetAbsen.getLastRow() > 1 && allDays.length > 0) {
+        const dataAbs = sheetAbsen.getDataRange().getValues();
+        const hAbs = dataAbs[0];
+        const idxAbsPid = hAbs.indexOf('pelatihan_id');
+        const idxAbsNip = hAbs.indexOf('nip');
+        const idxAbsDate = hAbs.indexOf('tanggal');
+        
+        const hadirSet = new Set();
+        const nipStr = String(nipPeserta).trim();
+        for (let i = 1; i < dataAbs.length; i++) {
+          if (String(dataAbs[i][idxAbsPid]).trim() === String(pelatihanId).trim() &&
+              String(dataAbs[i][idxAbsNip]).trim() === nipStr) {
+            hadirSet.add(String(dataAbs[i][idxAbsDate]).trim().substring(0, 10));
+          }
+        }
+        allDays.forEach(day => {
+          if (hadirSet.has(day)) {
+            hadirCount++;
+          }
+        });
+      }
+      
+      detail.attendance_stats = {
+        hadir_count: hadirCount,
+        total_days: allDays.length
+      };
+    }
+    
     return apiSuccess(detail);
   } catch (e) {
     return apiError('Gagal memuat dashboard pelatihan peserta: ' + e.toString(), 'SYSTEM_ERROR');
   }
 }
 
-/**
- * Mengambil daftar materi pelatihan dari sheet Materi_Pelatihan
- * @returns {object} Response standard dengan list materi
- */
-function apiGetAvailableMateri() {
-  try {
-    const cache = CacheService.getScriptCache();
-    const cachedAvailableMateri = cache.get('available_materi_list');
-    if (cachedAvailableMateri) {
-      try {
-        return apiSuccess(JSON.parse(cachedAvailableMateri));
-      } catch (e) {}
-    }
-    const ss = getAppDb_();
-    const sheet = ss.getSheetByName('Materi_Pelatihan');
-    if (!sheet) return apiSuccess([]);
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return apiSuccess([]);
-    const headers = data[0];
-    const idxId = headers.indexOf('materi_id');
-    const idxJudul = headers.indexOf('judul_materi');
-    const idxDesc = headers.indexOf('deskripsi');
-    const idxConfig = headers.indexOf('konfigurasi_template');
-    
-    let list = [];
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][idxId]) {
-        let config = null;
-        if (idxConfig !== -1 && data[i][idxConfig]) {
-            try { config = JSON.parse(String(data[i][idxConfig])); } catch(e) {}
-        }
-        list.push({
-          id: String(data[i][idxId]).trim(),
-          title: String(data[i][idxJudul] || '').trim(),
-          description: String(data[i][idxDesc] || '').trim(),
-          group: 'Materi Pelatihan',
-          config: config
-        });
-      }
-    }
-    try {
-      cache.put('available_materi_list', JSON.stringify(list), 1800); // 30 mins
-    } catch(e) {}
-    return apiSuccess(list);
-  } catch (e) {
-    return apiError('Gagal mengambil daftar materi: ' + e.toString(), 'SYSTEM_ERROR');
-  }
-}
-
-/**
- * Membaca template YAML dari Google Drive untuk Materi Pelatihan
- * Jika belum ada, akan membuat struktur foldernya dan template default.
- * @param {string} materiId 
- */
-function apiGetMateriYaml(materiId) {
-  try {
-    const ss = getAppDb_();
-    const sheet = ss.getSheetByName('Materi_Pelatihan');
-    if (!sheet) return apiError('Sheet Materi_Pelatihan tidak ditemukan');
-    
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const idxId = headers.indexOf('materi_id');
-    const idxJudul = headers.indexOf('judul_materi');
-    
-    let judulMateri = '';
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][idxId]).trim() === materiId) {
-        judulMateri = String(data[i][idxJudul]).trim();
-        break;
-      }
-    }
-    
-    if (!judulMateri) return apiError('Materi tidak ditemukan');
-    
-    const parentIterator = DriveApp.getFileById(APP_DB_ID).getParents();
-    const appDbFolder = parentIterator.hasNext() ? parentIterator.next() : DriveApp.getRootFolder();
-    
-    // Cari atau buat folder "pelatihan"
-    let pelatihanFolder;
-    const pFolders = appDbFolder.getFoldersByName('pelatihan');
-    if (pFolders.hasNext()) {
-      pelatihanFolder = pFolders.next();
-    } else {
-      pelatihanFolder = appDbFolder.createFolder('pelatihan');
-    }
-    
-    // Sanitize judul materi untuk nama folder
-    const safeJudul = judulMateri.replace(/[\\/:*?"<>|]/g, "_");
-    let materiFolder;
-    const mFolders = pelatihanFolder.getFoldersByName(safeJudul);
-    if (mFolders.hasNext()) {
-      materiFolder = mFolders.next();
-    } else {
-      materiFolder = pelatihanFolder.createFolder(safeJudul);
-    }
-    
-    // Cari atau buat file template.yaml
-    let yamlFile;
-    const yFiles = materiFolder.getFilesByName('template.yaml');
-    let yamlString = '';
-    if (yFiles.hasNext()) {
-      yamlFile = yFiles.next();
-      yamlString = yamlFile.getBlob().getDataAsString();
-    } else {
-      const defaultYaml = `deskripsi: "Pelatihan ini memberikan pemahaman mendalam tentang manajemen madrasah..."\npre_post_test:\n  pre_test_url: ""\n  post_test_url: ""\nlembar_kerja:\n  - judul: "LK 1: Pemetaan Masalah"\n    url: ""\nmateri:\n  - judul: "Modul Dasar Kepemimpinan"\n    url: ""\n`;
-      yamlFile = materiFolder.createFile('template.yaml', defaultYaml, MimeType.PLAIN_TEXT);
-      yamlString = defaultYaml;
-    }
-    
-    // Cari atau buat file soal.yaml
-    let soalFile;
-    const sFiles = materiFolder.getFilesByName('soal.yaml');
-    let soalYamlString = '';
-    if (sFiles.hasNext()) {
-      soalFile = sFiles.next();
-      soalYamlString = soalFile.getBlob().getDataAsString();
-    } else {
-      const defaultSoal = [
-        'title: "Pre/Post Test Pemahaman ' + judulMateri + '"',
-        'description: "Soal evaluasi pemahaman baseline untuk pengawas"',
-        'shuffle_questions: true',
-        'shuffle_options: true',
-        'time_limit_minutes: 30',
-        '',
-        'questions:',
-        '  - type: radio',
-        '    name: q1',
-        '    label: "Pertanyaan pilihan ganda contoh:"',
-        '    options:',
-        '      - "Pilihan A"',
-        '      - "Pilihan B"',
-        '      - "Pilihan C"',
-        '      - "Pilihan D"',
-        '    answer: "Pilihan A"',
-        '    category: "Konsep Dasar"',
-        '',
-        '  - type: boolean',
-        '    name: q2',
-        '    label: "Pernyataan benar/salah contoh."',
-        '    answer: "Benar"',
-        '    category: "Konsep Dasar"',
-        '',
-        '  - type: checkbox',
-        '    name: q3',
-        '    label: "Pilih semua jawaban yang benar:"',
-        '    options:',
-        '      - "Opsi 1"',
-        '      - "Opsi 2"',
-        '      - "Opsi 3"',
-        '      - "Opsi 4"',
-        '    answer: ["Opsi 1", "Opsi 2"]',
-        '    category: "Konsep Dasar"',
-        '',
-        '  - type: matching',
-        '    name: q4',
-        '    label: "Pasangkan item di bawah ini dengan definisinya:"',
-        '    pairs:',
-        '      - left: "Item A"',
-        '        right_options:',
-        '          - "Definisi 1"',
-        '          - "Definisi 2"',
-        '      - left: "Item B"',
-        '        right_options:',
-        '          - "Definisi 1"',
-        '          - "Definisi 2"',
-        '    answer:',
-        '      "Item A": "Definisi 1"',
-        '      "Item B": "Definisi 2"',
-        '    category: "Konsep Dasar"',
-      ].join('\n');
-      soalFile = materiFolder.createFile('soal.yaml', defaultSoal, MimeType.PLAIN_TEXT);
-      soalYamlString = defaultSoal;
-    }
-    
-    return apiSuccess({
-      yaml: yamlString,
-      soalYaml: soalYamlString,
-      folderUrl: materiFolder.getUrl()
-    });
-  } catch(e) {
-    return apiError('Gagal membaca YAML: ' + e.message);
-  }
-}
+// apiGetAvailableMateri and apiGetMateriYaml have been deleted.
 
 /**
  * Menyimpan konfigurasi JSON hasil sinkronisasi YAML ke Sheet Materi_Pelatihan
@@ -1388,7 +1194,7 @@ function apiAddPeserta(pelatihanId, nip, sessionToken) {
       nip,
       prof.Nama || '',
       prof.Kabupaten || '',
-      'aktif',
+      'terdaftar',
       new Date().toISOString()
     ]);
     
@@ -1397,6 +1203,106 @@ function apiAddPeserta(pelatihanId, nip, sessionToken) {
     return apiError('Gagal menambahkan peserta: ' + e.toString(), 'SYSTEM_ERROR');
   }
 }
+
+/**
+ * Menambahkan beberapa peserta sekaligus (bulk) ke pelatihan
+ */
+function apiAddPesertaBulk(pelatihanId, listNIP, sessionToken) {
+  return executeWithLock_(() => {
+    try {
+      if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+        return apiError('Anda tidak memiliki akses untuk menambah peserta ke pelatihan ini.', 'FORBIDDEN');
+      }
+      if (!pelatihanId || !listNIP || !Array.isArray(listNIP)) {
+        return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      const sheetP = ss.getSheetByName('Pelatihan');
+      if (!sheetP) return apiError('Sheet Pelatihan tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      const dataP = sheetP.getDataRange().getValues();
+      const idxId = dataP[0].indexOf('pelatihan_id');
+      const idxStatus = dataP[0].indexOf('status');
+      
+      let isSelesai = false;
+      for (let i = 1; i < dataP.length; i++) {
+        if (String(dataP[i][idxId]).trim() === String(pelatihanId).trim()) {
+          isSelesai = String(dataP[i][idxStatus]).trim().toLowerCase() === 'selesai';
+          break;
+        }
+      }
+      if (isSelesai) {
+        return apiError('Tidak dapat mengubah peserta pada pelatihan yang sudah SELESAI.', 'INVALID_STATUS');
+      }
+      
+      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+      if (!sheetPeserta) return apiError('Sheet PelatihanPeserta tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      // Hitung jumlah peserta terdaftar saat ini
+      const dataPes = sheetPeserta.getDataRange().getValues();
+      const idxPid = dataPes[0].indexOf('pelatihan_id');
+      const idxNip = dataPes[0].indexOf('nip_peserta');
+      
+      let currentNips = new Set();
+      for (let i = 1; i < dataPes.length; i++) {
+        if (String(dataPes[i][idxPid]).trim() === String(pelatihanId).trim()) {
+          currentNips.add(String(dataPes[i][idxNip]).trim());
+        }
+      }
+      
+      // Filter NIP yang belum terdaftar
+      const toAdd = listNIP.filter(nip => nip && !currentNips.has(String(nip).trim()));
+      if (currentNips.size + toAdd.length > MAX_PESERTA_PER_PELATIHAN) {
+        return apiError('Jumlah peserta melebihi batas maksimal (' + MAX_PESERTA_PER_PELATIHAN + ' orang).', 'LIMIT_EXCEEDED');
+      }
+      
+      if (toAdd.length === 0) {
+        return apiSuccess(null, 'Semua pengawas terpilih sudah terdaftar.');
+      }
+      
+      // Ambil profile untuk NIP yang akan ditambahkan
+      const sheetProfil = ss.getSheetByName('Profil');
+      let profilMap = {};
+      if (sheetProfil && sheetProfil.getLastRow() > 1) {
+        const dtProfil = sheetProfil.getDataRange().getDisplayValues();
+        const hProfil = dtProfil[0];
+        const nipIdx = hProfil.indexOf('NIP');
+        const namaIdx = hProfil.indexOf('Nama');
+        const kabIdx = hProfil.indexOf('Kabupaten');
+        
+        for (let i = 1; i < dtProfil.length; i++) {
+          let nip = String(dtProfil[i][nipIdx]).trim();
+          if (nip) {
+            profilMap[nip] = {
+              nama: dtProfil[i][namaIdx] || ('Pengawas (' + nip + ')'),
+              kabupaten: dtProfil[i][kabIdx] || 'Lainnya'
+            };
+          }
+        }
+      }
+      
+      // Append rows
+      const nowStr = new Date().toISOString();
+      toAdd.forEach(nip => {
+        const prof = profilMap[String(nip).trim()] || { nama: 'Pengawas (' + nip + ')', kabupaten: 'Lainnya' };
+        sheetPeserta.appendRow([
+          pelatihanId,
+          String(nip).trim(),
+          prof.nama,
+          prof.kabupaten,
+          'terdaftar',
+          nowStr
+        ]);
+      });
+      
+      return apiSuccess(null, toAdd.length + ' peserta berhasil ditambahkan.');
+    } catch (e) {
+      return apiError('Gagal menambahkan peserta secara massal: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
 
 /**
  * Menghapus satu peserta dari pelatihan
@@ -1430,6 +1336,66 @@ function apiRemovePeserta(pelatihanId, nip, sessionToken) {
 }
 
 /**
+ * API: Menghapus beberapa peserta sekaligus dari pelatihan (bulk)
+ */
+function apiRemovePesertaBulk(pelatihanId, listNIP, sessionToken) {
+  return executeWithLock_(() => {
+    try {
+      if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+        return apiError('Anda tidak memiliki akses untuk menghapus peserta dari pelatihan ini.', 'FORBIDDEN');
+      }
+      if (!pelatihanId || !listNIP || !Array.isArray(listNIP)) {
+        return apiError('Parameter tidak lengkap', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      
+      // Cek apakah pelatihan sudah SELESAI
+      const sheetP = ss.getSheetByName('Pelatihan');
+      if (sheetP) {
+        const dataP = sheetP.getDataRange().getValues();
+        const idxId = dataP[0].indexOf('pelatihan_id');
+        const idxStatus = dataP[0].indexOf('status');
+        
+        let isSelesai = false;
+        for (let i = 1; i < dataP.length; i++) {
+          if (String(dataP[i][idxId]).trim() === String(pelatihanId).trim()) {
+            isSelesai = String(dataP[i][idxStatus]).trim().toLowerCase() === 'selesai';
+            break;
+          }
+        }
+        if (isSelesai) {
+          return apiError('Tidak dapat mengubah peserta pada pelatihan yang sudah SELESAI.', 'INVALID_STATUS');
+        }
+      }
+
+      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+      if (!sheetPeserta) return apiError('Sheet tidak ada', 'SYSTEM_ERROR');
+      
+      const data = sheetPeserta.getDataRange().getValues();
+      const idxPid = data[0].indexOf('pelatihan_id');
+      const idxNip = data[0].indexOf('nip_peserta');
+      
+      const nipsToRemove = new Set(listNIP.map(nip => String(nip).trim()));
+      let removedCount = 0;
+      
+      // Hapus baris dari bawah ke atas agar tidak merusak indeks baris
+      for (let i = data.length - 1; i >= 1; i--) {
+        if (String(data[i][idxPid]).trim() === String(pelatihanId).trim() && 
+            nipsToRemove.has(String(data[i][idxNip]).trim())) {
+          sheetPeserta.deleteRow(i + 1);
+          removedCount++;
+        }
+      }
+      
+      return apiSuccess({ count: removedCount }, removedCount + ' peserta berhasil dihapus.');
+    } catch(e) {
+      return apiError('Gagal menghapus peserta secara massal: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
  * Mengambil daftar kategori pelatihan dari Settings
  * @returns {object} Response standard dengan list kategori
  */
@@ -1440,4 +1406,682 @@ function apiGetKategoriPelatihan() {
   } catch(e) {
     return apiError('Gagal mengambil kategori dari folder templates: ' + e.toString());
   }
+}
+
+/**
+ * Helper: Mengambil atau membuat sheet PelatihanAbsensi
+ */
+function ensureAbsensiSheet_(ss) {
+  let sheet = ss.getSheetByName('PelatihanAbsensi');
+  if (!sheet) {
+    sheet = ss.insertSheet('PelatihanAbsensi');
+    sheet.appendRow(['pelatihan_id', 'nip', 'tanggal', 'waktu_absen', 'status_absen']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#d9ead3');
+  }
+  return sheet;
+}
+
+/**
+ * Helper: Mendapatkan zona waktu pelatihan dari sheet Pelatihan
+ */
+function getPelatihanTimezone_(ss, pelatihanId) {
+  const sheet = ss.getSheetByName('Pelatihan');
+  let timezone = 'Asia/Jakarta'; // default
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxId = headers.indexOf('pelatihan_id');
+    const idxTz = headers.indexOf('zona_waktu');
+    if (idxId !== -1 && idxTz !== -1) {
+      const row = findRowIndex_(sheet, idxId, pelatihanId);
+      if (row !== -1 && data[row - 1][idxTz]) {
+        timezone = String(data[row - 1][idxTz]).trim();
+      }
+    }
+  }
+  return timezone;
+}
+
+/**
+ * Helper: Mendapatkan tanggal hari ini (YYYY-MM-DD) berdasarkan zona waktu pelatihan
+ */
+function getPelatihanLocalTodayStr_(pelatihanId) {
+  const ss = getAppDb_();
+  const timezone = getPelatihanTimezone_(ss, pelatihanId);
+  return Utilities.formatDate(new Date(), timezone, 'yyyy-MM-dd');
+}
+
+/**
+ * Helper: Memformat nilai tanggal dari sheet (bisa berupa Date object atau string) ke format YYYY-MM-DD
+ */
+function formatSheetDate_(val, timezone) {
+  // Always use the script/spreadsheet timezone for reading Date objects from the spreadsheet
+  // to avoid date shifting caused by differing training/local timezones.
+  const tz = Session.getScriptTimeZone();
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+  }
+  const str = String(val).trim();
+  if (str.match(/^\d{4}-\d{2}-\d{2}/)) {
+    return str.substring(0, 10);
+  }
+  return str;
+}
+
+/**
+ * API: Menyimpan absensi peserta untuk suatu pelatihan dan tanggal tertentu
+ */
+function apiSubmitAbsensi(pelatihanId, nip, tanggal, inputtedCode) {
+  return executeWithLock_(() => {
+    try {
+      if (!pelatihanId || !nip) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const targetDate = tanggal || getPelatihanLocalTodayStr_(pelatihanId);
+      
+      // Check config in Properties
+      const key = 'absen_config_' + pelatihanId + '_' + targetDate;
+      const configStr = PropertiesService.getScriptProperties().getProperty(key);
+      if (!configStr) {
+        return apiError('Absensi belum diaktifkan oleh pelatih untuk hari ini.', 'NOT_ACTIVATED');
+      }
+      
+      const config = JSON.parse(configStr);
+      if (config.type.endsWith('min')) {
+        const minutes = parseInt(config.type.replace('min', '')) || 10;
+        const elapsedMs = Date.now() - new Date(config.openedAt).getTime();
+        if (elapsedMs > minutes * 60 * 1000) {
+          return apiError('Kode absensi telah kedaluwarsa (batas waktu ' + minutes + ' menit habis).', 'EXPIRED');
+        }
+      }
+
+      // Validasi kode absensi
+      const correctCode = generateAttendanceCode_(pelatihanId, targetDate);
+      if (!inputtedCode || String(inputtedCode).trim().toUpperCase() !== correctCode) {
+        return apiError('Kode absensi salah atau tidak valid.', 'VALIDATION');
+      }
+      
+      const ss = getAppDb_();
+      
+      // 1. Validasi kepesertaan
+      const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+      if (!sheetPeserta) return apiError('Sheet PelatihanPeserta tidak ditemukan.', 'SYSTEM_ERROR');
+      
+      const dataP = sheetPeserta.getDataRange().getValues();
+      const headersP = dataP[0];
+      const idxPid = headersP.indexOf('pelatihan_id');
+      const idxNip = headersP.indexOf('nip_peserta');
+      
+      let isRegistered = false;
+      for (let i = 1; i < dataP.length; i++) {
+        if (String(dataP[i][idxPid]).trim() === String(pelatihanId).trim() &&
+            String(dataP[i][idxNip]).trim() === String(nip).trim()) {
+          isRegistered = true;
+          break;
+        }
+      }
+      if (!isRegistered) return apiError('Anda tidak terdaftar dalam pelatihan ini.', 'FORBIDDEN');
+      
+      // 2. Cek absensi ganda
+      const sheetAbsen = ensureAbsensiSheet_(ss);
+      const dataA = sheetAbsen.getDataRange().getValues();
+      const headersA = dataA[0];
+      const idxAPid = headersA.indexOf('pelatihan_id');
+      const idxANip = headersA.indexOf('nip');
+      const idxADate = headersA.indexOf('tanggal');
+      
+      const tz = getPelatihanTimezone_(ss, pelatihanId);
+      for (let i = 1; i < dataA.length; i++) {
+        const dateVal = dataA[i][idxADate];
+        const dateStr = formatSheetDate_(dateVal, tz);
+        
+        if (String(dataA[i][idxAPid]).trim() === String(pelatihanId).trim() &&
+            String(dataA[i][idxANip]).trim() === String(nip).trim() &&
+            dateStr === String(targetDate).trim()) {
+          return apiError('Anda sudah melakukan absensi hari ini (' + targetDate + ').', 'DUPLICATE');
+        }
+      }
+      
+      // 3. Tambahkan baris absensi
+      const newRow = new Array(headersA.length).fill('');
+      newRow[headersA.indexOf('pelatihan_id')] = pelatihanId;
+      newRow[headersA.indexOf('nip')] = nip;
+      newRow[headersA.indexOf('tanggal')] = targetDate;
+      newRow[headersA.indexOf('waktu_absen')] = new Date().toISOString();
+      newRow[headersA.indexOf('status_absen')] = 'Hadir';
+      
+      sheetAbsen.appendRow(newRow);
+      return apiSuccess({ tanggal: targetDate }, 'Absensi berhasil disimpan.');
+    } catch(e) {
+      return apiError('Gagal memproses absensi: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Mendapatkan status absensi hari ini untuk peserta
+ */
+function apiGetTodayAbsensiStatus(pelatihanId, nip) {
+  try {
+    const todayStr = getPelatihanLocalTodayStr_(pelatihanId);
+    const ss = getAppDb_();
+    
+    // Cek apakah sudah absen
+    const sheetAbsen = ss.getSheetByName('PelatihanAbsensi');
+    let sudahAbsen = false;
+    if (sheetAbsen) {
+      const dataA = sheetAbsen.getDataRange().getValues();
+      const headersA = dataA[0];
+      const idxAPid = headersA.indexOf('pelatihan_id');
+      const idxANip = headersA.indexOf('nip');
+      const idxADate = headersA.indexOf('tanggal');
+      
+      const tz = getPelatihanTimezone_(ss, pelatihanId);
+      for (let i = 1; i < dataA.length; i++) {
+        const dateVal = dataA[i][idxADate];
+        const dateStr = formatSheetDate_(dateVal, tz);
+        
+        if (String(dataA[i][idxAPid]).trim() === String(pelatihanId).trim() &&
+            String(dataA[i][idxANip]).trim() === String(nip).trim() &&
+            dateStr === String(todayStr).trim()) {
+          sudahAbsen = true;
+          break;
+        }
+      }
+    }
+    
+    if (sudahAbsen) {
+      return apiSuccess({ sudah_absen: true, tanggal: todayStr });
+    }
+    
+    // Cek status buka/aktifasi dari Properties
+    const key = 'absen_config_' + pelatihanId + '_' + todayStr;
+    const configStr = PropertiesService.getScriptProperties().getProperty(key);
+    let statusAbsen = 'belum_mulai';
+    
+    if (configStr) {
+      const config = JSON.parse(configStr);
+      if (config.type.endsWith('min')) {
+        const minutes = parseInt(config.type.replace('min', '')) || 10;
+        const elapsedMs = Date.now() - new Date(config.openedAt).getTime();
+        if (elapsedMs > minutes * 60 * 1000) {
+          statusAbsen = 'expired';
+        } else {
+          statusAbsen = 'aktif';
+        }
+      } else {
+        statusAbsen = 'aktif';
+      }
+    }
+    
+    const configParsed = configStr ? JSON.parse(configStr) : null;
+    return apiSuccess({ sudah_absen: false, tanggal: todayStr, status_absen: statusAbsen, config: configParsed });
+  } catch(e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * API: Mengaktifkan absensi hari ini dengan pilihan masa berlaku
+ */
+function apiActivateAbsensi(pelatihanId, expiryType) {
+  try {
+    const todayStr = getPelatihanLocalTodayStr_(pelatihanId);
+    
+    const key = 'absen_config_' + pelatihanId + '_' + todayStr;
+    const config = {
+      openedAt: new Date().toISOString(),
+      type: expiryType
+    };
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(config));
+    
+    return apiGetAbsensiRekap(pelatihanId);
+  } catch (e) {
+    return apiError('Gagal mengaktifkan absensi: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Mendapatkan daftar NIP yang sudah hadir hari ini untuk real-time update
+ */
+function apiGetAbsensiToday(pelatihanId, tanggal) {
+  try {
+    const targetDate = tanggal || getPelatihanLocalTodayStr_(pelatihanId);
+    const ss = getAppDb_();
+    const tz = getPelatihanTimezone_(ss, pelatihanId);
+    const sheetAbsen = ss.getSheetByName('PelatihanAbsensi');
+    if (!sheetAbsen) return apiSuccess([]);
+    
+    const dataA = sheetAbsen.getDataRange().getValues();
+    const headersA = dataA[0];
+    const idxAPid = headersA.indexOf('pelatihan_id');
+    const idxANip = headersA.indexOf('nip');
+    const idxADate = headersA.indexOf('tanggal');
+    
+    const presentNips = [];
+    for (let i = 1; i < dataA.length; i++) {
+      const dateVal = dataA[i][idxADate];
+      const dateStr = formatSheetDate_(dateVal, tz);
+      
+      if (String(dataA[i][idxAPid]).trim() === String(pelatihanId).trim() &&
+          dateStr === String(targetDate).trim()) {
+        presentNips.push(String(dataA[i][idxANip]).trim());
+      }
+    }
+    return apiSuccess(presentNips);
+  } catch(e) {
+    return apiError(e.toString());
+  }
+}
+
+/**
+ * API: Mendapatkan rekapitulasi kehadiran lengkap (pelatih view)
+ */
+function apiGetAbsensiRekap(pelatihanId) {
+  try {
+    const ss = getAppDb_();
+    
+    // 1. Dapatkan daftar seluruh peserta
+    const sheetPeserta = ss.getSheetByName('PelatihanPeserta');
+    const sheetProfil = ss.getSheetByName('Profil');
+    if (!sheetPeserta || !sheetProfil) return apiError('Sheet database peserta tidak ditemukan.', 'SYSTEM_ERROR');
+    
+    const dataPes = sheetPeserta.getDataRange().getValues();
+    const headersPes = dataPes[0];
+    const idxPPid = headersPes.indexOf('pelatihan_id');
+    const idxPNip = headersPes.indexOf('nip_peserta');
+    
+    const registeredNips = [];
+    for (let i = 1; i < dataPes.length; i++) {
+      if (String(dataPes[i][idxPPid]).trim() === String(pelatihanId).trim()) {
+        registeredNips.push(String(dataPes[i][idxPNip]).trim());
+      }
+    }
+    
+    const dataProf = sheetProfil.getDataRange().getValues();
+    const headersProf = dataProf[0];
+    const idxProfNip = headersProf.indexOf('NIP');
+    const idxProfNama = headersProf.indexOf('Nama');
+    
+    const participants = [];
+    registeredNips.forEach(nip => {
+      let nama = 'Tanpa Nama';
+      for (let i = 1; i < dataProf.length; i++) {
+        if (String(dataProf[i][idxProfNip]).trim() === String(nip).trim()) {
+          nama = dataProf[i][idxProfNama];
+          break;
+        }
+      }
+      participants.push({ nip: nip, nama: nama });
+    });
+    
+    // 2. Dapatkan seluruh log absensi
+    const sheetAbsen = ensureAbsensiSheet_(ss);
+    const dataA = sheetAbsen.getDataRange().getValues();
+    const headersA = dataA[0];
+    const idxAPid = headersA.indexOf('pelatihan_id');
+    const idxANip = headersA.indexOf('nip');
+    const idxADate = headersA.indexOf('tanggal');
+    
+    // Filter dan cari tanggal-tanggal unik
+    const tz = getPelatihanTimezone_(ss, pelatihanId);
+    const uniqueDatesSet = new Set();
+    const logs = [];
+    for (let i = 1; i < dataA.length; i++) {
+      if (String(dataA[i][idxAPid]).trim() === String(pelatihanId).trim()) {
+        const dateVal = dataA[i][idxADate];
+        const dateStr = formatSheetDate_(dateVal, tz);
+        uniqueDatesSet.add(dateStr);
+        logs.push({
+          nip: String(dataA[i][idxANip]).trim(),
+          tanggal: dateStr
+        });
+      }
+    }
+    
+    // Urutkan tanggal
+    const uniqueDates = Array.from(uniqueDatesSet).sort();
+    
+    // Bangun peta kehadiran
+    const attendanceMap = {};
+    participants.forEach(p => {
+      attendanceMap[p.nip] = {};
+      uniqueDates.forEach(date => {
+        attendanceMap[p.nip][date] = false;
+      });
+    });
+    
+    logs.forEach(log => {
+      if (attendanceMap[log.nip]) {
+        attendanceMap[log.nip][log.tanggal] = true;
+      }
+    });
+    
+    // Tambahkan info zona waktu dan tanggal hari ini
+    const todayStr = getPelatihanLocalTodayStr_(pelatihanId);
+    const attendanceCode = generateAttendanceCode_(pelatihanId, todayStr);
+    
+    const configKey = 'absen_config_' + pelatihanId + '_' + todayStr;
+    const configStr = PropertiesService.getScriptProperties().getProperty(configKey);
+    const activeConfig = configStr ? JSON.parse(configStr) : null;
+    
+    return apiSuccess({
+      participants: participants,
+      uniqueDates: uniqueDates,
+      attendanceMap: attendanceMap,
+      todayStr: todayStr,
+      attendanceCode: attendanceCode,
+      activeConfig: activeConfig
+    });
+  } catch(e) {
+    return apiError('Gagal memuat rekap absensi: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Menandai kehadiran manual oleh pelatih (manual override)
+ */
+function apiMarkAbsenManual(pelatihanId, nip, tanggal, status) {
+  return executeWithLock_(() => {
+    try {
+      if (!pelatihanId || !nip || !tanggal) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheetAbsen = ensureAbsensiSheet_(ss);
+      const dataA = sheetAbsen.getDataRange().getValues();
+      const headersA = dataA[0];
+      const idxAPid = headersA.indexOf('pelatihan_id');
+      const idxANip = headersA.indexOf('nip');
+      const idxADate = headersA.indexOf('tanggal');
+      
+      let existingRow = -1;
+      for (let i = 1; i < dataA.length; i++) {
+        if (String(dataA[i][idxAPid]).trim() === String(pelatihanId).trim() &&
+            String(dataA[i][idxANip]).trim() === String(nip).trim() &&
+            String(dataA[i][idxADate]).trim() === String(tanggal).trim()) {
+          existingRow = i + 1;
+          break;
+        }
+      }
+      
+      if (status === 'Hadir') {
+        if (existingRow === -1) {
+          const newRow = new Array(headersA.length).fill('');
+          newRow[headersA.indexOf('pelatihan_id')] = pelatihanId;
+          newRow[headersA.indexOf('nip')] = nip;
+          newRow[headersA.indexOf('tanggal')] = tanggal;
+          newRow[headersA.indexOf('waktu_absen')] = new Date().toISOString() + ' (Manual)';
+          newRow[headersA.indexOf('status_absen')] = 'Hadir';
+          sheetAbsen.appendRow(newRow);
+        }
+      } else {
+        // Hapus log absensi jika diset tidak hadir
+        if (existingRow !== -1) {
+          sheetAbsen.deleteRow(existingRow);
+        }
+      }
+      return apiSuccess(null, 'Status kehadiran berhasil diperbarui.');
+    } catch(e) {
+      return apiError('Gagal mengubah absensi manual: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * Helper: Mengambil atau membuat sheet PelatihanDokumentasi
+ */
+function ensureDokumentasiSheet_(ss) {
+  let sheet = ss.getSheetByName('PelatihanDokumentasi');
+  if (!sheet) {
+    sheet = ss.insertSheet('PelatihanDokumentasi');
+    sheet.appendRow(['pelatihan_id', 'file_id', 'file_url', 'catatan', 'created_at']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#d9ead3');
+  }
+  return sheet;
+}
+
+/**
+ * Helper: Mendapatkan atau membuat subfolder di dalam folder pelatihan spesifik
+ * Struktur: pelatihan/pelatihan_{id}/{subFolderName}
+ */
+function getPelatihanSubFolder_(pelatihanId, subFolderName) {
+  const ssFile = DriveApp.getFileById(APP_DB_ID);
+  const parents = ssFile.getParents();
+  let parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  
+  // 1. Ambil atau buat folder utama "pelatihan"
+  let mainPelatihanFolder;
+  const pFolders = parentFolder.getFoldersByName('pelatihan');
+  if (pFolders.hasNext()) {
+    mainPelatihanFolder = pFolders.next();
+  } else {
+    mainPelatihanFolder = parentFolder.createFolder('pelatihan');
+    mainPelatihanFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  }
+  
+  // 2. Ambil atau buat folder spesifik pelatihan "pelatihan_{id}"
+  const instanceFolderName = 'pelatihan_' + String(pelatihanId).trim();
+  let instanceFolder;
+  const iFolders = mainPelatihanFolder.getFoldersByName(instanceFolderName);
+  if (iFolders.hasNext()) {
+    instanceFolder = iFolders.next();
+  } else {
+    instanceFolder = mainPelatihanFolder.createFolder(instanceFolderName);
+    instanceFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  }
+  
+  // 3. Ambil atau buat subfolder target (misal "dokumentasi" atau "sertifikat")
+  let targetFolder;
+  const tFolders = instanceFolder.getFoldersByName(subFolderName);
+  if (tFolders.hasNext()) {
+    targetFolder = tFolders.next();
+  } else {
+    targetFolder = instanceFolder.createFolder(subFolderName);
+    targetFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  }
+  
+  return targetFolder;
+}
+
+/**
+ * API: Menyimpan foto dokumentasi beserta catatan ke Google Drive dan database
+ */
+function apiSaveDokumentasi(pelatihanId, base64Data, filename, catatan) {
+  return executeWithLock_(() => {
+    try {
+      if (!pelatihanId || !base64Data) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheet = ensureDokumentasiSheet_(ss);
+      
+      // 1. Dapatkan subfolder dokumentasi
+      const folder = getPelatihanSubFolder_(pelatihanId, 'dokumentasi');
+      
+      // 2. Simpan file foto ke Drive
+      const contentType = base64Data.substring(5, base64Data.indexOf(';'));
+      const bytes = Utilities.base64Decode(base64Data.split(',')[1]);
+      
+      // Nama berkas aman
+      const ext = contentType.split('/')[1] || 'jpg';
+      const safeFilename = (filename || 'photo').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + Date.now() + '.' + ext;
+      const blob = Utilities.newBlob(bytes, contentType, safeFilename);
+      
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      
+      const fileId = file.getId();
+      const fileUrl = 'https://lh3.googleusercontent.com/d/' + fileId;
+      
+      // 3. Catat di spreadsheet
+      const newRow = [
+        pelatihanId,
+        fileId,
+        fileUrl,
+        catatan || '',
+        new Date().toISOString()
+      ];
+      sheet.appendRow(newRow);
+      
+      return apiSuccess({ file_id: fileId, file_url: fileUrl }, 'Dokumentasi berhasil disimpan.');
+    } catch (e) {
+      return apiError('Gagal menyimpan dokumentasi: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * API: Mendapatkan daftar dokumentasi kegiatan pelatihan
+ */
+function apiGetDokumentasiList(pelatihanId) {
+  try {
+    if (!pelatihanId) return apiError('Parameter pelatihanId tidak lengkap.', 'VALIDATION');
+    
+    const ss = getAppDb_();
+    const sheet = ss.getSheetByName('PelatihanDokumentasi');
+    if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idxPid = headers.indexOf('pelatihan_id');
+    const idxFid = headers.indexOf('file_id');
+    const idxFurl = headers.indexOf('file_url');
+    const idxCat = headers.indexOf('catatan');
+    const idxDate = headers.indexOf('created_at');
+    
+    const list = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idxPid]).trim() === String(pelatihanId).trim()) {
+        list.push({
+          file_id: String(data[i][idxFid]).trim(),
+          file_url: String(data[i][idxFurl]).trim(),
+          catatan: data[i][idxCat] || '',
+          created_at: data[i][idxDate] || ''
+        });
+      }
+    }
+    
+    // Urutkan dokumentasi terbaru di atas
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    return apiSuccess(list);
+  } catch (e) {
+    return apiError('Gagal memuat daftar dokumentasi: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Menghapus dokumentasi kegiatan pelatihan
+ */
+function apiDeleteDokumentasi(pelatihanId, fileId) {
+  return executeWithLock_(() => {
+    try {
+      if (!pelatihanId || !fileId) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+      
+      const ss = getAppDb_();
+      const sheet = ss.getSheetByName('PelatihanDokumentasi');
+      if (!sheet || sheet.getLastRow() < 2) return apiError('Data dokumentasi kosong.', 'NOT_FOUND');
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const idxPid = headers.indexOf('pelatihan_id');
+      const idxFid = headers.indexOf('file_id');
+      
+      let rowToDelete = -1;
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idxPid]).trim() === String(pelatihanId).trim() &&
+            String(data[i][idxFid]).trim() === String(fileId).trim()) {
+          rowToDelete = i + 1;
+          break;
+        }
+      }
+      
+      if (rowToDelete === -1) {
+        return apiError('Data dokumentasi tidak ditemukan.', 'NOT_FOUND');
+      }
+      
+      // Hapus file dari Drive
+      try {
+        const file = DriveApp.getFileById(fileId);
+        file.setTrashed(true);
+      } catch (e) {
+        Logger.log('Warning: File Drive ' + fileId + ' tidak dapat ditemukan/dihapus: ' + e.toString());
+      }
+      
+      // Hapus baris dari sheet
+      sheet.deleteRow(rowToDelete);
+      
+      return apiSuccess(null, 'Dokumentasi berhasil dihapus.');
+    } catch (e) {
+      return apiError('Gagal menghapus dokumentasi: ' + e.toString(), 'SYSTEM_ERROR');
+    }
+  });
+}
+
+/**
+ * Helper: Membuat kode absensi 4 karakter secara deterministik
+ * berdasarkan pelatihanId dan tanggal
+ */
+/**
+ * API: Set syarat sertifikat untuk suatu pelatihan
+ * @param {string} pelatihanId
+ * @param {string} syarat  'absensi_penuh' | 'preposttest'
+ * @param {string} sessionToken
+ */
+function apiSetSyaratSertifikat(pelatihanId, syarat, sessionToken) {
+  try {
+    if (!pelatihanId || !syarat) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengubah setting pelatihan ini.', 'FORBIDDEN');
+    }
+    const allowed = ['absensi_penuh', 'preposttest'];
+    if (!allowed.includes(syarat)) return apiError('Nilai syarat tidak valid.', 'VALIDATION');
+
+    const key = 'syarat_sertifikat_' + pelatihanId;
+    PropertiesService.getScriptProperties().setProperty(key, syarat);
+    return apiSuccess({ syarat: syarat }, 'Syarat sertifikat berhasil disimpan.');
+  } catch (e) {
+    return apiError('Gagal menyimpan syarat sertifikat: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Baca syarat sertifikat yang aktif untuk suatu pelatihan
+ * @param {string} pelatihanId
+ * @returns {object} { syarat: 'absensi_penuh'|'preposttest' }
+ */
+function apiGetSyaratSertifikat(pelatihanId) {
+  try {
+    if (!pelatihanId) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+    const key = 'syarat_sertifikat_' + pelatihanId;
+    const syarat = PropertiesService.getScriptProperties().getProperty(key) || 'preposttest';
+    return apiSuccess({ syarat: syarat });
+  } catch (e) {
+    return apiError('Gagal membaca syarat sertifikat: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * Helper internal: baca syarat sertifikat (digunakan dari Survey.js)
+ */
+function getSyaratSertifikat_(pelatihanId) {
+  const key = 'syarat_sertifikat_' + pelatihanId;
+  return PropertiesService.getScriptProperties().getProperty(key) || 'preposttest';
+}
+
+function generateAttendanceCode_(pelatihanId, dateStr) {
+  const seedStr = String(pelatihanId) + '_' + String(dateStr);
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash * 31 + seedStr.charCodeAt(i)) & 0xFFFFFFFF;
+  }
+  // Konversi hash ke 4 karakter alfanumerik uppercase (hindari 0, 1, O, I agar tidak bingung)
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let code = '';
+  let temp = Math.abs(hash);
+  for (let i = 0; i < 4; i++) {
+    code += chars[temp % chars.length];
+    temp = Math.floor(temp / chars.length);
+  }
+  return code;
 }

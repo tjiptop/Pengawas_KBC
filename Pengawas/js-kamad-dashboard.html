@@ -24,9 +24,13 @@ const KamadDashboard = {
           <div class="menu-dropdown">
             <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('kamad-menu').classList.toggle('show')" title="Menu">☰</button>
             <div id="kamad-menu" class="menu-dropdown-content">
-              <div class="menu-item" onclick="App.router('kamad-history'); document.getElementById('kamad-menu').classList.remove('show')">
-                <span class="menu-item-icon">🕐</span>
-                <span class="menu-item-text">Riwayat</span>
+              <div class="menu-item" onclick="App.router('kamad-forms'); document.getElementById('kamad-menu').classList.remove('show')">
+                <span class="menu-item-icon">📋</span>
+                <span class="menu-item-text">Form Instrumen</span>
+              </div>
+              <div class="menu-item" onclick="App.router('kamad-kanban'); document.getElementById('kamad-menu').classList.remove('show')">
+                <span class="menu-item-icon">🎯</span>
+                <span class="menu-item-text">Program Kerja</span>
               </div>
               ${isSupervisor ? `
               <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
@@ -66,77 +70,45 @@ const KamadDashboard = {
      * Konten dashboard penuh setelah data dimuat
      */
     main: (madrasahInfo, stats, recentForms, history) => {
+      const isSupervisor = !!App.state.isSupervisorViewAs;
       const nama = madrasahInfo?.nama || madrasahInfo?.name || '—';
       const nsm  = madrasahInfo?.nsm || '—';
       const kec  = madrasahInfo?.kecamatan || madrasahInfo?.subdistrict || '';
       const kab  = madrasahInfo?.kabupaten  || madrasahInfo?.district    || '';
       const loc  = [kec, kab].filter(Boolean).join(', ');
 
-      // Group per group
-      const groups = {};
-      (recentForms || []).forEach(f => {
-        const g = f.group || 'Lainnya';
-        if (!groups[g]) groups[g] = [];
-        groups[g].push(f);
-      });
-
-      let formsHtml = '';
-      if (!recentForms || !recentForms.length) {
-        formsHtml = `
-          <div class="kamad-empty-state">
-            <div class="kamad-empty-icon">📭</div>
-            <p>Belum ada form tersedia.</p>
-          </div>`;
-      } else {
-        Object.keys(groups).sort().forEach(groupName => {
-          formsHtml += `<div class="kamad-group-label" style="margin-top:15px;margin-bottom:8px;">${groupName}</div>`;
-          groups[groupName].forEach(form => {
-            // Calculate submission count specifically for this form
-            const subCount = (history || []).filter(s => s.form_id === form.id).length;
-            const limit = form.submission_limit !== undefined ? parseInt(form.submission_limit) : -1;
-            
-            let canFill = form.canFill;
-            if (canFill && limit === 1 && subCount >= 1) {
-              canFill = false;
+      // Hitung komentar baru yang belum dibaca
+      const kanbanData = App.state.kanbanData || { cards: [], comments: [] };
+      const currentUserId = isSupervisor ? App.state.user?.NIP : nsm;
+      let unreadCommentsCount = 0;
+      
+      if (kanbanData.comments && kanbanData.comments.length > 0) {
+        kanbanData.comments.forEach(comment => {
+          const commentAuthorId = String(comment.author_id).trim();
+          const meId = String(currentUserId || '').trim();
+          
+          if (commentAuthorId !== meId) {
+            const lastSeenTime = localStorage.getItem(`kanban_card_last_seen_${comment.card_id}`) || '0';
+            if (new Date(comment.created_at).getTime() > new Date(lastSeenTime).getTime()) {
+              unreadCommentsCount++;
             }
-
-            const badge = canFill
-              ? `<span class="kamad-badge kamad-badge-fill">Isi</span>`
-              : `<span class="kamad-badge kamad-badge-readonly">Lihat</span>`;
-
-            const countBadge = subCount > 0 ? 
-              `<span style="font-size:0.72rem;padding:3px 8px;border-radius:20px;background:rgba(26,115,232,0.08);color:var(--color-primary);font-weight:700;white-space:nowrap;margin-right:6px;display:inline-flex;align-items:center;gap:3px;">
-                📄 ${subCount}
-               </span>` : '';
-
-            formsHtml += `
-              <div class="kamad-form-card ${canFill ? '' : 'kamad-form-card-readonly'}"
-                   onclick="App.router('kamad-forms'); setTimeout(() => KamadForms.open('${form.id}'), 50);"
-                   style="margin-bottom:8px;">
-                <div class="kamad-form-card-icon">${form.icon || '📋'}</div>
-                <div class="kamad-form-card-body">
-                  <div class="kamad-form-card-title">${form.title}</div>
-                  ${form.description ? `<div class="kamad-form-card-desc">${form.description}</div>` : ''}
-                </div>
-                <div style="display:flex;align-items:center;">
-                  ${countBadge}
-                  ${badge}
-                </div>
-              </div>`;
-          });
+          }
         });
       }
 
-      const isSupervisor = !!App.state.isSupervisorViewAs;
       return `
         <div class="header">
           <div style="display:flex;align-items:center;gap:4px;">
             <div class="menu-dropdown">
               <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('kamad-menu').classList.toggle('show')" title="Menu">☰</button>
               <div id="kamad-menu" class="menu-dropdown-content">
-                <div class="menu-item" onclick="App.router('kamad-history'); document.getElementById('kamad-menu').classList.remove('show')">
-                  <span class="menu-item-icon">🕐</span>
-                  <span class="menu-item-text">Riwayat</span>
+                <div class="menu-item" onclick="App.router('kamad-forms'); document.getElementById('kamad-menu').classList.remove('show')">
+                  <span class="menu-item-icon">📋</span>
+                  <span class="menu-item-text">Form Instrumen</span>
+                </div>
+                <div class="menu-item" onclick="App.router('kamad-kanban'); document.getElementById('kamad-menu').classList.remove('show')">
+                  <span class="menu-item-icon">🎯</span>
+                  <span class="menu-item-text">Program Kerja</span>
                 </div>
                 ${isSupervisor ? `
                 <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
@@ -154,8 +126,14 @@ const KamadDashboard = {
             <div style="display:flex;align-items:center;gap:8px;">
               <div class="header-page-icon">🏫</div>
               <div>
-                <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">${nama}</h1>
-                <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;">NSM ${nsm}${loc ? ' · ' + loc : ''}</div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Dashboard Madrasah</h1>
+                  ${isSupervisor ? `
+                    <span style="background:rgba(239,68,68,0.1); color:var(--color-danger); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:2px; height:16px;" title="Anda sedang masuk menggunakan hak akses Pengawas">
+                      👁️ PENGAWAS
+                    </span>` : ''}
+                </div>
+                <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;">${nama} · NSM ${nsm}</div>
               </div>
             </div>
           </div>
@@ -164,13 +142,101 @@ const KamadDashboard = {
           ` : ''}
         </div>
 
-        <div class="content">
-          <div class="kamad-section-header" style="margin-bottom: 5px;">Form Instrumen Tersedia</div>
-          <div id="kamad-forms-container">
-            ${formsHtml}
+        <div class="content" style="padding-top:16px;">
+          <!-- Profile Card -->
+          <div style="background:linear-gradient(135deg,var(--color-primary) 0%,var(--color-primary-dark) 100%);border-radius:16px;padding:18px;margin-bottom:20px;color:white;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.08);pointer-events:none;"></div>
+            <div style="position:absolute;bottom:-30px;right:30px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;"></div>
+            <div style="display:flex;gap:14px;align-items:center;position:relative;">
+              <div style="width:60px;height:60px;border-radius:14px;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:1.5em;color:white;font-weight:700;flex-shrink:0;">🏫</div>
+              <div style="flex:1;min-width:0;text-align:left;">
+                <div style="font-size:1rem;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  ${nama}
+                </div>
+                <div style="font-size:0.78rem;opacity:0.85;margin-bottom:6px;">NSM: ${nsm}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <span style="background:rgba(255,255,255,0.2);border-radius:8px;padding:2px 10px;font-size:0.72rem;font-weight:600;">${loc || '—'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Launchpad Cards Grid (Responsive) -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <!-- Card 1: Form Instrumen -->
+            <div class="card form-card" onclick="App.router('kamad-forms')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0; text-align:left; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); border-radius:var(--radius-lg); transition: all var(--transition-fast);">
+              <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(26, 115, 232, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:var(--color-primary); flex-shrink:0;">📋</div>
+              <div style="flex:1; min-width:0;">
+                <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Form Instrumen</h3>
+                <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Kuesioner evaluasi, observasi, angket, FGD, dll.</div>
+              </div>
+            </div>
+
+            <!-- Card 2: Program Kerja -->
+            <div class="card form-card" onclick="App.router('kamad-kanban')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0; text-align:left; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); border-radius:var(--radius-lg); transition: all var(--transition-fast);">
+              <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(239, 68, 68, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:var(--color-accent); flex-shrink:0;">🎯</div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Program Kerja</h3>
+                  ${unreadCommentsCount > 0 ? `
+                    <span style="background:var(--color-accent); color:white; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:10px; animation: pulseUnread 1.5s infinite;">
+                      ${unreadCommentsCount} BARU
+                    </span>` : ''}
+                </div>
+                <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Kanban board kerja & ruang konsultasi pengawas binaan.</div>
+              </div>
+            </div>
           </div>
         </div>
       `;
+    }
+  },
+
+  // --------------------------------------------------------
+  // ACCORDION SECTIONS
+  // --------------------------------------------------------
+
+  toggleSection(section) {
+    const formsContent = document.getElementById('section-content-forms');
+    const programContent = document.getElementById('section-content-program');
+    const formsChevron = document.getElementById('chevron-forms');
+    const programChevron = document.getElementById('chevron-program');
+    
+    if (!formsContent || !programContent) return;
+    
+    const showForms = section === 'forms' && formsContent.style.display === 'none';
+    const showProgram = section === 'program' && programContent.style.display === 'none';
+    
+    // Collapse all
+    formsContent.style.display = 'none';
+    programContent.style.display = 'none';
+    if (formsChevron) formsChevron.style.transform = 'rotate(0deg)';
+    if (programChevron) programChevron.style.transform = 'rotate(0deg)';
+    
+    // Expand active
+    if (showForms) {
+      formsContent.style.display = 'block';
+      if (formsChevron) formsChevron.style.transform = 'rotate(90deg)';
+      sessionStorage.setItem('kamad_dashboard_active_section', 'forms');
+    } else if (showProgram) {
+      programContent.style.display = 'block';
+      if (programChevron) programChevron.style.transform = 'rotate(90deg)';
+      sessionStorage.setItem('kamad_dashboard_active_section', 'program');
+    } else {
+      sessionStorage.removeItem('kamad_dashboard_active_section');
+    }
+  },
+
+  toggleAccordion(e, listId, formId) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const details = document.getElementById(listId);
+    const chevron = document.getElementById(`chevron-${formId}`);
+    if (details) {
+      const isOpen = details.style.display !== 'none';
+      details.style.display = isOpen ? 'none' : 'block';
+      if (chevron) {
+        chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+      }
     }
   },
 
@@ -191,8 +257,12 @@ const KamadDashboard = {
       .withSuccessHandler(res => {
         App.loading(false);
         if (res.success) {
+          App.state.kamad = App.state.kamad || {};
+          App.state.kamad.madrasahInfo = res.data.madrasahInfo;
           App.state.kamadForms = res.data.forms || [];
           App.state.kamadHistory = res.data.history || [];
+          App.state.kanbanData = res.data.kanbanData || { cards: [], comments: [] };
+          App.state.my_tokens = res.data.my_tokens || [];
           el.innerHTML = KamadDashboard.views.main(
             res.data.madrasahInfo,
             res.data.stats,
@@ -207,7 +277,7 @@ const KamadDashboard = {
         App.loading(false);
         el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-accent);">Koneksi terputus: ${err.message || err}</div></div>`;
       })
-      .kamadGetDashboard(nsm, App.state.isSupervisorViewAs ? 'district' : 'kamad');
+      .kamadGetDashboard(nsm, App.state.isSupervisorViewAs ? 'district' : 'madrasah');
   },
 
   // --------------------------------------------------------

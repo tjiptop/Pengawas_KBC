@@ -18,7 +18,7 @@
     "deploy:prod": "npm run switch:prod && cd Pengawas && clasp push",
     "release:prod": "npm run switch:prod && cd Pengawas && clasp push && clasp deploy --description \"Production release\"",
     "watch:staging": "npm run switch:staging && cd Pengawas && clasp push --watch",
-    "release:staging": "npm run switch:staging && cd Pengawas && clasp push && clasp deploy --description \"Staging release\"",
+    "release:staging": "npm run switch:staging && cd Pengawas && clasp push && clasp deploy --deploymentId AKfycbw5sZTnWrpFsVNfMncakd6QjI3wfAexOab39Cu9q9RzMZvVHf50VcPqr1ZsopnjFaL2QA --description \"Staging release\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

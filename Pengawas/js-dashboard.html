@@ -43,12 +43,8 @@ const DashboardViews = {
                             <span class="menu-item-text">Madrasah Sasaran</span>
                         </div>
                         <div class="menu-item" onclick="App.router('profile'); document.getElementById('dashboard-menu').classList.remove('show')">
-                            <span class="menu-item-icon">✏️</span>
-                            <span class="menu-item-text">Edit Profil</span>
-                        </div>
-                        <div class="menu-item" onclick="DashboardManager.generateSK(); document.getElementById('dashboard-menu').classList.remove('show')">
-                            <span class="menu-item-icon">📄</span>
-                            <span class="menu-item-text">Download SK</span>
+                            <span class="menu-item-icon">👤</span>
+                            <span class="menu-item-text">Profil</span>
                         </div>
                         <div class="menu-item" onclick="window.location.reload(); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">🔄</span>
@@ -210,23 +206,6 @@ const DashboardManager = {
                 App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
             })
             .generateKamadSetupLink(nsm, nip);
-    },
-
-    generateSK() {
-        App.loading(true, 'Memproses SK... Mohon tunggu beberapa saat...');
-        google.script.run.withSuccessHandler(res => {
-            App.loading(false);
-            if (res.success) {
-                App.alert('SK berhasil di-generate! Klik OK untuk membuka PDF.', 'Berhasil', () => {
-                    window.open(res.data.url, '_blank');
-                });
-            } else {
-                App.alert(res.error || res.message || 'Gagal generate SK. Pastikan Anda memiliki madrasah sasaran KBC.', 'Gagal');
-            }
-        }).withFailureHandler(err => {
-            App.loading(false);
-            App.alert(err.message, 'System Error');
-        }).generateSK(App.state.user['NIP']);
     }
 };
 

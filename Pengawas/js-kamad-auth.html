@@ -15,7 +15,9 @@ const KamadAuth = {
     /**
      * Tampilan login Kamad
      */
-    login: () => `
+    login: () => {
+      const lastNsm = localStorage.getItem('last_kamad_nsm') || '';
+      return `
       <div class="kamad-auth-wrap">
         <div class="kamad-auth-card">
 
@@ -40,6 +42,7 @@ const KamadAuth = {
                 autocomplete="username"
                 inputmode="numeric"
                 required
+                value="${lastNsm}"
               >
             </div>
             <div class="form-group" style="margin-bottom:24px;">
@@ -74,7 +77,8 @@ const KamadAuth = {
           </div>
         </div>
       </div>
-    `,
+    `;
+    },
 
     /**
      * Tampilan setup password pertama (dari link WA)
@@ -158,6 +162,7 @@ const KamadAuth = {
         btn.textContent = 'Masuk';
 
         if (res.success) {
+          localStorage.setItem('last_kamad_nsm', nsm);
           App.state.kamad = res.data;
           App.router('kamad-dashboard');
         } else {

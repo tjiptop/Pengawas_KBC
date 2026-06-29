@@ -67,6 +67,146 @@
     color: white;
     border-color: var(--color-primary);
 }
+
+/* Style tambahan untuk tipe soal matching (menjodohkan) */
+.matching-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 10px;
+    user-select: none;
+}
+.matching-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+@media (max-width: 600px) {
+    .matching-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+}
+.matching-left-label {
+    flex: 1;
+    background: var(--color-bg-elevated, #fff);
+    border: 1px solid var(--color-border-light, #e0e0e0);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--color-text, #333);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+}
+.matching-drop-zone {
+    flex: 1;
+    min-height: 48px;
+    border: 2px dashed var(--color-border-light, #cccccc);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.01);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+}
+.matching-drop-zone.active {
+    border-color: var(--color-primary, #1a73e8);
+    background: rgba(26, 115, 232, 0.05);
+}
+.matching-drop-zone.occupied {
+    border-style: solid;
+    border-color: var(--color-primary, #1a73e8);
+    background: rgba(26, 115, 232, 0.02);
+    padding: 4px;
+}
+.matching-drop-zone-placeholder {
+    color: var(--color-text-secondary, #888);
+    font-size: 0.82rem;
+    pointer-events: none;
+}
+.matching-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: var(--color-primary, #1a73e8);
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: grab;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.2);
+    touch-action: none;
+}
+.matching-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(26, 115, 232, 0.3);
+}
+.matching-chip:active {
+    cursor: grabbing;
+}
+.matching-chip.selected {
+    outline: 3px solid var(--color-warning, #f1c40f);
+    transform: scale(1.03);
+}
+.matching-chip.placed {
+    background: #2ecc71; /* color-success */
+    box-shadow: 0 2px 6px rgba(46, 204, 113, 0.2);
+    cursor: default;
+    width: 100%;
+    justify-content: space-between;
+    box-sizing: border-box;
+}
+.matching-chip .remove-btn {
+    background: rgba(255, 255, 255, 0.25);
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    padding: 0;
+}
+.matching-chip .remove-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+.matching-pool-container {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--color-bg-elevated, #fff);
+    border: 1px solid var(--color-border-light, #eee);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.matching-pool-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-secondary, #666);
+    margin-bottom: 12px;
+    text-align: center;
+}
+.matching-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    min-height: 48px;
+    align-items: center;
+}
 </style>
 
 <script>
@@ -359,13 +499,13 @@ const PesertaManager = {
                 this.prepareQuiz();
             } else {
                 App.alert(res.error, 'Gagal Memulai Test', () => {
-                    App.router('peserta-pelatihan');
+                    App.router('peserta-dashboard', { id: this.testPelatihanId });
                 });
             }
         }).withFailureHandler(err => {
             App.loading(false);
             App.alert(err.message, 'Error', () => {
-                App.router('peserta-pelatihan');
+                App.router('peserta-dashboard', { id: this.testPelatihanId });
             });
         }).apiGetTestUntukPeserta(this.testSoalId, App.state.user['NIP'], this.testTipe);
     },
@@ -514,26 +654,84 @@ const PesertaManager = {
         // Matching
         else if (q.type === 'matching') {
             const savedMap = typeof savedAnswer === 'object' ? savedAnswer : {};
-            optContainer.innerHTML = q.pairs.map(pair => {
+            const assignedOptions = Object.values(savedMap);
+            
+            // Gather all unique right options across all pairs
+            const allRightOptions = [];
+            q.pairs.forEach(pair => {
+                pair.right_options.forEach(opt => {
+                    if (opt && opt !== '' && !allRightOptions.includes(opt)) {
+                        allRightOptions.push(opt);
+                    }
+                });
+            });
+            
+            // Pool of unused options
+            const unusedOptions = allRightOptions.filter(opt => !assignedOptions.includes(opt));
+            
+            // Render rows
+            const rowsHtml = q.pairs.map(pair => {
                 const left = pair.left;
                 const rightSelected = savedMap[left] || '';
+                const escLeft = left.replace(/'/g, "\\'");
                 
-                const selectOptions = ['-- Pilih Pasangan --', ...pair.right_options].map(opt => {
-                    const selected = rightSelected === opt ? 'selected' : '';
-                    const displayOpt = opt === '-- Pilih Pasangan --' ? opt : opt;
-                    const val = opt === '-- Pilih Pasangan --' ? '' : opt;
-                    return `<option value="${val}" ${selected}>${displayOpt}</option>`;
-                }).join('');
+                let dropZoneContent = '';
+                if (rightSelected) {
+                    dropZoneContent = `
+                        <div class="matching-chip placed">
+                            <span>${rightSelected}</span>
+                            <button type="button" class="remove-btn" onclick="event.stopPropagation(); PesertaManager.removeMatchingChip('${q.name}', '${escLeft}')">✕</button>
+                        </div>
+                    `;
+                } else {
+                    dropZoneContent = `<span class="matching-drop-zone-placeholder">Seret ke sini / Tap Opsi</span>`;
+                }
+                
+                const occupiedClass = rightSelected ? 'occupied' : '';
                 
                 return `
-                    <div class="card" style="padding:14px 16px;margin:0;display:flex;flex-direction:column;gap:8px;">
-                        <span style="font-size:0.88rem;font-weight:600;color:var(--color-text);">${left}</span>
-                        <select onchange="PesertaManager.saveMatchingAnswer('${q.name}', '${left.replace(/'/g, "\\'")}', this.value)" class="form-control" style="font-size:0.82rem;padding:8px 10px;">
-                            ${selectOptions}
-                        </select>
+                    <div class="matching-row">
+                        <div class="matching-left-label">${left}</div>
+                        <div class="matching-drop-zone ${occupiedClass}" 
+                             id="dropzone-${q.name}-${escLeft}"
+                             onclick="PesertaManager.assignMatchingChip('${q.name}', '${escLeft}')"
+                             ondragover="event.preventDefault(); this.classList.add('active');"
+                             ondragleave="this.classList.remove('active');"
+                             ondrop="this.classList.remove('active'); PesertaManager.handleMatchingDrop(event, '${q.name}', '${escLeft}')">
+                            ${dropZoneContent}
+                        </div>
                     </div>
                 `;
             }).join('');
+            
+            // Render pool
+            const poolChipsHtml = unusedOptions.map(opt => {
+                const isSelected = (this.selectedMatchingChip && this.selectedMatchingChip.qName === q.name && this.selectedMatchingChip.value === opt);
+                const selectedClass = isSelected ? 'selected' : '';
+                const escOpt = opt.replace(/'/g, "\\'");
+                
+                return `
+                    <div class="matching-chip ${selectedClass}" 
+                         draggable="true"
+                         id="chip-${q.name}-${escOpt}"
+                         ondragstart="event.dataTransfer.setData('text/plain', '${escOpt}')"
+                         onclick="PesertaManager.selectMatchingChip('${q.name}', '${escOpt}', event)">
+                        ${opt}
+                    </div>
+                `;
+            }).join('');
+            
+            optContainer.innerHTML = `
+                <div class="matching-container">
+                    ${rowsHtml}
+                    <div class="matching-pool-container">
+                        <div class="matching-pool-title">Opsi Tersedia (Tap opsi lalu tap kotak di atas, atau seret langsung)</div>
+                        <div class="matching-pool" id="pool-${q.name}">
+                            ${poolChipsHtml || '<div style="color:#2ecc71;font-size:0.82rem;font-weight:600;">Semua opsi telah terpasang ✓</div>'}
+                        </div>
+                    </div>
+                </div>
+            `;
         }
         
         // Navigation Buttons disabled state
@@ -561,8 +759,8 @@ const PesertaManager = {
             if (q.type === 'checkbox') {
                 isAnswered = Array.isArray(saved) && saved.length > 0;
             } else if (q.type === 'matching') {
-                // Answered if at least one matching key is populated
-                isAnswered = saved && typeof saved === 'object' && Object.values(saved).filter(v => v !== '').length > 0;
+                // Answered if all pairs have a selected value
+                isAnswered = saved && typeof saved === 'object' && Object.keys(saved).length === q.pairs.length && Object.values(saved).every(v => v !== '');
             } else {
                 isAnswered = !!saved;
             }
@@ -612,6 +810,43 @@ const PesertaManager = {
         }
         
         this.renderProgressDots();
+        this.renderQuestion();
+    },
+
+    selectMatchingChip(qName, value, event) {
+        if (event) event.stopPropagation();
+        if (this.selectedMatchingChip && this.selectedMatchingChip.qName === qName && this.selectedMatchingChip.value === value) {
+            this.selectedMatchingChip = null;
+        } else {
+            this.selectedMatchingChip = { qName, value };
+        }
+        this.renderQuestion();
+    },
+
+    assignMatchingChip(qName, leftKey) {
+        const saved = this.answers[qName];
+        if (saved && saved[leftKey]) {
+            this.removeMatchingChip(qName, leftKey);
+            return;
+        }
+        if (!this.selectedMatchingChip || this.selectedMatchingChip.qName !== qName) {
+            return;
+        }
+        const val = this.selectedMatchingChip.value;
+        this.selectedMatchingChip = null;
+        this.saveMatchingAnswer(qName, leftKey, val);
+    },
+
+    removeMatchingChip(qName, leftKey) {
+        this.saveMatchingAnswer(qName, leftKey, '');
+    },
+
+    handleMatchingDrop(event, qName, leftKey) {
+        event.preventDefault();
+        const val = event.dataTransfer.getData('text/plain');
+        if (val) {
+            this.saveMatchingAnswer(qName, leftKey, val);
+        }
     },
 
     goToQuestion(idx) {
@@ -633,7 +868,7 @@ const PesertaManager = {
     confirmExitTest() {
         App.confirm('Apakah Anda yakin ingin keluar dari pengerjaan test? Waktu pengerjaan akan terus berjalan dan jawaban Anda belum terkirim.', 'Keluar Test', () => {
             if (this.timerInterval) clearInterval(this.timerInterval);
-            App.router('peserta-pelatihan');
+            App.router('peserta-dashboard', { id: this.testPelatihanId });
         });
     },
 
@@ -644,7 +879,9 @@ const PesertaManager = {
             const ans = this.answers[q.name];
             let hasAns = false;
             if (q.type === 'checkbox') hasAns = ans && ans.length > 0;
-            else if (q.type === 'matching') hasAns = ans && Object.values(ans).filter(v => v !== '').length > 0;
+            else if (q.type === 'matching') {
+                hasAns = ans && Object.keys(ans).length === q.pairs.length && Object.values(ans).every(v => v !== '');
+            }
             else hasAns = !!ans;
             
             if (!hasAns) unanswered++;
@@ -668,12 +905,12 @@ const PesertaManager = {
             App.loading(false);
             if (res.success) {
                 App.alert(`Jawaban Anda berhasil dikirim! Skor Anda: ${res.data.skor}`, 'Test Selesai', () => {
-                    App.router('peserta-pelatihan');
+                    App.router('peserta-dashboard', { id: this.testPelatihanId });
                 });
             } else {
                 App.alert(res.error, 'Gagal mengirim jawaban', () => {
                     // Try to go back
-                    App.router('peserta-pelatihan');
+                    App.router('peserta-dashboard', { id: this.testPelatihanId });
                 });
             }
         }).withFailureHandler(err => {
@@ -682,4 +919,34 @@ const PesertaManager = {
         }).apiSubmitTestJawaban(this.testSoalId, App.state.user['NIP'], this.testTipe, this.answers);
     }
 };
+
+/**
+ * LCG (Linear Congruential Generator) seeded random
+ * @param {string} seedStr
+ * @returns {function} Rand function returning float 0-1
+ */
+function createRandom_(seedStr) {
+  let seed = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    seed = (seed * 31 + seedStr.charCodeAt(i)) & 0xFFFFFFFF;
+  }
+  return function() {
+    seed = (seed * 1664525 + 1013904223) & 0xFFFFFFFF;
+    return (seed >>> 0) / 0x100000000;
+  };
+}
+
+/**
+ * Mengacak array in-place dengan random generator
+ * @param {Array} array
+ * @param {function} randFn
+ */
+function shuffleArray_(array, randFn) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(randFn() * (i + 1));
+    const temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
 </script>

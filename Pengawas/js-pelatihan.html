@@ -165,6 +165,18 @@ const PelatihanViews = {
                         </small>
                     </div>
 
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label class="form-label" for="plt-zona-waktu">Zona Waktu Kegiatan</label>
+                        <select id="plt-zona-waktu" class="form-control" required style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">
+                            <option value="Asia/Jakarta">WIB (GMT+7) - Asia/Jakarta</option>
+                            <option value="Asia/Makassar">WITA (GMT+8) - Asia/Makassar</option>
+                            <option value="Asia/Jayapura">WIT (GMT+9) - Asia/Jayapura</option>
+                        </select>
+                        <small style="color:var(--color-text-light);font-size:0.75em;display:block;margin-top:6px;">
+                            ℹ️ Digunakan untuk menentukan penanggalan absensi harian peserta secara akurat sesuai lokasi pelatihan.
+                        </small>
+                    </div>
+
                     <button type="submit" class="btn btn-primary" style="width:100%;margin-top:24px;padding:12px;">💾 Simpan Jadwal</button>
                 </form>
             </div>
@@ -187,8 +199,8 @@ const PelatihanViews = {
             <!-- Tab Buttons -->
             <div class="pelatihan-tabs-wrap">
                 <button class="pelatihan-tab-btn active" onclick="PelatihanManager.switchTab(this, 'tab-peserta')">👥 Peserta</button>
-                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-materi')">📚 Materi</button>
-                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-test')">📝 Pre/Post Test</button>
+                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-test')">⚙️ Aktifitas</button>
+                <button class="pelatihan-tab-btn" onclick="PelatihanManager.switchTab(this, 'tab-preview-flow')">👁️ Preview</button>
                 <button class="pelatihan-tab-btn" id="tab-analisis-btn" onclick="PelatihanManager.switchTab(this, 'tab-analisis')" style="display:none;">📊 Analisis</button>
             </div>
 
@@ -210,6 +222,7 @@ const PelatihanViews = {
                         </div>
 
                         <div style="display:flex; gap:8px; align-items:center;">
+                            <button id="btn-delete-selected-peserta" class="btn" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:none; align-items:center; justify-content:center; background:var(--color-danger); border-color:var(--color-danger); color:white; font-weight:600;" onclick="PelatihanManager.deleteSelectedPeserta()">🗑️ Del</button>
                             <button id="btn-show-add-peserta" class="btn btn-primary" style="padding:0 12px; font-size:0.85rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center;" onclick="PelatihanManager.showSearchPesertaModal()">+ Add</button>
                             <button id="btn-refresh-peserta" class="btn" onclick="PelatihanManager.loadDetail('${pelatihanId}')" style="padding:0 10px; font-size:1.1rem; border-radius:6px; width:auto !important; height:32px; display:inline-flex; align-items:center; justify-content:center; font-weight:bold;" title="Refresh Data">↻</button>
                         </div>
@@ -234,8 +247,10 @@ const PelatihanViews = {
                                     <th style="padding:8px; text-align:left;">Kab/Kota</th>
                                     <th style="padding:8px; text-align:left;">Provinsi</th>
                                     <th style="padding:8px; text-align:left;">Jenjang</th>
-                                    <th style="padding:8px; text-align:center;">L/K</th>
-                                    <th style="padding:8px; text-align:center; width:60px;">Aksi</th>
+                                    <th style="padding:8px; text-align:center;">L/P</th>
+                                    <th style="padding:8px; text-align:center; width:60px;" id="peserta-header-checkbox">
+                                        <input type="checkbox" id="peserta-select-all-cb" onchange="PelatihanManager.toggleSelectAllPeserta(this)" style="width:16px; height:16px; vertical-align:middle; cursor:pointer;" disabled>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="peserta-table-body">
@@ -248,45 +263,84 @@ const PelatihanViews = {
                 <!-- Add Peserta Modal -->
                 <div id="add-peserta-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; padding:20px;">
                     <div class="card" style="width:100%; max-width:550px; max-height:85vh; display:flex; flex-direction:column; padding:20px; animation: slideUp 0.3s ease;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                             <h3 style="margin:0; font-size:1.1rem; font-weight:700;">Tambah Peserta (Provinsi Anda)</h3>
                             <button onclick="PelatihanManager.closeSearchPesertaModal()" style="background:none; border:none; font-size:1.5rem; line-height:1; padding:4px 8px; color:var(--color-text-light); cursor:pointer; transition:color var(--transition-fast);" onmouseover="this.style.color='var(--color-danger)'" onmouseout="this.style.color='var(--color-text-light)'">&times;</button>
                         </div>
-                        
-                        <div style="display:flex; gap:8px; margin-bottom:16px; width:100%;">
-                            <input type="text" id="search-peserta-input" class="form-control" placeholder="Cari NIP atau Nama..." style="flex:1; min-width:0; width:100%;" onkeydown="if(event.key === 'Enter') PelatihanManager.searchPeserta()">
-                            <button class="btn btn-primary" onclick="PelatihanManager.searchPeserta()" style="padding:8px 16px; width:auto !important; flex-shrink:0;">Cari</button>
+
+                        <!-- Tabs for modal -->
+                        <div style="display:flex; border-bottom: 2px solid var(--color-border-light, #eee); margin-bottom:16px; gap:8px;">
+                            <button type="button" id="tab-btn-bulk" class="pelatihan-tab-btn active" onclick="PelatihanManager.switchModalTab('bulk')" style="flex:1; text-align:center; padding:10px; font-weight:600; font-size:0.85rem; border:none; background:none; border-bottom:3px solid var(--color-primary); cursor:pointer;">⚡ Mode Cepat (Kabupaten)</button>
+                            <button type="button" id="tab-btn-search" class="pelatihan-tab-btn" onclick="PelatihanManager.switchModalTab('search')" style="flex:1; text-align:center; padding:10px; font-weight:600; font-size:0.85rem; border:none; background:none; border-bottom:3px solid transparent; color:var(--color-text-light); cursor:pointer;">🔍 Cari Pengawas</button>
                         </div>
-                        
-                        <div id="search-peserta-results" style="flex:1; overflow-y:auto; padding-right:8px; border:1px solid var(--color-border-light); border-radius:6px; background:var(--color-bg-elevated);">
-                            <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
-                                <div>🔍</div>
-                                <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
+
+                        <!-- Panel Bulk (Mode Cepat) -->
+                        <div id="modal-panel-bulk" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+                            <div style="margin-bottom:12px;">
+                                <label for="bulk-kabupaten-select" style="font-size:0.8rem; font-weight:600; margin-bottom:6px; display:block; color:var(--color-text);">Pilih Kabupaten:</label>
+                                <select id="bulk-kabupaten-select" class="form-control" onchange="PelatihanManager.loadBulkPesertaList()" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--color-border-light); background:var(--color-bg); color:var(--color-text);">
+                                    <option value="">-- Memuat Kabupaten... --</option>
+                                </select>
+                            </div>
+                            
+                            <div id="bulk-peserta-container" style="flex:1; overflow-y:auto; border:1px solid var(--color-border-light); border-radius:6px; background:var(--color-bg-elevated); padding:10px; margin-bottom:12px;">
+                                <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
+                                    Silakan pilih Kabupaten terlebih dahulu.
+                                </div>
+                            </div>
+                            
+                            <div id="bulk-select-all-container" style="display:none; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;">
+                                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer; font-weight:600; color:var(--color-text);">
+                                    <input type="checkbox" id="bulk-select-all-cb" onchange="PelatihanManager.toggleSelectAllBulk(this)" style="width:16px; height:16px;">
+                                    Pilih Semua (<span id="bulk-selected-count">0</span> terpilih)
+                                </label>
+                            </div>
+                            
+                            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                                <button class="btn btn-secondary" onclick="PelatihanManager.closeSearchPesertaModal()" style="width:auto !important; padding:8px 16px;">Batal</button>
+                                <button class="btn btn-primary" id="btn-save-bulk" onclick="PelatihanManager.saveBulkPeserta()" style="width:auto !important; padding:8px 16px;" disabled>Tambahkan Terpilih</button>
+                            </div>
+                        </div>
+
+                        <!-- Panel Search (Classic Search) -->
+                        <div id="modal-panel-search" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+                            <div style="display:flex; gap:8px; margin-bottom:16px; width:100%;">
+                                <input type="text" id="search-peserta-input" class="form-control" placeholder="Cari NIP atau Nama..." style="flex:1; min-width:0; width:100%;" onkeydown="if(event.key === 'Enter') PelatihanManager.searchPeserta()">
+                                <button class="btn btn-primary" onclick="PelatihanManager.searchPeserta()" style="padding:8px 16px; width:auto !important; flex-shrink:0;">Cari</button>
+                            </div>
+                            
+                            <div id="search-peserta-results" style="flex:1; overflow-y:auto; padding-right:8px; border:1px solid var(--color-border-light); border-radius:6px; background:var(--color-bg-elevated);">
+                                <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
+                                    <div>🔍</div>
+                                    <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab Content: Materi -->
-            <div id="tab-materi" class="pelatihan-tab-content">
-                <div class="card">
-                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:12px;">Materi Terpilih</h3>
-                    <div id="materi-list-container" style="display:flex;flex-direction:column;gap:10px;">
-                        <!-- Materi list here -->
-                    </div>
-                </div>
-            </div>
+            <!-- Tab Content: Materi (Removed, covered by Preview Alur) -->
 
             <!-- Tab Content: Pre/Post Test -->
             <div id="tab-test" class="pelatihan-tab-content">
-                <!-- Bagian Info Soal dari Kategori -->
-                <div class="card" style="margin-bottom:16px;">
-                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">📝 Soal Test Kategori</h3>
-                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Soal Pre-Test &amp; Post-Test otomatis mengikuti template kategori pelatihan ini.</p>
-                    <div id="soal-per-materi-container">
-                        <div style="text-align:center;padding:20px;color:var(--color-text-light);font-size:0.85em;">Memuat daftar soal kategori...</div>
+                <!-- Status Pelatihan Control Section -->
+                <div class="card" id="training-status-control-section" style="margin-bottom:16px; display:none;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:12px;">⚙️ Status Pelatihan</h3>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-primary" id="btn-aktivasi" onclick="PelatihanManager.aktivasi('${pelatihanId}')" style="display:none; width:100%; padding:10px; font-weight:700; font-size:0.88rem; margin:0;">
+                            🟢 Aktifkan Pelatihan
+                        </button>
+                        <button class="btn btn-primary" id="btn-selesaikan" onclick="PelatihanManager.selesaikan('${pelatihanId}')" style="display:none; background:var(--color-danger); border-color:var(--color-danger); width:100%; padding:10px; font-weight:700; font-size:0.88rem; margin:0;">
+                            ⏹ Selesaikan Pelatihan
+                        </button>
                     </div>
+                </div>
+
+                <div class="card" id="test-empty-placeholder" style="display:none; text-align:center; padding:24px; color:var(--color-text-light); margin-bottom:16px;">
+                    <div style="font-size:3rem; margin-bottom:12px;">📝</div>
+                    <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:8px; color:var(--color-text);">Belum ada Soal Ujian</h3>
+                    <p style="font-size:0.8rem; margin:0;">Silakan edit jadwal pelatihan ini untuk memilih bank soal ujian terlebih dahulu.</p>
                 </div>
 
                 <!-- Kontrol Aktivasi Pre/Post Test -->
@@ -317,6 +371,125 @@ const PelatihanViews = {
                         </div>
                     </div>
                 </div>
+
+                <!-- Syarat Sertifikat -->
+                <div class="card" id="syarat-sertifikat-section" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">🏅 Syarat Cetak Sertifikat</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:14px;">Tentukan syarat yang harus dipenuhi peserta untuk dapat mencetak sertifikat kelulusan.</p>
+
+                    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+                        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border-radius:10px;border:1.5px solid var(--color-border-light);background:var(--color-bg);transition:border-color 0.2s;" onclick="PelatihanManager.selectSyaratSertifikat('preposttest')">
+                            <input type="radio" id="syarat-radio-preposttest" name="syarat-sertifikat" value="preposttest" checked style="margin-top:3px;flex-shrink:0;">
+                            <div>
+                                <div style="font-size:0.85rem;font-weight:700;color:var(--color-text);">📝 Pre-Test &amp; Post-Test</div>
+                                <div style="font-size:0.75rem;color:var(--color-text-light);margin-top:2px;">Peserta harus menyelesaikan Pre-Test dan Post-Test sebelum bisa cetak sertifikat.</div>
+                            </div>
+                        </label>
+                        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border-radius:10px;border:1.5px solid var(--color-border-light);background:var(--color-bg);transition:border-color 0.2s;" onclick="PelatihanManager.selectSyaratSertifikat('absensi_penuh')">
+                            <input type="radio" id="syarat-radio-absensi" name="syarat-sertifikat" value="absensi_penuh" style="margin-top:3px;flex-shrink:0;">
+                            <div>
+                                <div style="font-size:0.85rem;font-weight:700;color:var(--color-text);">📅 Absensi Penuh (Semua Hari)</div>
+                                <div style="font-size:0.75rem;color:var(--color-text-light);margin-top:2px;">Peserta harus hadir di SEMUA hari pelatihan (absen setiap hari) untuk bisa cetak sertifikat.</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                        <span id="syarat-sertifikat-saved-label" style="font-size:0.75rem;color:var(--color-text-light);font-style:italic;"></span>
+                        <button class="btn btn-primary" onclick="PelatihanManager.simpanSyaratSertifikat()" style="padding:8px 16px;font-size:0.82rem;width:auto;margin:0;border-radius:8px;">
+                            💾 Simpan Syarat
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kontrol Absensi Harian -->
+                <div class="card" id="attendance-control-section" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">📅 Absensi Kehadiran Harian</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Tampilkan kode absensi harian agar peserta dapat melakukan absensi kehadiran.</p>
+                    
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <button class="btn btn-primary" onclick="PelatihanManager.bukaAbsensiHariIni()" style="padding:12px;font-size:0.88rem;display:flex;align-items:center;justify-content:center;gap:6px;margin:0;">
+                            🔑 Kode Absen
+                        </button>
+                        <button class="btn btn-secondary" onclick="PelatihanManager.bukaRekapAbsensi()" style="padding:12px;font-size:0.88rem;display:flex;align-items:center;justify-content:center;gap:6px;margin:0;background:var(--color-bg-elevated);border:1px solid var(--color-border);color:var(--color-text);">
+                            📊 Rekap Kehadiran
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dokumentasi Pelatihan -->
+                <div class="card" id="documentation-control-section" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">📸 Dokumentasi Kegiatan</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Unggah foto dokumentasi kegiatan pelatihan beserta catatan kegiatan.</p>
+                    
+                    <button class="btn btn-primary" onclick="PelatihanManager.bukaDokumentasi()" style="padding:12px;font-size:0.88rem;display:flex;align-items:center;justify-content:center;gap:6px;margin:0;width:100%;">
+                        📸 Kelola Dokumentasi
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content: Preview Alur -->
+            <div id="tab-preview-flow" class="pelatihan-tab-content">
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 style="font-size:0.92rem;font-weight:700;margin-bottom:4px;">👁️ Pratinjau Alur Pelatihan (Tampilan Peserta)</h3>
+                    <p style="font-size:0.78rem;color:var(--color-text-light);margin-bottom:16px;">Simulasikan dan lihat instrumen pelatihan persis seperti yang akan dikerjakan oleh peserta.</p>
+                    
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <!-- 1. Kuesioner Awal -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">1. Kuesioner Awal</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Survey harapan & baseline peserta sebelum pelatihan dimulai</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewKuesionerAwal()" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+
+                        <!-- 2. Pre-Test -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">2. Pre-Test</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Uji pemahaman awal satu per satu soal secara interaktif</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewQuiz('pre')" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+
+                        <!-- 3. Materi & Lembar Kerja -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">3. Materi & Lembar Kerja</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Kotak kumpulan modul materi & link lembar kerja (Worksheet)</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewMateriDanLembarKerja()" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+
+                        <!-- 4. Post-Test -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">4. Post-Test</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Uji akhir pemahaman peserta setelah mengikuti pelatihan</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewQuiz('post')" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+
+                        <!-- 5. Feedback -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">5. Feedback</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Survey evaluasi pelaksanaan pelatihan dari sudut pandang peserta</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewFeedbackAkhir()" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+
+                        <!-- 6. Sertifikat -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:10px;">
+                            <div style="flex:1; padding-right:12px;">
+                                <span style="font-weight:600; font-size:0.88rem; color:var(--color-text);">6. Sertifikat</span><br>
+                                <span style="font-size:0.75rem; color:var(--color-text-light);">Pratinjau tampilan sertifikat kelulusan & berkas unduhan</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="PelatihanManager.previewSertifikat()" style="padding:6px 12px; font-size:0.8rem; width:auto !important; margin:0; flex-shrink:0;">👁️ Preview</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Tab Content: Analisis -->
@@ -329,21 +502,6 @@ const PelatihanViews = {
                 </div>
             </div>
         </div>
-
-        <!-- Sticky Footer for Actions -->
-        <div class="sasaran-footer" id="detail-action-footer">
-            <div class="sasaran-footer-status" style="opacity:0; pointer-events:none; width:0;">
-                <!-- Hide the selected count since it's moved to table header -->
-            </div>
-            <div style="display:flex;gap:8px;margin-left:auto;">
-                <button class="btn btn-primary" id="btn-aktivasi" onclick="PelatihanManager.aktivasi('${pelatihanId}')" style="display:none;">
-                    🟢 Aktifkan Pelatihan
-                </button>
-                <button class="btn btn-primary" id="btn-selesaikan" onclick="PelatihanManager.selesaikan('${pelatihanId}')" style="display:none;background:var(--color-danger);">
-                    ⏹ Selesaikan Pelatihan
-                </button>
-            </div>
-        </div>
     `
 };
 
@@ -352,6 +510,119 @@ const PelatihanManager = {
     candidatePeserta: {}, // tree kab -> list pengawas
     selectedPesertaNIPs: new Set(),
     availableMateri: [],
+    autoTutupState: {},
+    attendanceModalInterval: null,
+
+    getGenderShort(g) {
+        if (!g) return '-';
+        const val = String(g).trim().toLowerCase();
+        if (val === 'l' || val === 'pria' || val === 'laki-laki') return 'L';
+        if (val === 'p' || val === 'wanita' || val === 'perempuan') return 'P';
+        return '-';
+    },
+
+    startCountdownDOM(tipe, soalId) {
+        const state = this.autoTutupState[tipe];
+        if (!state) return;
+        
+        if (state.intervalId) {
+            clearInterval(state.intervalId);
+        }
+        
+        const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
+        
+        const update = () => {
+            const countdownEl = document.getElementById('auto-tutup-countdown-' + tipe);
+            const remainingMs = state.endTime - Date.now();
+            if (remainingMs <= 0) {
+                this.clearAutoTutupTimer(tipe);
+                if (countdownEl) countdownEl.textContent = '';
+                
+                App.toast(`Waktu habis! Menutup ${act}...`, 'warning');
+                App.loading(true, `Menutup ${act} (Auto)...`);
+                const runner = google.script.run.withSuccessHandler(res => {
+                    App.loading(false);
+                    if (res.success) {
+                        App.toast(`⏹ ${act} otomatis ditutup`, 'success');
+                        this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+                    } else {
+                        App.alert(res.error, 'Gagal');
+                    }
+                }).withFailureHandler(err => {
+                    App.loading(false);
+                    App.alert(err.message, 'System Error');
+                });
+                const method = tipe === 'pre' ? 'apiTutupPreTest' : 'apiTutupPostTest';
+                runner[method](soalId);
+            } else {
+                if (countdownEl) {
+                    const totalSec = Math.ceil(remainingMs / 1000);
+                    const m = Math.floor(totalSec / 60);
+                    const s = totalSec % 60;
+                    countdownEl.textContent = `⏱️ ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                }
+            }
+        };
+        
+        update();
+        state.intervalId = setInterval(update, 1000);
+    },
+
+    clearAutoTutupTimer(tipe) {
+        const state = this.autoTutupState[tipe];
+        if (state) {
+            localStorage.removeItem('auto_tutup_' + tipe + '_' + state.soalId);
+            if (state.intervalId) {
+                clearInterval(state.intervalId);
+            }
+            delete this.autoTutupState[tipe];
+        }
+    },
+
+    startAttendanceModalCountdown(activeConfig) {
+        if (this.attendanceModalInterval) {
+            clearInterval(this.attendanceModalInterval);
+            this.attendanceModalInterval = null;
+        }
+        
+        const countdownEl = document.getElementById('attendance-modal-countdown');
+        if (!countdownEl) return;
+        
+        if (!activeConfig || !activeConfig.type || !activeConfig.type.endsWith('min')) {
+            countdownEl.textContent = activeConfig && activeConfig.type === 'allday' ? '📅 Berlaku seharian' : '⏳ Belum aktif';
+            countdownEl.style.color = 'var(--color-text-secondary)';
+            return;
+        }
+        
+        const minutes = parseInt(activeConfig.type.replace('min', '')) || 10;
+        const openedAt = new Date(activeConfig.openedAt).getTime();
+        const endTime = openedAt + minutes * 60 * 1000;
+        
+        const update = () => {
+            const el = document.getElementById('attendance-modal-countdown');
+            if (!el) {
+                clearInterval(this.attendanceModalInterval);
+                this.attendanceModalInterval = null;
+                return;
+            }
+            const remainingMs = endTime - Date.now();
+            if (remainingMs <= 0) {
+                clearInterval(this.attendanceModalInterval);
+                this.attendanceModalInterval = null;
+                el.textContent = '❌ Absensi Ditutup (Waktu Habis)';
+                el.style.color = 'var(--color-danger)';
+            } else {
+                const totalSec = Math.ceil(remainingMs / 1000);
+                const m = Math.floor(totalSec / 60);
+                const s = totalSec % 60;
+                el.textContent = `⏱️ Auto closed: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                el.style.color = 'var(--color-danger)';
+            }
+        };
+        
+        update();
+        this.attendanceModalInterval = setInterval(update, 1000);
+    },
 
     init() {
         App.loading(true, 'Memuat daftar pelatihan...');
@@ -471,6 +742,10 @@ const PelatihanManager = {
                             if (selectEl) {
                                 selectEl.value = detail.pelatihan.kategori || 'Umum';
                             }
+                            const tzEl = document.getElementById('plt-zona-waktu');
+                            if (tzEl) {
+                                tzEl.value = detail.pelatihan.zona_waktu || 'Asia/Jakarta';
+                            }
                         } else {
                             App.alert(detailRes.error, 'Gagal');
                             App.router('pelatihan');
@@ -498,6 +773,7 @@ const PelatihanManager = {
         const tglMulai = document.getElementById('plt-tgl-mulai').value;
         const tglSelesai = document.getElementById('plt-tgl-selesai').value;
         const kategori = document.getElementById('plt-kategori').value;
+        const zonaWaktu = document.getElementById('plt-zona-waktu').value;
         
         if (!kategori) {
             return App.alert('Harap pilih kategori pelatihan.', 'Validasi');
@@ -510,7 +786,8 @@ const PelatihanManager = {
             provinsi: App.state.user['Provinsi'],
             tanggal_mulai: tglMulai,
             tanggal_selesai: tglSelesai,
-            kategori: kategori
+            kategori: kategori,
+            zona_waktu: zonaWaktu
         };
         
         App.loading(true, 'Menyimpan jadwal pelatihan...');
@@ -690,7 +967,7 @@ const PelatihanManager = {
                     <div class="step-icon" style="width:24px; height:24px; border-radius:50%; background:var(--color-border-light, #e8eaed); display:flex; align-items:center; justify-content:center; font-size:0.85em; font-weight:700; color:var(--color-text-light, #80868b); transition: all 0.3s ease; flex-shrink:0;">1</div>
                     <div style="flex:1;">
                         <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Setup Survey & Soal Kategori</div>
-                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Membaca dan memproses survey.yaml dan soal.yaml dari folder template...</div>
+                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Membaca dan memproses survey.yaml dan test.yaml dari folder template...</div>
                     </div>
                 </div>
                 
@@ -699,7 +976,7 @@ const PelatihanManager = {
                     <div class="step-icon" style="width:24px; height:24px; border-radius:50%; background:var(--color-border-light, #e8eaed); display:flex; align-items:center; justify-content:center; font-size:0.85em; font-weight:700; color:var(--color-text-light, #80868b); transition: all 0.3s ease; flex-shrink:0;">2</div>
                     <div style="flex:1;">
                         <div class="step-title" style="font-weight:600; font-size:0.95em; color:var(--color-text-light); transition: color 0.3s ease;">Setup Feedback & Sertifikat</div>
-                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Menghubungkan template_sertifikat dan feedback.yaml...</div>
+                        <div class="step-desc" style="font-size:0.8em; color:var(--color-text-light); margin-top:2px; transition: color 0.3s ease;">Menghubungkan sertifikat dan feedback.yaml...</div>
                     </div>
                 </div>
                 
@@ -883,6 +1160,7 @@ const PelatihanManager = {
 
     // ---- DETAIL PAGE ----
     loadDetail(pelatihanId) {
+        this.pelatihanId = pelatihanId;
         App.loading(true, 'Memuat detail pelatihan...');
         
         google.script.run.withSuccessHandler(res => {
@@ -933,12 +1211,14 @@ const PelatihanManager = {
         badge.className = 'pelatihan-status-badge status-' + state;
         badge.textContent = state;
         
-        // Footer actions
+        // Status actions
         const btnAktivasi = document.getElementById('btn-aktivasi');
         const btnSelesaikan = document.getElementById('btn-selesaikan');
+        const statusControlSec = document.getElementById('training-status-control-section');
         
         if (btnAktivasi) btnAktivasi.style.display = 'none';
         if (btnSelesaikan) btnSelesaikan.style.display = 'none';
+        if (statusControlSec) statusControlSec.style.display = 'none';
         
         // Show/Hide Invite Code Section
         const inviteSec = document.getElementById('invite-code-section');
@@ -951,9 +1231,11 @@ const PelatihanManager = {
         }
         
         if (state === 'draft') {
-            btnAktivasi.style.display = 'block';
+            if (btnAktivasi) btnAktivasi.style.display = 'block';
+            if (statusControlSec) statusControlSec.style.display = 'block';
         } else if (state === 'aktif') {
-            btnSelesaikan.style.display = 'block';
+            if (btnSelesaikan) btnSelesaikan.style.display = 'block';
+            if (statusControlSec) statusControlSec.style.display = 'block';
         }
         
         // Hide Tambah button if not draft
@@ -978,6 +1260,7 @@ const PelatihanManager = {
         }
         
         this.updateSelectedPesertaCount();
+        this.loadSyaratSertifikat();
     },
 
     switchTab(btn, tabId) {
@@ -990,14 +1273,6 @@ const PelatihanManager = {
         const tabContents = document.querySelectorAll('.pelatihan-tab-content');
         tabContents.forEach(c => c.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
-        
-        // Hide/Show action footer (only show for Peserta tab if in draft)
-        const footer = document.getElementById('detail-action-footer');
-        if (tabId === 'tab-peserta' && this.detailData.pelatihan.status !== 'selesai') {
-            footer.style.display = 'flex';
-        } else {
-            footer.style.display = 'none';
-        }
     },
 
     closeInvitation(pelatihanId) {
@@ -1022,9 +1297,24 @@ const PelatihanManager = {
         const tbody = document.getElementById('peserta-table-body');
         if (!tbody) return;
         
+        // Hide/Show Select All checkbox header column based on editable state
+        const headerCb = document.getElementById('peserta-header-checkbox');
+        if (headerCb) {
+            headerCb.style.display = editable ? 'table-cell' : 'none';
+        }
+        const selectAllCb = document.getElementById('peserta-select-all-cb');
+        if (selectAllCb) {
+            selectAllCb.disabled = !editable;
+            selectAllCb.checked = false;
+        }
+        
+        // Hide delete selected button by default
+        const btnDel = document.getElementById('btn-delete-selected-peserta');
+        if (btnDel) btnDel.style.display = 'none';
+
         const pesertaList = this.detailData.peserta || [];
         if (pesertaList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--color-text-light);">Belum ada peserta terdaftar.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="${editable ? 8 : 7}" style="text-align:center;padding:20px;color:var(--color-text-light);">Belum ada peserta terdaftar.</td></tr>`;
             return;
         }
         
@@ -1038,9 +1328,9 @@ const PelatihanManager = {
                     <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.kabupaten}</td>
                     <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.provinsi}</td>
                     <td style="padding:10px 8px; border-bottom:1px solid var(--color-border-light);"><span class="badge" style="background:#e0f2fe;color:#0284c7;">${p.jenjang || '-'}</span></td>
-                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${p.kelamin === 'L' ? 'Laki-laki' : (p.kelamin === 'P' ? 'Perempuan' : '-')}</td>
-                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">
-                        ${editable ? `<button onclick="PelatihanManager.removePeserta('${p.nip_peserta}')" style="background:none; border:1px solid var(--color-danger); color:var(--color-danger); padding:4px 8px; font-size:0.75rem; border-radius:6px; cursor:pointer; font-weight:600; transition:all var(--transition-fast);" onmouseover="this.style.background='var(--color-danger)'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='var(--color-danger)';">- Del</button>` : `<span style="font-size:0.8em;color:var(--color-text-light);">${p.status}</span>`}
+                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light);">${PelatihanManager.getGenderShort(p.kelamin)}</td>
+                    <td style="text-align:center; padding:10px 8px; border-bottom:1px solid var(--color-border-light); display: ${editable ? 'table-cell' : 'none'};">
+                        <input type="checkbox" name="peserta-select-cb" value="${p.nip_peserta}" onchange="PelatihanManager.updatePesertaDeleteButtonState()" style="width:16px; height:16px; cursor:pointer;">
                     </td>
                 </tr>
             `;
@@ -1051,14 +1341,187 @@ const PelatihanManager = {
 
     showSearchPesertaModal() {
         document.getElementById('add-peserta-modal').style.display = 'flex';
-        document.getElementById('search-peserta-input').value = '';
-        document.getElementById('search-peserta-input').focus();
-        document.getElementById('search-peserta-results').innerHTML = `
-            <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
-                <div>🔍</div>
-                <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
-            </div>
-        `;
+        this.switchModalTab('bulk');
+    },
+
+    switchModalTab(mode) {
+        const btnBulk = document.getElementById('tab-btn-bulk');
+        const btnSearch = document.getElementById('tab-btn-search');
+        const panelBulk = document.getElementById('modal-panel-bulk');
+        const panelSearch = document.getElementById('modal-panel-search');
+        
+        if (mode === 'bulk') {
+            btnBulk.classList.add('active');
+            btnBulk.style.borderBottomColor = 'var(--color-primary)';
+            btnBulk.style.color = 'var(--color-primary)';
+            
+            btnSearch.classList.remove('active');
+            btnSearch.style.borderBottomColor = 'transparent';
+            btnSearch.style.color = 'var(--color-text-light)';
+            
+            panelBulk.style.display = 'flex';
+            panelSearch.style.display = 'none';
+            this.loadBulkCalonPeserta();
+        } else {
+            btnSearch.classList.add('active');
+            btnSearch.style.borderBottomColor = 'var(--color-primary)';
+            btnSearch.style.color = 'var(--color-primary)';
+            
+            btnBulk.classList.remove('active');
+            btnBulk.style.borderBottomColor = 'transparent';
+            btnBulk.style.color = 'var(--color-text-light)';
+            
+            panelSearch.style.display = 'flex';
+            panelBulk.style.display = 'none';
+            
+            document.getElementById('search-peserta-input').value = '';
+            document.getElementById('search-peserta-results').innerHTML = `
+                <div style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:0.85em;">
+                    <div>🔍</div>
+                    <div style="margin-top:8px;">Masukkan NIP atau Nama dan klik Cari.<br>Pencarian dibatasi pada provinsi Anda.</div>
+                </div>
+            `;
+            document.getElementById('search-peserta-input').focus();
+        }
+    },
+
+    loadBulkCalonPeserta() {
+        const select = document.getElementById('bulk-kabupaten-select');
+        const container = document.getElementById('bulk-peserta-container');
+        const selectAllContainer = document.getElementById('bulk-select-all-container');
+        const btnSave = document.getElementById('btn-save-bulk');
+        
+        select.innerHTML = '<option value="">-- Memuat Kabupaten... --</option>';
+        container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--color-text-light);">Memuat daftar kabupaten...</div>';
+        selectAllContainer.style.display = 'none';
+        btnSave.disabled = true;
+        
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                this.calonPesertaTree = res.data || {};
+                
+                const kabs = Object.keys(this.calonPesertaTree).sort();
+                if (kabs.length === 0) {
+                    select.innerHTML = '<option value="">-- Tidak ada kabupaten --</option>';
+                    container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--color-text-light);">Tidak ada data pengawas di provinsi Anda.</div>';
+                    return;
+                }
+                
+                let html = '<option value="">-- Pilih Kabupaten --</option>';
+                kabs.forEach(kab => {
+                    html += `<option value="${kab}">${kab}</option>`;
+                });
+                select.innerHTML = html;
+                container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--color-text-light);">Silakan pilih Kabupaten terlebih dahulu.</div>';
+            } else {
+                container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--color-danger);">${res.error}</div>`;
+            }
+        }).withFailureHandler(err => {
+            container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--color-danger);">${err.message}</div>`;
+        }).apiGetCalonPeserta(App.state.user['Provinsi']);
+    },
+
+    loadBulkPesertaList() {
+        const select = document.getElementById('bulk-kabupaten-select');
+        const kab = select.value;
+        const container = document.getElementById('bulk-peserta-container');
+        const selectAllContainer = document.getElementById('bulk-select-all-container');
+        const selectAllCb = document.getElementById('bulk-select-all-cb');
+        
+        selectAllCb.checked = false;
+        
+        if (!kab) {
+            container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--color-text-light);">Silakan pilih Kabupaten terlebih dahulu.</div>';
+            selectAllContainer.style.display = 'none';
+            this.updateBulkSelectedCount();
+            return;
+        }
+        
+        const list = this.calonPesertaTree[kab] || [];
+        if (list.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:var(--color-text-light);">Tidak ada pengawas di kabupaten ini.</div>';
+            selectAllContainer.style.display = 'none';
+            this.updateBulkSelectedCount();
+            return;
+        }
+        
+        let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+        list.forEach(p => {
+            const isRegistered = this.selectedPesertaNIPs.has(p.nip);
+            html += `
+                <label style="display:flex; align-items:center; background:var(--color-bg); padding:10px; border-radius:6px; border:1px solid var(--color-border-light); cursor:${isRegistered ? 'default' : 'pointer'}; margin:0;">
+                    <input type="checkbox" name="bulk-peserta-cb" value="${p.nip}" data-nama="${p.nama}" 
+                        ${isRegistered ? 'checked disabled' : 'onchange="PelatihanManager.updateBulkSelectedCount()"'} 
+                        style="margin-right:12px; width:18px; height:18px;">
+                    <div style="flex:1; min-width:0; opacity:${isRegistered ? '0.6' : '1'};">
+                        <div style="font-weight:700; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--color-text);">
+                            ${p.nama} ${isRegistered ? '<span style="font-size:0.75rem; color:var(--color-success); font-weight:normal; margin-left:8px;">(Terdaftar)</span>' : ''}
+                        </div>
+                        <div style="font-size:0.75rem; color:var(--color-text-light); font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${p.nip} · ${p.jenjang || '-'}
+                        </div>
+                    </div>
+                </label>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+        selectAllContainer.style.display = 'flex';
+        this.updateBulkSelectedCount();
+    },
+
+    toggleSelectAllBulk(selectAllCb) {
+        const cbs = document.querySelectorAll('input[name="bulk-peserta-cb"]:not(:disabled)');
+        cbs.forEach(cb => {
+            cb.checked = selectAllCb.checked;
+        });
+        this.updateBulkSelectedCount();
+    },
+
+    updateBulkSelectedCount() {
+        const cbs = document.querySelectorAll('input[name="bulk-peserta-cb"]:not(:disabled)');
+        const selectedCbs = Array.from(cbs).filter(cb => cb.checked);
+        const countSpan = document.getElementById('bulk-selected-count');
+        if (countSpan) {
+            countSpan.textContent = selectedCbs.length;
+        }
+        
+        const selectAllCb = document.getElementById('bulk-select-all-cb');
+        if (selectAllCb && cbs.length > 0) {
+            selectAllCb.checked = (selectedCbs.length === cbs.length);
+        }
+        
+        const btnSave = document.getElementById('btn-save-bulk');
+        if (btnSave) {
+            btnSave.disabled = (selectedCbs.length === 0);
+        }
+    },
+
+    saveBulkPeserta() {
+        const cbs = document.querySelectorAll('input[name="bulk-peserta-cb"]:checked:not(:disabled)');
+        const selectedNIPs = Array.from(cbs).map(cb => cb.value);
+        if (selectedNIPs.length === 0) return;
+        
+        const currentCount = this.selectedPesertaNIPs.size;
+        if (currentCount + selectedNIPs.length > MAX_PESERTA_PER_PELATIHAN) {
+            App.alert('Jumlah peserta melebihi batas maksimal (' + MAX_PESERTA_PER_PELATIHAN + ' orang).', 'Batas Maksimal');
+            return;
+        }
+        
+        App.loading(true, 'Menambahkan peserta secara massal...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast(res.message || 'Peserta berhasil ditambahkan.', 'success');
+                this.closeSearchPesertaModal();
+                this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+            } else {
+                App.alert(res.error, 'Gagal');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Error');
+        }).apiAddPesertaBulk(this.detailData.pelatihan.pelatihan_id, selectedNIPs);
     },
 
     closeSearchPesertaModal() {
@@ -1142,6 +1605,56 @@ const PelatihanManager = {
                 App.loading(false);
                 App.alert(err.message, 'Error');
             }).apiRemovePeserta(this.detailData.pelatihan.pelatihan_id, nip);
+        });
+    },
+
+    toggleSelectAllPeserta(selectAllCb) {
+        const cbs = document.querySelectorAll('input[name="peserta-select-cb"]:not(:disabled)');
+        cbs.forEach(cb => {
+            cb.checked = selectAllCb.checked;
+        });
+        this.updatePesertaDeleteButtonState();
+    },
+
+    updatePesertaDeleteButtonState() {
+        const cbs = document.querySelectorAll('input[name="peserta-select-cb"]:checked');
+        const btnDel = document.getElementById('btn-delete-selected-peserta');
+        if (btnDel) {
+            if (cbs.length > 0) {
+                btnDel.style.display = 'inline-flex';
+            } else {
+                btnDel.style.display = 'none';
+            }
+        }
+        
+        const allCbs = document.querySelectorAll('input[name="peserta-select-cb"]:not(:disabled)');
+        const selectAllCb = document.getElementById('peserta-select-all-cb');
+        if (selectAllCb && allCbs.length > 0) {
+            selectAllCb.checked = (cbs.length === allCbs.length);
+        }
+    },
+
+    deleteSelectedPeserta() {
+        const cbs = document.querySelectorAll('input[name="peserta-select-cb"]:checked:not(:disabled)');
+        const selectedNIPs = Array.from(cbs).map(cb => cb.value);
+        if (selectedNIPs.length === 0) return;
+        
+        App.confirm(`Hapus ${selectedNIPs.length} peserta terpilih dari pelatihan?`, 'Hapus Peserta', () => {
+            App.loading(true, 'Menghapus peserta...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    App.toast('Peserta berhasil dihapus', 'success');
+                    const btnDel = document.getElementById('btn-delete-selected-peserta');
+                    if (btnDel) btnDel.style.display = 'none';
+                    this.loadDetail(this.detailData.pelatihan.pelatihan_id);
+                } else {
+                    App.alert(res.error, 'Gagal');
+                }
+            }).withFailureHandler(err => {
+                App.loading(false);
+                App.alert(err.message, 'Error');
+            }).apiRemovePesertaBulk(this.detailData.pelatihan.pelatihan_id, selectedNIPs);
         });
     },
 
@@ -1232,13 +1745,17 @@ const PelatihanManager = {
         // Tampilkan kontrol aktivasi jika sudah ada test set
         if (test) {
             document.getElementById('test-control-section').style.display = 'block';
+            const emptyEl = document.getElementById('test-empty-placeholder');
+            if (emptyEl) emptyEl.style.display = 'none';
             this.renderTestControls(test);
         } else {
             document.getElementById('test-control-section').style.display = 'none';
+            const emptyEl = document.getElementById('test-empty-placeholder');
+            if (emptyEl) emptyEl.style.display = 'block';
         }
     },
 
-    openPreviewModal(title, bodyHtml) {
+    openPreviewModal(title, bodyHtml, width = '680px') {
         // Remove existing preview modal if any
         const existing = document.getElementById('preview-modal-overlay');
         if (existing) existing.remove();
@@ -1269,7 +1786,7 @@ const PelatihanManager = {
             border: 1px solid var(--color-border, #dadce0);
             border-radius: 16px;
             padding: 24px;
-            width: 680px;
+            width: ${width};
             max-width: 92%;
             max-height: 85vh;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
@@ -1400,122 +1917,6 @@ const PelatihanManager = {
     },
 
     previewUjianAktif() {
-        const test = this.detailData.test;
-        if (!test || !test.yaml_definition) {
-            return App.alert('Belum ada set soal ujian yang aktif.', 'Peringatan');
-        }
-        
-        let soalObj;
-        try {
-            if (typeof test.yaml_definition === 'string' && test.yaml_definition.trim().startsWith('{')) {
-                soalObj = JSON.parse(test.yaml_definition);
-            } else {
-                soalObj = jsyaml.load(test.yaml_definition);
-            }
-        } catch (e) {
-            try {
-                soalObj = jsyaml.load(test.yaml_definition);
-            } catch (err) {
-                return App.alert('Gagal mem-parsing definisi soal: ' + err.message, 'Error');
-            }
-        }
-        
-        const qList = soalObj.questions || [];
-        if (qList.length === 0) {
-            return App.alert('Ujian tidak memiliki pertanyaan.', 'Peringatan');
-        }
-        
-        let bodyHtml = `
-            <div style="font-size:0.9em;color:var(--color-text);line-height:1.5;display:flex;flex-direction:column;gap:20px;">
-                <!-- Test Meta -->
-                <div style="padding:14px;background:rgba(26,115,232,0.06);border:1.5px solid rgba(26,115,232,0.15);border-radius:10px;">
-                    <div style="font-weight:700;font-size:1.05em;color:var(--color-primary);">${soalObj.title || 'Pre/Post Test'}</div>
-                    <div style="font-size:0.82em;color:var(--color-text-secondary);margin-top:4px;">${soalObj.description || 'Tidak ada deskripsi.'}</div>
-                    <div style="display:flex;gap:16px;margin-top:10px;font-size:0.8em;font-weight:600;color:var(--color-text-light);">
-                        <span>⏱️ Durasi: ${soalObj.time_limit_minutes || 30} menit</span>
-                        <span>📝 Jumlah Soal: ${qList.length} butir</span>
-                        <span>🔀 Shuffle: ${soalObj.shuffle_questions ? 'Ya' : 'Tidak'}</span>
-                    </div>
-                </div>
-                
-                <!-- Questions List -->
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <strong style="font-size:0.95em;color:var(--color-primary);border-bottom:1px solid var(--color-border-light);padding-bottom:6px;">Daftar Butir Soal</strong>
-                    ${qList.map((q, idx) => {
-                        let optionsHtml = '';
-                        if (q.type === 'radio' || q.type === 'checkbox') {
-                            optionsHtml = `
-                                <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-left:8px;">
-                                    ${(q.options || []).map(opt => {
-                                        const isCorrect = Array.isArray(q.answer) ? q.answer.includes(opt) : q.answer === opt;
-                                        const badgeStyle = isCorrect ? 'background:rgba(52,168,83,0.12);border:1px solid rgba(52,168,83,0.3);color:#2d7d32;font-weight:600;' : 'background:var(--color-bg-hover);border:1px solid var(--color-border-light);color:var(--color-text-secondary);';
-                                        const icon = isCorrect ? '✅' : '⚪';
-                                        return `
-                                            <div style="padding:8px 12px;border-radius:6px;font-size:0.9em;display:flex;align-items:center;gap:8px;${badgeStyle}">
-                                                <span>${icon}</span>
-                                                <span>${opt}</span>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
-                            `;
-                        } else if (q.type === 'boolean') {
-                            const ansTrue = q.answer === 'Benar';
-                            const ansFalse = q.answer === 'Salah';
-                            optionsHtml = `
-                                <div style="display:flex;gap:12px;margin-top:8px;padding-left:8px;">
-                                    <div style="padding:8px 16px;border-radius:6px;font-size:0.9em;display:flex;align-items:center;gap:6px;${ansTrue ? 'background:rgba(52,168,83,0.12);border:1px solid rgba(52,168,83,0.3);color:#2d7d32;font-weight:600;' : 'background:var(--color-bg-hover);border:1px solid var(--color-border-light);color:var(--color-text-secondary);'}">
-                                        <span>${ansTrue ? '✅' : '⚪'}</span> Benar
-                                    </div>
-                                    <div style="padding:8px 16px;border-radius:6px;font-size:0.9em;display:flex;align-items:center;gap:6px;${ansFalse ? 'background:rgba(52,168,83,0.12);border:1px solid rgba(52,168,83,0.3);color:#2d7d32;font-weight:600;' : 'background:var(--color-bg-hover);border:1px solid var(--color-border-light);color:var(--color-text-secondary);'}">
-                                        <span>${ansFalse ? '✅' : '⚪'}</span> Salah
-                                    </div>
-                                </div>
-                            `;
-                        } else if (q.type === 'matching') {
-                            optionsHtml = `
-                                <div style="margin-top:8px;padding:10px;background:var(--color-bg);border:1px solid var(--color-border-light);border-radius:8px;">
-                                    <div style="font-size:0.8em;font-weight:700;color:var(--color-text-light);margin-bottom:6px;">Kunci Jawaban Pasangan:</div>
-                                    <table style="width:100%;font-size:0.9em;border-collapse:collapse;">
-                                        ${Object.entries(q.answer || {}).map(([k, v]) => `
-                                            <tr style="border-bottom:1px solid var(--color-border-light);">
-                                                <td style="padding:6px 0;font-weight:600;color:var(--color-text-secondary);">${k}</td>
-                                                <td style="padding:6px;color:var(--color-text-light);text-align:center;width:30px;">➡️</td>
-                                                <td style="padding:6px 0;color:#2d7d32;font-weight:600;">${v}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </table>
-                                </div>
-                            `;
-                        } else {
-                            optionsHtml = `
-                                <div style="margin-top:8px;padding:10px;background:var(--color-bg);border:1px solid var(--color-border-light);border-radius:8px;">
-                                    <div style="font-size:0.8em;font-weight:700;color:var(--color-text-light);margin-bottom:4px;">Kunci Jawaban Singkat:</div>
-                                    <div style="font-size:0.9em;color:#2d7d32;font-weight:600;">"${q.answer}"</div>
-                                </div>
-                            `;
-                        }
-                        
-                        return `
-                            <div style="padding:14px;background:var(--color-bg-elevated);border:1px solid var(--color-border-light);border-radius:10px;box-shadow:0 2px 4px rgba(0,0,0,0.02);display:flex;flex-direction:column;gap:6px;">
-                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                                    <span style="font-weight:700;font-size:0.95em;color:var(--color-text);">Soal ${idx+1}</span>
-                                    <div style="display:flex;gap:6px;">
-                                        <span style="background:var(--color-primary-light, #4285f4);color:white;font-size:0.72em;padding:2px 8px;border-radius:12px;font-weight:600;text-transform:uppercase;">${q.type || 'essay'}</span>
-                                        ${q.category ? `<span style="background:var(--color-bg-hover);color:var(--color-text-light);font-size:0.72em;padding:2px 8px;border-radius:12px;font-weight:600;">${q.category}</span>` : ''}
-                                    </div>
-                                </div>
-                                <div style="font-size:0.95em;color:var(--color-text);margin-top:4px;font-weight:500;">
-                                    ${q.label || q.name}
-                                </div>
-                                ${optionsHtml}
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
-        
         this.openPreviewModal(`👁️ Preview Set Ujian Aktif: ${soalObj.title || 'Pre/Post Test'}`, bodyHtml);
     },
 
@@ -1849,7 +2250,7 @@ const PelatihanManager = {
                         <td style="font-weight:600; white-space: normal;">${p.nama_peserta}</td>
                         <td style="white-space: normal;">${p.kabupaten || '-'}</td>
                         <td class="text-center">${p.jenjang || '-'}</td>
-                        <td class="text-center">${p.kelamin || '-'}</td>
+                        <td class="text-center">${PelatihanManager.getGenderShort(p.kelamin)}</td>
                         ${sigOdd}
                     </tr>
                 `;
@@ -2077,7 +2478,7 @@ const PelatihanManager = {
                             <th>Nama Lengkap</th>
                             <th style="width: 160px;">Kabupaten / Kota</th>
                             <th style="width: 80px;">Jenjang</th>
-                            <th style="width: 45px;">L/K</th>
+                            <th style="width: 45px;">L/P</th>
                             <th colspan="2" style="width: 260px;">Tanda Tangan</th>
                         </tr>
                     </thead>
@@ -2166,18 +2567,35 @@ const PelatihanManager = {
         preStatus.textContent = test.status_pre;
         
         const preControl = document.getElementById('pre-control-btns');
-        preControl.innerHTML = '';
+        const isActivePre = test.status_pre === 'aktif';
         
-        if (test.status_pre === 'draft') {
-            preControl.innerHTML = `<button class="btn btn-primary" onclick="PelatihanManager.bukaTest('${test.soal_id}', 'pre')" style="font-size:0.85em;padding:6px 12px;width:100%;">▶ Buka Pre-Test</button>`;
-        } else if (test.status_pre === 'aktif') {
-            preControl.innerHTML = `<button class="btn" onclick="PelatihanManager.tutupTest('${test.soal_id}', 'pre')" style="font-size:0.85em;padding:6px 12px;width:100%;background:var(--color-danger);color:white;">⏹ Tutup Pre-Test</button>`;
-        } else if (test.status_pre === 'ditutup') {
-            const closedDate = test.pre_ditutup_pada ? new Date(test.pre_ditutup_pada).toLocaleTimeString('id-ID', {
-                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-            }) : '-';
-            preControl.innerHTML = `<div style="font-size:0.8em;color:var(--color-text-light);text-align:center;font-style:italic;">Ditutup pada: ${closedDate}</div>`;
+        let preHtml = `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="${isActivePre ? `PelatihanManager.tutupTest('${test.soal_id}', 'pre')` : `PelatihanManager.bukaTest('${test.soal_id}', 'pre')`}">
+                    <div style="position:relative; display:inline-block; width:44px; height:24px;">
+                        <span style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:${isActivePre ? 'var(--color-primary, #4285f4)' : '#ccc'}; transition:.4s; border-radius:24px;">
+                            <span style="position:absolute; content:''; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; transform:${isActivePre ? 'translateX(20px)' : 'translateX(0)'};"></span>
+                        </span>
+                    </div>
+                    <span style="font-size:0.85em; font-weight:600;">${isActivePre ? 'Terbuka' : 'Tertutup'}</span>
+                </div>
+                ${isActivePre ? `
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <button class="btn btn-secondary" onclick="PelatihanManager.autoTutup('${test.soal_id}', 'pre')" style="font-size:0.75em; padding:4px 8px; width:auto; margin:0; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">⏱ Auto Tutup</button>
+                    <span id="auto-tutup-countdown-pre" style="font-size:0.8em; font-weight:700; color:var(--color-danger); transition:all 0.2s;"></span>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        if (test.status_pre === 'ditutup') {
+            const closedDate = test.pre_dibuka_pada ? test.pre_ditutup_pada : null;
+            if (test.pre_ditutup_pada) {
+                const dt = new Date(test.pre_ditutup_pada);
+                const dStr = dt.toLocaleTimeString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                preHtml += `<div style="font-size:0.8em;color:var(--color-text-light);text-align:left;font-style:italic;margin-top:8px;">Ditutup pada: ${dStr}</div>`;
+            }
         }
+        preControl.innerHTML = preHtml;
         
         // Post-Test Status & Control
         const postStatus = document.getElementById('txt-post-status');
@@ -2185,21 +2603,69 @@ const PelatihanManager = {
         postStatus.textContent = test.status_post;
         
         const postControl = document.getElementById('post-control-btns');
-        postControl.innerHTML = '';
+        const isActivePost = test.status_post === 'aktif';
+        const preClosed = test.status_pre === 'ditutup';
+        const isPostDisabled = !isActivePost && test.status_post === 'draft' && !preClosed;
         
-        if (test.status_post === 'draft') {
-            // Only allow opening post test if pretest is already closed or ditutup
-            const preClosed = test.status_pre === 'ditutup';
-            const disabledAttr = preClosed ? '' : 'disabled style="opacity:0.5;cursor:default;"';
-            const btnTitle = preClosed ? '▶ Buka Post-Test' : '🔒 Pre-Test harus ditutup dulu';
-            postControl.innerHTML = `<button class="btn btn-primary" onclick="PelatihanManager.bukaTest('${test.soal_id}', 'post')" ${disabledAttr} style="font-size:0.85em;padding:6px 12px;width:100%;">${btnTitle}</button>`;
-        } else if (test.status_post === 'aktif') {
-            postControl.innerHTML = `<button class="btn" onclick="PelatihanManager.tutupTest('${test.soal_id}', 'post')" style="font-size:0.85em;padding:6px 12px;width:100%;background:var(--color-danger);color:white;">⏹ Tutup Post-Test</button>`;
-        } else if (test.status_post === 'ditutup') {
-            const closedDate = test.post_ditutup_pada ? new Date(test.post_ditutup_pada).toLocaleTimeString('id-ID', {
-                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-            }) : '-';
-            postControl.innerHTML = `<div style="font-size:0.8em;color:var(--color-text-light);text-align:center;font-style:italic;">Ditutup pada: ${closedDate}</div>`;
+        let postHtml = `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; ${isPostDisabled ? 'opacity:0.5; pointer-events:none;' : ''}">
+                <div style="display:flex; align-items:center; gap:8px; cursor:${isPostDisabled ? 'not-allowed' : 'pointer'};" ${isPostDisabled ? 'title="Pre-Test harus ditutup dulu"' : `onclick="${isActivePost ? `PelatihanManager.tutupTest('${test.soal_id}', 'post')` : `PelatihanManager.bukaTest('${test.soal_id}', 'post')`}"`}>
+                    <div style="position:relative; display:inline-block; width:44px; height:24px;">
+                        <span style="position:absolute; cursor:${isPostDisabled ? 'not-allowed' : 'pointer'}; top:0; left:0; right:0; bottom:0; background-color:${isActivePost ? 'var(--color-primary, #4285f4)' : '#ccc'}; transition:.4s; border-radius:24px;">
+                            <span style="position:absolute; content:''; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; transform:${isActivePost ? 'translateX(20px)' : 'translateX(0)'};"></span>
+                        </span>
+                    </div>
+                    <span style="font-size:0.85em; font-weight:600;">${isActivePost ? 'Terbuka' : 'Tertutup'}</span>
+                </div>
+                ${isActivePost ? `
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <button class="btn btn-secondary" onclick="PelatihanManager.autoTutup('${test.soal_id}', 'post')" style="font-size:0.75em; padding:4px 8px; width:auto; margin:0; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">⏱ Auto Tutup</button>
+                    <span id="auto-tutup-countdown-post" style="font-size:0.8em; font-weight:700; color:var(--color-danger); transition:all 0.2s;"></span>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        if (isPostDisabled) {
+            postHtml += `<div style="font-size:0.75em;color:var(--color-danger);margin-top:4px;">🔒 Pre-Test harus ditutup dulu</div>`;
+        }
+        if (test.status_post === 'ditutup') {
+            if (test.post_ditutup_pada) {
+                const dt = new Date(test.post_ditutup_pada);
+                const dStr = dt.toLocaleTimeString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                postHtml += `<div style="font-size:0.8em;color:var(--color-text-light);text-align:left;font-style:italic;margin-top:8px;">Ditutup pada: ${dStr}</div>`;
+            }
+        }
+        postControl.innerHTML = postHtml;
+        
+        // Bind/resume countdown timers if active
+        const storedEndTimePre = localStorage.getItem('auto_tutup_pre_' + test.soal_id);
+        if (storedEndTimePre && parseInt(storedEndTimePre) > Date.now() && isActivePre) {
+            this.autoTutupState.pre = {
+                endTime: parseInt(storedEndTimePre),
+                soalId: test.soal_id
+            };
+            this.startCountdownDOM('pre', test.soal_id);
+        } else {
+            if (this.autoTutupState.pre) {
+                this.clearAutoTutupTimer('pre');
+            } else {
+                localStorage.removeItem('auto_tutup_pre_' + test.soal_id);
+            }
+        }
+        
+        const storedEndTimePost = localStorage.getItem('auto_tutup_post_' + test.soal_id);
+        if (storedEndTimePost && parseInt(storedEndTimePost) > Date.now() && isActivePost) {
+            this.autoTutupState.post = {
+                endTime: parseInt(storedEndTimePost),
+                soalId: test.soal_id
+            };
+            this.startCountdownDOM('post', test.soal_id);
+        } else {
+            if (this.autoTutupState.post) {
+                this.clearAutoTutupTimer('post');
+            } else {
+                localStorage.removeItem('auto_tutup_post_' + test.soal_id);
+            }
         }
         
         // Load submission counts
@@ -2224,8 +2690,7 @@ const PelatihanManager = {
         const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
         App.confirm(`Apakah Anda yakin ingin membuka ${act} sekarang? Peserta pelatihan akan dapat mengakses dan mengerjakannya.`, `Buka ${act}`, () => {
             App.loading(true, `Membuka ${act}...`);
-            const runFn = tipe === 'pre' ? google.script.run.apiBukaPreTest : google.script.run.apiBukaPostTest;
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast(`🟢 ${act} dibuka`, 'success');
@@ -2236,16 +2701,18 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(soalId);
+            });
+            const method = tipe === 'pre' ? 'apiBukaPreTest' : 'apiBukaPostTest';
+            runner[method](soalId);
         });
     },
 
     tutupTest(soalId, tipe) {
         const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
         App.confirm(`Apakah Anda yakin ingin menutup ${act} sekarang? Peserta tidak akan bisa mengerjakannya lagi.`, `Tutup ${act}`, () => {
+            this.clearAutoTutupTimer(tipe);
             App.loading(true, `Menutup ${act}...`);
-            const runFn = tipe === 'pre' ? google.script.run.apiTutupPreTest : google.script.run.apiTutupPostTest;
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast(`⏹ ${act} ditutup`, 'success');
@@ -2256,7 +2723,46 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(soalId);
+            });
+            const method = tipe === 'pre' ? 'apiTutupPreTest' : 'apiTutupPostTest';
+            runner[method](soalId);
+        });
+    },
+
+    autoTutup(soalId, tipe) {
+        let timeLimit = 30; // default
+        try {
+            const soalObj = JSON.parse(this.detailData.test.yaml_definition);
+            if (soalObj.time_limit_minutes) {
+                timeLimit = parseInt(soalObj.time_limit_minutes);
+            }
+        } catch(e) {}
+        
+        const act = tipe === 'pre' ? 'Pre-Test' : 'Post-Test';
+        const msg = `
+            Set timer untuk menutup ${act} otomatis setelah waktu pengerjaan habis.<br><br>
+            Waktu Soal: <b>${timeLimit} menit</b><br>
+            Tambahan Adjustment:<br>
+            <input type="number" id="auto-tutup-confirm-adj" value="10" min="0" style="width: 80px; padding: 6px; border: 1px solid var(--color-border); border-radius: 6px; margin-top: 6px; font-size: 14px; text-align: center; background: var(--color-bg); color: var(--color-text);"> menit
+        `;
+        
+        App.confirm(msg, 'Setup Auto Tutup', () => {
+            const adjEl = document.getElementById('auto-tutup-confirm-adj');
+            const adj = adjEl ? parseInt(adjEl.value) || 0 : 10;
+            const totalMinutes = timeLimit + adj;
+            const totalMs = totalMinutes * 60 * 1000;
+            const endTime = Date.now() + totalMs;
+            
+            this.clearAutoTutupTimer(tipe);
+            
+            localStorage.setItem('auto_tutup_' + tipe + '_' + soalId, endTime);
+            this.autoTutupState[tipe] = {
+                endTime: endTime,
+                soalId: soalId
+            };
+            
+            App.toast(`Timer ${act} dimulai (${totalMinutes} menit)`, 'info');
+            this.startCountdownDOM(tipe, soalId);
         });
     },
 
@@ -2267,10 +2773,7 @@ const PelatihanManager = {
         App.loading(true, 'Menyimpan soal YAML...');
         
         const handleSave = (soalId) => {
-            const runFn = soalId ? google.script.run.apiUpdatePrePostSoal : google.script.run.apiCreatePrePostSoal;
-            const arg1 = soalId ? soalId : pelatihanId;
-            
-            runFn.call(google.script.run).withSuccessHandler(res => {
+            const runner = google.script.run.withSuccessHandler(res => {
                 App.loading(false);
                 if (res.success) {
                     App.toast('💾 Soal YAML berhasil disimpan', 'success');
@@ -2281,7 +2784,13 @@ const PelatihanManager = {
             }).withFailureHandler(err => {
                 App.loading(false);
                 App.alert(err.message, 'System Error');
-            })(arg1, yaml);
+            });
+
+            if (soalId) {
+                runner.apiUpdatePrePostSoal(soalId, yaml);
+            } else {
+                runner.apiCreatePrePostSoal(pelatihanId, yaml);
+            }
         };
         
         const existingSoalId = this.detailData.test ? this.detailData.test.soal_id : null;
@@ -2381,6 +2890,1011 @@ questions:
                 App.alert(err.message, 'System Error');
             }).apiSelesaikanPelatihan(pelatihanId);
         });
+    },
+
+    previewKuesionerAwal() {
+        const pid = this.detailData.pelatihan.pelatihan_id;
+        App.loading(true, 'Memuat Kuesioner Awal...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success && res.data.config) {
+                const cfg = res.data.config;
+                const questionsHtml = this.simulateSurveyQuestions(cfg.questions || [], 'prev-sa');
+                const bodyHtml = `
+                    <div style="font-family: inherit; line-height: 1.5; color: var(--color-text);">
+                        <p style="font-size: 0.85em; color: var(--color-text-secondary); margin-bottom: 20px;">
+                            ${cfg.description || 'Silakan isi kuesioner berikut.'}
+                        </p>
+                        <div style="display:flex; flex-direction:column; gap:18px;">
+                            ${questionsHtml}
+                        </div>
+                    </div>
+                `;
+                this.openPreviewModal(`👁️ Preview Kuesioner Awal: ${cfg.title || 'Survey Awal'}`, bodyHtml);
+            } else {
+                App.alert('Gagal memuat kuesioner awal.', 'Error');
+            }
+        }).apiGetSurveyConfig(pid);
+    },
+
+    previewQuiz(tipe) {
+        const test = this.detailData.test;
+        if (!test || !test.yaml_definition) {
+            return App.alert('Belum ada set soal ujian yang aktif.', 'Peringatan');
+        }
+        
+        let soalObj;
+        try {
+            if (typeof test.yaml_definition === 'string' && test.yaml_definition.trim().startsWith('{')) {
+                soalObj = JSON.parse(test.yaml_definition);
+            } else {
+                soalObj = jsyaml.load(test.yaml_definition);
+            }
+        } catch (e) {
+            try {
+                soalObj = jsyaml.load(test.yaml_definition);
+            } catch (err) {
+                return App.alert('Gagal mem-parsing definisi soal: ' + err.message, 'Error');
+            }
+        }
+        
+        const qList = soalObj.questions || [];
+        if (qList.length === 0) {
+            return App.alert('Ujian tidak memiliki pertanyaan.', 'Peringatan');
+        }
+
+        // Initialize quiz preview simulator
+        PreviewQuizManager.init(soalObj);
+        
+        const bodyHtml = `
+            <div class="content" style="padding: 10px 0;">
+                <div class="card" id="prev-quiz-card" style="margin-bottom:16px; border:1px solid var(--color-border-light);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border-light);padding-bottom:10px;margin-bottom:16px;">
+                        <span id="prev-quiz-category" style="font-size:0.78rem;font-weight:700;color:var(--color-primary);text-transform:uppercase;">Kategori: --</span>
+                        <span id="prev-quiz-question-num" style="font-size:0.78rem;color:var(--color-text-light);font-weight:600;">Soal -- dari --</span>
+                    </div>
+                    
+                    <div id="prev-quiz-question-label" style="font-size:0.95rem;font-weight:700;line-height:1.5;margin-bottom:20px;color:var(--color-text);">Memuat...</div>
+                    <div id="prev-quiz-options-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+                        <!-- Options list -->
+                    </div>
+                </div>
+                
+                <!-- Navigation -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                    <button class="btn btn-secondary" id="prev-quiz-btn-prev" onclick="PreviewQuizManager.prevQuestion()" style="padding:10px;">← Sebelumnya</button>
+                    <button class="btn btn-secondary" id="prev-quiz-btn-next" onclick="PreviewQuizManager.nextQuestion()" style="padding:10px;">Selanjutnya →</button>
+                </div>
+                
+                <!-- Progress dots -->
+                <div class="test-progress-dot-container" id="prev-quiz-dots-container" style="margin-bottom: 20px;"></div>
+                
+                <button class="btn btn-primary" id="prev-quiz-btn-submit" onclick="document.getElementById('preview-modal-close-btn').click();" style="width:100%;padding:12px;font-size:0.95rem;display:none;background:var(--color-success);border-color:var(--color-success);">
+                    📤 Selesai Preview
+                </button>
+            </div>
+        `;
+        
+        this.openPreviewModal(`👁️ Preview ${tipe === 'pre' ? 'Pre-Test' : 'Post-Test'}: ${soalObj.title || 'Evaluasi Pelatihan'}`, bodyHtml);
+        PreviewQuizManager.render();
+    },
+
+    previewMateriDanLembarKerja() {
+        const detail = this.detailData;
+        let materiHtml = '';
+        if (detail.materi && detail.materi.length > 0) {
+            detail.materi.forEach((m, mIdx) => {
+                let configHtml = '';
+                if (m.config) {
+                    const c = m.config;
+                    if (c.deskripsi) {
+                        configHtml += `<div style="font-size:0.85em;color:var(--color-text-secondary);margin-bottom:12px;line-height:1.4;">${c.deskripsi}</div>`;
+                    }
+                    if (c.pre_post_test) {
+                        let tests = [];
+                        if (c.pre_post_test.pre_test_url) tests.push(`<a href="${c.pre_post_test.pre_test_url}" target="_blank" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75em; text-decoration:none;">📝 Pre-Test Materi</a>`);
+                        if (c.pre_post_test.post_test_url) tests.push(`<a href="${c.pre_post_test.post_test_url}" target="_blank" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75em; text-decoration:none;">📝 Post-Test Materi</a>`);
+                        if (tests.length > 0) {
+                            configHtml += `<div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">${tests.join('')}</div>`;
+                        }
+                    }
+                    if (c.lembar_kerja && c.lembar_kerja.length > 0) {
+                        configHtml += `<div style="margin-bottom:12px;">
+                            <strong style="font-size:0.8em; color:var(--color-text); display:block; margin-bottom:6px;">Lembar Kerja:</strong>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                ${c.lembar_kerja.map(lk => `<a href="${lk.url}" target="_blank" style="display:flex; align-items:center; background:rgba(26,115,232,0.08); color:var(--color-primary); padding:8px 12px; border-radius:6px; text-decoration:none; font-size:0.85em; font-weight:500;">📋 ${lk.judul}</a>`).join('')}
+                            </div>
+                        </div>`;
+                    }
+                    if (c.materi && c.materi.length > 0) {
+                        configHtml += `<div>
+                            <strong style="font-size:0.8em; color:var(--color-text); display:block; margin-bottom:6px;">Link Materi Pelatihan:</strong>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                ${c.materi.map(mat => `<a href="${mat.url}" target="_blank" style="display:flex; align-items:center; background:rgba(230,124,115,0.08); color:#d93025; padding:8px 12px; border-radius:6px; text-decoration:none; font-size:0.85em; font-weight:500;">📖 ${mat.judul}</a>`).join('')}
+                            </div>
+                        </div>`;
+                    }
+                } else {
+                    configHtml = `<div style="font-size:0.8em; color:var(--color-text-light); font-style:italic;">Belum ada konfigurasi template dari pelatih.</div>`;
+                }
+
+                materiHtml += `
+                    <div style="${mIdx > 0 ? 'border-top:1px solid var(--color-border-light); padding-top:12px; margin-top:12px;' : ''}">
+                        <h4 style="margin:0 0 10px 0; font-size:0.9rem; font-weight:700; color:var(--color-primary);">${mIdx+1}. ${m.judul_materi}</h4>
+                        <div>
+                            ${configHtml}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            materiHtml = `<div style="text-align:center; padding:10px; color:var(--color-text-light); font-size:0.85rem;">Belum ada materi terpilih untuk pelatihan ini.</div>`;
+        }
+
+        const bodyHtml = `
+            <div style="font-family: inherit; line-height: 1.5;">
+                <div style="padding:12px;background:var(--color-bg);border:1px solid var(--color-border-light);border-radius:12px;font-size:0.85em;">
+                    ${materiHtml}
+                </div>
+            </div>
+        `;
+        this.openPreviewModal('👁️ Preview Box Materi & Lembar Kerja (Tampilan Peserta)', bodyHtml);
+    },
+
+    previewFeedbackAkhir() {
+        const pid = this.detailData.pelatihan.pelatihan_id;
+        App.loading(true, 'Memuat Kuesioner Feedback...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success && res.data.config) {
+                const cfg = res.data.config;
+                const questionsHtml = this.simulateSurveyQuestions(cfg.questions || [], 'prev-fb');
+                const bodyHtml = `
+                    <div style="font-family: inherit; line-height: 1.5; color: var(--color-text);">
+                        <p style="font-size: 0.85em; color: var(--color-text-secondary); margin-bottom: 20px;">
+                            ${cfg.description || 'Silakan berikan feedback Anda terhadap pelaksanaan pelatihan.'}
+                        </p>
+                        <div style="display:flex; flex-direction:column; gap:18px;">
+                            ${questionsHtml}
+                        </div>
+                    </div>
+                `;
+                this.openPreviewModal(`👁️ Preview Feedback: ${cfg.title || 'Feedback Pelatihan'}`, bodyHtml);
+            } else {
+                App.alert('Gagal memuat feedback.', 'Error');
+            }
+        }).apiGetFeedbackConfig(pid);
+    },
+
+    previewSertifikat() {
+        const detail = this.detailData;
+        const bodyHtml = `
+            <div style="text-align:center; padding:10px 0;">
+                <div style="font-size:3.5rem; margin-bottom:12px;">🎓</div>
+                <div style="font-size:0.75rem; color:var(--color-text-light); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">No. Sertifikat</div>
+                <div style="font-size:0.95rem; font-weight:700; color:var(--color-text); font-family:monospace; margin-bottom:16px;">KBC-2026/SIMULASI/0001</div>
+                
+                <div style="border-top:1px dashed var(--color-border-light); padding-top:16px; margin-bottom:24px;">
+                    <p style="font-size:0.82rem; color:var(--color-text-light); margin:0 0 6px 0;">Diberikan Kepada:</p>
+                    <h4 style="font-size:1.1rem; font-weight:800; color:var(--color-primary); margin:0 0 4px 0;">${App.state.user['Nama'] || 'Nama Pelatih (Simulasi)'}</h4>
+                    <p style="font-size:0.82rem; color:var(--color-text-light); margin:0;">Atas kelulusannya pada Pelatihan:</p>
+                    <h5 style="font-size:0.9rem; font-weight:700; color:var(--color-text); margin:4px 0 0 0; line-height:1.4;">${detail.pelatihan.judul}</h5>
+                </div>
+                
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <a href="#" onclick="App.toast('Mencoba mengunduh file PDF (Simulasi)', 'info'); return false;" class="btn btn-primary" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; font-size:0.9rem; font-weight:700; border-radius:10px; text-decoration:none; background:linear-gradient(135deg,#c0392b,#e74c3c); border-color:#e74c3c; color:white;">
+                        <span>📄 Unduh Sertifikat (PDF) - Simulasi</span>
+                    </a>
+                    <a href="#" onclick="App.toast('Mencoba mengunduh format DOCX (Simulasi)', 'info'); return false;" class="btn btn-secondary" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; font-size:0.85rem; border-radius:10px; text-decoration:none; border:1.5px solid var(--color-border); color:var(--color-text);">
+                        <span>📝 Unduh Format Word (DOCX) - Simulasi</span>
+                    </a>
+                </div>
+            </div>
+        `;
+        this.openPreviewModal('👁️ Preview Sertifikat (Tampilan Peserta)', bodyHtml);
+    },
+
+    simulateSurveyQuestions(questions, prefix) {
+        if (typeof PesertaManager !== 'undefined' && typeof PesertaManager.renderSurveyQuestions === 'function') {
+            return PesertaManager.renderSurveyQuestions(questions, prefix);
+        }
+        return '<p style="color:var(--color-text-light);text-align:center;">Gagal memuat render engine survey.</p>';
+    },
+
+    // ── SYARAT SERTIFIKAT ──────────────────────────────────
+    selectSyaratSertifikat(nilai) {
+        const radio = document.getElementById('syarat-radio-' + (nilai === 'absensi_penuh' ? 'absensi' : 'preposttest'));
+        if (radio) radio.checked = true;
+        // Update border highlight
+        document.querySelectorAll('#syarat-sertifikat-section label').forEach(lbl => {
+            lbl.style.borderColor = 'var(--color-border-light)';
+        });
+        const checkedRadio = document.querySelector('input[name="syarat-sertifikat"]:checked');
+        if (checkedRadio && checkedRadio.closest('label')) {
+            checkedRadio.closest('label').style.borderColor = 'var(--color-primary)';
+        }
+    },
+
+    loadSyaratSertifikat() {
+        const pid = this.pelatihanId;
+        if (!pid) return;
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                const syarat = res.data.syarat || 'preposttest';
+                this.selectSyaratSertifikat(syarat);
+                const lbl = document.getElementById('syarat-sertifikat-saved-label');
+                if (lbl) {
+                    const txt = syarat === 'absensi_penuh' ? 'Tersimpan: Absensi Penuh' : 'Tersimpan: Pre/Post Test';
+                    lbl.textContent = '✓ ' + txt;
+                    lbl.style.color = 'var(--color-success)';
+                }
+            }
+        }).apiGetSyaratSertifikat(pid);
+    },
+
+    simpanSyaratSertifikat() {
+        const pid = this.pelatihanId;
+        const selected = document.querySelector('input[name="syarat-sertifikat"]:checked');
+        if (!selected) return;
+        const syarat = selected.value;
+        const token = App.state.sessionToken;
+        App.loading(true, 'Menyimpan syarat sertifikat...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('Syarat sertifikat berhasil disimpan.', 'success');
+                const lbl = document.getElementById('syarat-sertifikat-saved-label');
+                if (lbl) {
+                    const txt = syarat === 'absensi_penuh' ? 'Absensi Penuh' : 'Pre/Post Test';
+                    lbl.textContent = '✓ Tersimpan: ' + txt;
+                    lbl.style.color = 'var(--color-success)';
+                }
+                this.selectSyaratSertifikat(syarat);
+            } else {
+                App.alert(res.error || 'Gagal menyimpan syarat sertifikat.', 'Error');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message || 'Terjadi kesalahan sistem.', 'Error');
+        }).apiSetSyaratSertifikat(pid, syarat, token);
+    },
+
+    bukaAbsensiHariIni() {
+        const pid = this.pelatihanId;
+        const msg = `
+            Pilih metode penutupan Kode Absen hari ini:<br><br>
+            <label style="display:block; margin-bottom:10px; cursor:pointer; text-align:left;">
+                <input type="radio" name="absensi-expiry-type" value="timed" checked style="margin-right:8px;">
+                ⏱️ <b>Auto closed setelah </b>
+                <input type="number" id="absensi-expiry-minutes" value="10" min="1" max="1440" style="width:65px; text-align:center; padding:4px; border:1.5px solid var(--color-border); border-radius:6px; font-size:0.9em; background:var(--color-bg); color:var(--color-text); display:inline-block; font-weight:bold;" onclick="event.stopPropagation(); document.querySelector('input[value=\\'timed\\']').checked = true;">
+                <b> menit</b><br>
+                <span style="font-size:0.8em; color:var(--color-text-light); margin-left:24px; display:inline-block;">Kode absen hanya berlaku selama menit yang diatur setelah diaktifkan.</span>
+            </label>
+            <label style="display:block; cursor:pointer; text-align:left;">
+                <input type="radio" name="absensi-expiry-type" value="allday" style="margin-right:8px;">
+                📅 <b>Tidak auto closed (berlaku seharian)</b><br>
+                <span style="font-size:0.8em; color:var(--color-text-light); margin-left:24px; display:inline-block;">Kode absen berlaku sampai akhir hari ini.</span>
+            </label>
+        `;
+        App.confirm(msg, 'Aktifkan Absensi Hari Ini', () => {
+            const selectedRadio = document.querySelector('input[name="absensi-expiry-type"]:checked');
+            let expiryType = '10min';
+            
+            if (selectedRadio && selectedRadio.value === 'timed') {
+                const minEl = document.getElementById('absensi-expiry-minutes');
+                const mins = minEl ? parseInt(minEl.value) || 10 : 10;
+                expiryType = mins + 'min';
+            } else {
+                expiryType = 'allday';
+            }
+            
+            App.loading(true, 'Mengaktifkan absensi...');
+            google.script.run.withSuccessHandler(res => {
+                App.loading(false);
+                if (res.success) {
+                    const todayStr = res.data.todayStr;
+                    const participants = res.data.participants || [];
+                    const attendanceCode = res.data.attendanceCode || '----';
+                    
+                    const labelType = expiryType.endsWith('min') ? `⏱️ Auto closed ${expiryType.replace('min', '')} mnt` : '📅 Berlaku seharian';
+                    
+                    const bodyHtml = `
+                        <div style="text-align:center; padding:10px 0;">
+                            <h4 style="margin:0 0 6px 0; font-size:0.95rem; color:var(--color-text);">Kode Absen Hari Ini</h4>
+                            <div style="font-size:0.8rem; color:var(--color-text-secondary); margin-bottom:16px; font-weight:600;">📅 Hari ini: ${todayStr} · <span id="attendance-modal-countdown" style="color:var(--color-danger); font-weight:bold;">${labelType}</span></div>
+                            
+                            <div style="display:inline-block; padding:20px 40px; background:var(--color-bg-elevated); border:2px solid var(--color-primary); border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,0.08); margin-bottom:20px;">
+                                <div style="font-size:3.2rem; font-weight:900; letter-spacing:6px; color:var(--color-primary); font-family:monospace; line-height:1;">
+                                    ${attendanceCode}
+                                </div>
+                            </div>
+                            <p style="font-size:0.8rem; color:var(--color-text-secondary); margin:0 0 20px 0; max-width:280px; margin-left:auto; margin-right:auto;">Bagikan kode 4-karakter di atas kepada peserta untuk dimasukkan di halaman dashboard mereka.</p>
+                            
+                            <div style="text-align:left; border-top:1px dashed var(--color-border-light); padding-top:16px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <h5 style="margin:0; font-size:0.85rem; font-weight:700;">Peserta Hadir Hari Ini (<span id="today-presence-count">0</span> / ${participants.length})</h5>
+                                    <button class="btn btn-secondary" onclick="PelatihanManager.refreshTodayPresenceList('${todayStr}', ${JSON.stringify(participants).replace(/"/g, '&quot;')})" style="padding:4px 10px; font-size:0.75rem; width:auto !important; margin:0;">🔄 Segarkan</button>
+                                </div>
+                                <div id="today-presence-list" style="max-height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; background:var(--color-bg); padding:10px; border-radius:8px; border:1px solid var(--color-border-light); font-size:0.8rem;">
+                                    <div style="color:var(--color-text-light); text-align:center; font-style:italic;">Memuat kehadiran...</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    this.openPreviewModal(`🔑 Absensi Hari Ini`, bodyHtml);
+                    // Initial refresh
+                    this.refreshTodayPresenceList(todayStr, participants);
+                    this.startAttendanceModalCountdown(res.data.activeConfig);
+                } else {
+                    App.alert('Gagal mengaktifkan absensi: ' + res.error, 'Error');
+                }
+            }).apiActivateAbsensi(pid, expiryType);
+        });
+    },
+
+    refreshTodayPresenceList(todayStr, participants, silent = false) {
+        if (!silent) {
+            const listEl = document.getElementById('today-presence-list');
+            if (listEl) listEl.innerHTML = '<div style="color:var(--color-text-light); text-align:center; font-style:italic;">Membuat daftar kehadiran...</div>';
+        }
+        
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                const presentNips = res.data || [];
+                const listEl = document.getElementById('today-presence-list');
+                const countEl = document.getElementById('today-presence-count');
+                
+                if (countEl) countEl.textContent = presentNips.length;
+                if (!listEl) return;
+                
+                if (presentNips.length === 0) {
+                    listEl.innerHTML = '<div style="color:var(--color-text-light); text-align:center; font-style:italic;">Belum ada peserta yang melakukan absensi.</div>';
+                    return;
+                }
+                
+                listEl.innerHTML = participants.map(p => {
+                    const isPresent = presentNips.includes(String(p.nip).trim());
+                    if (!isPresent) return ''; // only show present ones in daily presence modal list
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:white; border-radius:6px; border-left:3px solid var(--color-success); box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                            <span style="font-weight:600; color:var(--color-text);">${p.nama}</span>
+                            <span style="font-size:0.75rem; color:var(--color-text-light); font-family:monospace;">${p.nip}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                if (listEl.innerHTML.trim() === '') {
+                    listEl.innerHTML = '<div style="color:var(--color-text-light); text-align:center; font-style:italic;">Belum ada peserta yang melakukan absensi.</div>';
+                }
+            }
+        }).apiGetAbsensiToday(this.pelatihanId, todayStr);
+    },
+
+    bukaRekapAbsensi() {
+        const pid = this.pelatihanId;
+        App.loading(true, 'Memuat rekap absensi...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                const data = res.data;
+                const participants = data.participants || [];
+                let dates = data.uniqueDates || [];
+                const todayStr = data.todayStr;
+                const attMap = data.attendanceMap || {};
+                
+                // Jika tanggal hari ini belum masuk ke list log absensi, tambahkan agar bisa diset manual hari ini
+                if (todayStr && !dates.includes(todayStr)) {
+                    dates.push(todayStr);
+                }
+                
+                // Urutkan tanggal kembali
+                dates.sort();
+                
+                let tableHtml = '';
+                if (participants.length === 0) {
+                    tableHtml = '<div style="text-align:center; padding:20px; color:var(--color-text-light);">Belum ada peserta terdaftar.</div>';
+                } else {
+                    let headerCols = dates.map(d => {
+                        // Format tanggal pendek (misal "19 Jun")
+                        const parts = d.split('-');
+                        let shortDate = d;
+                        if (parts.length === 3) {
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                            shortDate = `${parts[2]} ${months[parseInt(parts[1]) - 1]}`;
+                        }
+                        return `<th style="text-align:center; padding:10px; font-size:0.75rem; font-weight:700; white-space:nowrap; border-bottom:1px solid var(--color-border-light);">${shortDate}</th>`;
+                    }).join('');
+                    
+                    let rowsHtml = participants.map(p => {
+                        const cellCols = dates.map(d => {
+                            const isPresent = attMap[p.nip] && attMap[p.nip][d];
+                            const chk = isPresent ? 'checked' : '';
+                            return `
+                                <td style="text-align:center; padding:10px; border-bottom:1px solid var(--color-border-light);">
+                                    <input type="checkbox" ${chk} onchange="PelatihanManager.togglePresenceManual('${p.nip}', '${d}', this)" style="transform:scale(1.2); cursor:pointer;">
+                                </td>
+                            `;
+                        }).join('');
+                        
+                        return `
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid var(--color-border-light); font-size:0.8rem; font-weight:600; color:var(--color-text);">${p.nama}</td>
+                                <td style="padding:10px; border-bottom:1px solid var(--color-border-light); font-size:0.72rem; color:var(--color-text-light); font-family:monospace;">${p.nip}</td>
+                                ${cellCols}
+                            </tr>
+                        `;
+                    }).join('');
+                    
+                    tableHtml = `
+                        <div style="overflow-x:auto; margin-bottom:12px; border:1px solid var(--color-border-light); border-radius:8px;">
+                            <table style="width:100%; border-collapse:collapse; background:white;">
+                                <thead>
+                                    <tr style="background:var(--color-bg);">
+                                        <th style="text-align:left; padding:10px; font-size:0.75rem; font-weight:700; border-bottom:1px solid var(--color-border-light);">Nama Peserta</th>
+                                        <th style="text-align:left; padding:10px; font-size:0.75rem; font-weight:700; border-bottom:1px solid var(--color-border-light);">NIP</th>
+                                        ${headerCols}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+                
+                const bodyHtml = `
+                    <div style="font-family: inherit; line-height: 1.5;">
+                        <p style="font-size:0.75rem; color:var(--color-text-secondary); margin-bottom:16px;">
+                            ℹ️ Centang kotak di bawah kolom tanggal untuk menandai kehadiran peserta secara manual. Perubahan otomatis disimpan ke database.
+                        </p>
+                        ${tableHtml}
+                        <button class="btn btn-secondary" onclick="document.getElementById('preview-modal-close-btn').click();" style="width:100%; padding:10px; font-size:0.85rem; margin-top:10px;">Tutup</button>
+                    </div>
+                `;
+                
+                this.openPreviewModal(`📊 Rekapitulasi Kehadiran Peserta`, bodyHtml, '800px'); // wide modal
+            } else {
+                App.alert('Gagal memuat rekap absensi: ' + res.error, 'Error');
+            }
+        }).apiGetAbsensiRekap(pid);
+    },
+
+    togglePresenceManual(nip, date, checkboxEl) {
+        const isChecked = checkboxEl.checked;
+        const status = isChecked ? 'Hadir' : 'Tidak Hadir';
+        
+        checkboxEl.disabled = true; // disable temporary
+        
+        google.script.run.withSuccessHandler(res => {
+            checkboxEl.disabled = false;
+            if (res.success) {
+                App.toast(`Status kehadiran ${nip} berhasil diubah ke: ${status}`, 'success');
+            } else {
+                checkboxEl.checked = !isChecked; // revert
+                App.alert('Gagal memperbarui status: ' + res.error, 'Error');
+            }
+        }).withFailureHandler(err => {
+            checkboxEl.disabled = false;
+            checkboxEl.checked = !isChecked; // revert
+            App.alert('Error: ' + err.message, 'Error');
+        }).apiMarkAbsenManual(this.pelatihanId, nip, date, status);
+    },
+
+    bukaDokumentasi() {
+        const pid = this.pelatihanId;
+        window.selectedDokPhotoBase64 = null;
+        
+        const bodyHtml = `
+            <div style="padding:10px 0; font-family:inherit;">
+                <!-- Form Upload -->
+                <div style="background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:12px; padding:16px; margin-bottom:20px;">
+                    <h4 style="margin:0 0 12px 0; font-size:0.88rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px;">
+                        📸 Tambah Dokumentasi Baru
+                    </h4>
+                    
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <!-- File Input & Camera Capture -->
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('dok-camera-input').click()" style="padding:8px 12px; font-size:0.8rem; width:auto !important; margin:0; display:flex; align-items:center; gap:6px; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">
+                                📷 Ambil Foto (Kamera)
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('dok-gallery-input').click()" style="padding:8px 12px; font-size:0.8rem; width:auto !important; margin:0; display:flex; align-items:center; gap:6px; background:var(--color-bg-elevated); border:1px solid var(--color-border); color:var(--color-text);">
+                                📁 Pilih dari Galeri
+                            </button>
+                            
+                            <input type="file" id="dok-camera-input" accept="image/png, image/jpeg, image/jpg, image/gif, image/webp" capture="environment" style="display:none;" onchange="PelatihanManager.previewSelectedPhoto(this)">
+                            <input type="file" id="dok-gallery-input" accept="image/png, image/jpeg, image/jpg, image/gif, image/webp" style="display:none;" onchange="PelatihanManager.previewSelectedPhoto(this)">
+                            
+                            <span id="dok-file-name" style="font-size:0.75rem; color:var(--color-text-light); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:240px;">Belum ada foto terpilih</span>
+                        </div>
+                        
+                        <!-- Photo Preview Area (Hidden by default) -->
+                        <div id="dok-photo-preview-container" style="display:none; text-align:center; background:rgba(0,0,0,0.02); border:1px dashed var(--color-border); padding:10px; border-radius:8px;">
+                            <img id="dok-photo-preview" src="" style="max-height:180px; max-width:100%; border-radius:6px; object-fit:contain; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                            <button type="button" class="btn btn-secondary" onclick="PelatihanManager.clearSelectedPhoto()" style="padding:4px 10px; font-size:0.7rem; width:auto !important; margin:8px auto 0 auto; display:block; color:var(--color-danger); border-color:var(--color-danger); background:transparent;">Hapus Foto</button>
+                        </div>
+                        
+                        <!-- Catatan input -->
+                        <div>
+                            <textarea id="dok-notes-input" placeholder="Masukkan catatan atau keterangan kegiatan untuk foto ini..." rows="2" style="width:100%; font-size:0.8rem; padding:8px 10px; border-radius:8px; border:1px solid var(--color-border); resize:vertical; box-sizing:border-box; font-family:inherit; background:var(--color-bg-elevated); color:var(--color-text);"></textarea>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <button type="button" class="btn btn-primary" id="btn-submit-dok" onclick="PelatihanManager.simpanDokumentasi()" style="padding:10px; font-size:0.85rem; margin:0; width:100%;">
+                            💾 Simpan Dokumentasi
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Gallery List -->
+                <div>
+                    <h4 style="margin:0 0 12px 0; font-size:0.88rem; font-weight:700; color:var(--color-text);">
+                        🖼️ Galeri Dokumentasi Kegiatan (<span id="dok-gallery-count">0</span>)
+                    </h4>
+                    
+                    <div id="dok-gallery-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:12px; max-height:280px; overflow-y:auto; padding:4px;">
+                        <div style="grid-column:1/-1; color:var(--color-text-light); text-align:center; font-style:italic; padding:20px 0; font-size:0.8rem;">
+                            Memuat galeri dokumentasi...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        this.openPreviewModal(`📸 Dokumentasi Kegiatan Pelatihan`, bodyHtml, '650px');
+        this.loadDokumentasiList();
+    },
+
+    previewSelectedPhoto(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        // Clear the other input to avoid conflict
+        if (input.id === 'dok-camera-input') {
+            const gal = document.getElementById('dok-gallery-input');
+            if (gal) gal.value = '';
+        } else {
+            const cam = document.getElementById('dok-camera-input');
+            if (cam) cam.value = '';
+        }
+        
+        const fileNameSpan = document.getElementById('dok-file-name');
+        if (fileNameSpan) fileNameSpan.textContent = file.name;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Downscale image to max 1024px width or height to preserve space and GAS upload bandwidth
+                const maxDim = 1024;
+                let width = img.width;
+                let height = img.height;
+                if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        height = Math.round((height * maxDim) / width);
+                        width = maxDim;
+                    } else {
+                        width = Math.round((width * maxDim) / height);
+                        height = maxDim;
+                    }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Save downscaled base64 data
+                window.selectedDokPhotoBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                
+                // Show preview
+                const previewImg = document.getElementById('dok-photo-preview');
+                const previewContainer = document.getElementById('dok-photo-preview-container');
+                if (previewImg && previewContainer) {
+                    previewImg.src = window.selectedDokPhotoBase64;
+                    previewContainer.style.display = 'block';
+                }
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    },
+    
+    clearSelectedPhoto() {
+        window.selectedDokPhotoBase64 = null;
+        const camInput = document.getElementById('dok-camera-input');
+        if (camInput) camInput.value = '';
+        const galInput = document.getElementById('dok-gallery-input');
+        if (galInput) galInput.value = '';
+        
+        const fileNameSpan = document.getElementById('dok-file-name');
+        if (fileNameSpan) fileNameSpan.textContent = 'Belum ada foto terpilih';
+        
+        const previewContainer = document.getElementById('dok-photo-preview-container');
+        if (previewContainer) previewContainer.style.display = 'none';
+        
+        const previewImg = document.getElementById('dok-photo-preview');
+        if (previewImg) previewImg.src = '';
+    },
+
+    loadDokumentasiList() {
+        const pid = this.pelatihanId;
+        const listEl = document.getElementById('dok-gallery-list');
+        
+        google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+                const items = res.data || [];
+                const countEl = document.getElementById('dok-gallery-count');
+                if (countEl) countEl.textContent = items.length;
+                
+                if (!listEl) return;
+                
+                if (items.length === 0) {
+                    listEl.innerHTML = `
+                        <div style="grid-column:1/-1; color:var(--color-text-light); text-align:center; font-style:italic; padding:20px 0; font-size:0.8rem;">
+                            Belum ada foto dokumentasi. Silakan unggah foto kegiatan Anda menggunakan form di atas.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                listEl.innerHTML = items.map(item => {
+                    const formattedDate = new Date(item.created_at).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    return `
+                        <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:10px; padding:6px; display:flex; flex-direction:column; justify-content:space-between; position:relative; box-shadow:0 2px 4px rgba(0,0,0,0.03); overflow:hidden;">
+                            <!-- Delete Button in corner -->
+                            <button type="button" onclick="PelatihanManager.hapusDokumentasi('${item.file_id}')" style="position:absolute; top:6px; right:6px; background:rgba(255,255,255,0.9); border:1px solid rgba(0,0,0,0.15); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--color-danger); padding:0; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,0.1);" title="Hapus Dokumentasi">
+                                🗑️
+                            </button>
+                            
+                            <a href="${item.file_url}" target="_blank" style="display:block; overflow:hidden; border-radius:6px; background:#f0f0f0; aspect-ratio:4/3; margin-bottom:6px;">
+                                <img src="${item.file_url}" alt="Dokumentasi" style="width:100%; height:100%; object-fit:cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                            </a>
+                            
+                            <div style="padding:0 2px;">
+                                <p style="font-size:0.75rem; color:var(--color-text); margin:0 0 4px 0; word-break:break-word; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${item.catatan || ''}">
+                                    ${item.catatan || '<span style="color:var(--color-text-light);font-style:italic;">Tanpa catatan</span>'}
+                                </p>
+                                <span style="font-size:0.65rem; color:var(--color-text-light); display:block;">
+                                    ${formattedDate}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                if (listEl) listEl.innerHTML = `<div style="grid-column:1/-1; color:var(--color-danger); text-align:center; font-size:0.8rem;">Gagal memuat galeri: ${res.error}</div>`;
+            }
+        }).withFailureHandler(err => {
+            if (listEl) listEl.innerHTML = `<div style="grid-column:1/-1; color:var(--color-danger); text-align:center; font-size:0.8rem;">Error: ${err.message}</div>`;
+        }).apiGetDokumentasiList(pid);
+    },
+
+    simpanDokumentasi() {
+        if (!window.selectedDokPhotoBase64) {
+            App.alert('Silakan ambil atau pilih foto terlebih dahulu!', 'Peringatan');
+            return;
+        }
+        
+        const notesInput = document.getElementById('dok-notes-input');
+        const catatan = notesInput ? notesInput.value.trim() : '';
+        const camInput = document.getElementById('dok-camera-input');
+        const galInput = document.getElementById('dok-gallery-input');
+        const activeFile = (camInput && camInput.files[0]) || (galInput && galInput.files[0]);
+        const filename = activeFile ? activeFile.name : 'dokumentasi.jpg';
+        
+        const btnSubmit = document.getElementById('btn-submit-dok');
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = '⏳ Menyimpan...';
+        }
+        
+        google.script.run.withSuccessHandler(res => {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = '💾 Simpan Dokumentasi';
+            }
+            
+            if (res.success) {
+                App.toast('Dokumentasi berhasil disimpan.', 'success');
+                this.clearSelectedPhoto();
+                if (notesInput) notesInput.value = '';
+                this.loadDokumentasiList();
+            } else {
+                App.alert('Gagal menyimpan dokumentasi: ' + res.error, 'Error');
+            }
+        }).withFailureHandler(err => {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = '💾 Simpan Dokumentasi';
+            }
+            App.alert('Error: ' + err.message, 'Error');
+        }).apiSaveDokumentasi(this.pelatihanId, window.selectedDokPhotoBase64, filename, catatan);
+    },
+
+    hapusDokumentasi(fileId) {
+        if (!confirm('Apakah Anda yakin ingin menghapus foto dokumentasi ini?')) return;
+        
+        App.loading(true, 'Menghapus dokumentasi...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('Dokumentasi berhasil dihapus.', 'success');
+                this.loadDokumentasiList();
+            } else {
+                App.alert('Gagal menghapus dokumentasi: ' + res.error, 'Error');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert('Error: ' + err.message, 'Error');
+        }).apiDeleteDokumentasi(this.pelatihanId, fileId);
+    }
+};
+
+const PreviewQuizManager = {
+    currentQuestionIdx: 0,
+    questions: [],
+    answers: {},
+    selectedMatchingChip: null,
+
+    init(soalObj) {
+        this.currentQuestionIdx = 0;
+        this.questions = soalObj.questions || [];
+        this.answers = {};
+        this.selectedMatchingChip = null;
+
+        // Init answers structure
+        this.questions.forEach(q => {
+            if (q.type === 'checkbox') this.answers[q.name] = [];
+            else if (q.type === 'matching') this.answers[q.name] = {};
+            else this.answers[q.name] = '';
+        });
+    },
+
+    render() {
+        const q = this.questions[this.currentQuestionIdx];
+        if (!q) return;
+
+        // Title/Meta
+        document.getElementById('prev-quiz-category').textContent = `Kategori: ${q.category || 'Umum'}`;
+        document.getElementById('prev-quiz-question-num').textContent = `Soal ${this.currentQuestionIdx + 1} dari ${this.questions.length}`;
+        document.getElementById('prev-quiz-question-label').textContent = q.label || q.name;
+
+        const optContainer = document.getElementById('prev-quiz-options-container');
+        optContainer.innerHTML = '';
+
+        const savedAnswer = this.answers[q.name];
+
+        if (q.type === 'radio') {
+            optContainer.innerHTML = q.options.map(opt => {
+                const checked = savedAnswer === opt ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedAnswer === opt ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="radio" name="prev-quiz-opt" value="${opt}" ${checked} onchange="PreviewQuizManager.saveAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        } else if (q.type === 'boolean') {
+            const opts = ['Benar', 'Salah'];
+            optContainer.innerHTML = opts.map(opt => {
+                const checked = savedAnswer === opt ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedAnswer === opt ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="radio" name="prev-quiz-opt" value="${opt}" ${checked} onchange="PreviewQuizManager.saveAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        } else if (q.type === 'checkbox') {
+            const savedList = Array.isArray(savedAnswer) ? savedAnswer : [];
+            optContainer.innerHTML = q.options.map(opt => {
+                const checked = savedList.includes(opt) ? 'checked' : '';
+                return `
+                    <label class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;margin:0;border-color:${savedList.includes(opt) ? 'var(--color-primary)' : 'var(--color-border-light)'};">
+                        <input type="checkbox" name="prev-quiz-opt" value="${opt}" ${checked} onchange="PreviewQuizManager.toggleCheckboxAnswer('${q.name}', this.value)" style="transform:scale(1.25);flex-shrink:0;">
+                        <span style="font-size:0.88rem;color:var(--color-text);">${opt}</span>
+                    </label>
+                `;
+            }).join('');
+        } else if (q.type === 'matching') {
+            const savedMap = typeof savedAnswer === 'object' ? savedAnswer : {};
+            const assignedOptions = Object.values(savedMap);
+            
+            const allRightOptions = [];
+            q.pairs.forEach(pair => {
+                pair.right_options.forEach(opt => {
+                    if (opt && opt !== '' && !allRightOptions.includes(opt)) {
+                        allRightOptions.push(opt);
+                    }
+                });
+            });
+            
+            const unusedOptions = allRightOptions.filter(opt => !assignedOptions.includes(opt));
+            
+            const rowsHtml = q.pairs.map(pair => {
+                const left = pair.left;
+                const escLeft = left.replace(/'/g, "\\'");
+                const rightSelected = savedMap[left];
+                let dropZoneContent = '';
+                
+                if (rightSelected) {
+                    dropZoneContent = `
+                        <div class="matching-chip placed">
+                            <span>${rightSelected}</span>
+                            <button type="button" class="remove-btn" onclick="event.stopPropagation(); PreviewQuizManager.removeMatchingChip('${q.name}', '${escLeft}')">✕</button>
+                        </div>
+                    `;
+                } else {
+                    dropZoneContent = `<span class="matching-drop-zone-placeholder">Seret ke sini / Tap Opsi</span>`;
+                }
+                
+                const occupiedClass = rightSelected ? 'occupied' : '';
+                
+                return `
+                    <div class="matching-row">
+                        <div class="matching-left-label">${left}</div>
+                        <div class="matching-drop-zone ${occupiedClass}" 
+                             id="prev-dropzone-${q.name}-${escLeft}"
+                             onclick="PreviewQuizManager.assignMatchingChip('${q.name}', '${escLeft}')"
+                             ondragover="event.preventDefault(); this.classList.add('active');"
+                             ondragleave="this.classList.remove('active');"
+                             ondrop="this.classList.remove('active'); PreviewQuizManager.handleMatchingDrop(event, '${q.name}', '${escLeft}')">
+                            ${dropZoneContent}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            const poolChipsHtml = unusedOptions.map(opt => {
+                const isSelected = (this.selectedMatchingChip && this.selectedMatchingChip.qName === q.name && this.selectedMatchingChip.value === opt);
+                const selectedClass = isSelected ? 'selected' : '';
+                const escOpt = opt.replace(/'/g, "\\'");
+                
+                return `
+                    <div class="matching-chip ${selectedClass}" 
+                         draggable="true"
+                         id="prev-chip-${q.name}-${escOpt}"
+                         ondragstart="event.dataTransfer.setData('text/plain', '${escOpt}')"
+                         onclick="PreviewQuizManager.selectMatchingChip('${q.name}', '${escOpt}', event)">
+                        ${opt}
+                    </div>
+                `;
+            }).join('');
+            
+            optContainer.innerHTML = `
+                <div class="matching-container">
+                    ${rowsHtml}
+                    <div class="matching-pool-container">
+                        <div class="matching-pool-title">Opsi Tersedia (Tap opsi lalu tap kotak di atas, atau seret langsung)</div>
+                        <div class="matching-pool" id="prev-pool-${q.name}">
+                            ${poolChipsHtml || '<div style="color:#2ecc71;font-size:0.82rem;font-weight:600;">Semua opsi telah terpasang ✓</div>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Navigation state
+        document.getElementById('prev-quiz-btn-prev').disabled = (this.currentQuestionIdx === 0);
+        document.getElementById('prev-quiz-btn-next').disabled = (this.currentQuestionIdx === this.questions.length - 1);
+        
+        const submitBtn = document.getElementById('prev-quiz-btn-submit');
+        if (this.currentQuestionIdx === this.questions.length - 1) {
+            submitBtn.style.display = 'block';
+        } else {
+            submitBtn.style.display = 'none';
+        }
+
+        this.renderDots();
+    },
+
+    renderDots() {
+        const container = document.getElementById('prev-quiz-dots-container');
+        if (!container) return;
+        
+        container.innerHTML = this.questions.map((q, idx) => {
+            const isActive = idx === this.currentQuestionIdx;
+            const saved = this.answers[q.name];
+            
+            let isAnswered = false;
+            if (q.type === 'checkbox') {
+                isAnswered = Array.isArray(saved) && saved.length > 0;
+            } else if (q.type === 'matching') {
+                isAnswered = saved && typeof saved === 'object' && Object.keys(saved).length === q.pairs.length && Object.values(saved).every(v => v !== '');
+            } else {
+                isAnswered = !!saved;
+            }
+            
+            const cls = isActive ? 'active' : (isAnswered ? 'answered' : '');
+            return `<div class="test-progress-dot ${cls}" onclick="PreviewQuizManager.goToQuestion(${idx})">${idx + 1}</div>`;
+        }).join('');
+    },
+
+    saveAnswer(name, val) {
+        this.answers[name] = val;
+        this.render();
+    },
+
+    toggleCheckboxAnswer(name, val) {
+        if (!Array.isArray(this.answers[name])) this.answers[name] = [];
+        const idx = this.answers[name].indexOf(val);
+        if (idx === -1) this.answers[name].push(val);
+        else this.answers[name].splice(idx, 1);
+        this.render();
+    },
+
+    selectMatchingChip(qName, value, event) {
+        if (event) event.stopPropagation();
+        if (this.selectedMatchingChip && this.selectedMatchingChip.qName === qName && this.selectedMatchingChip.value === value) {
+            this.selectedMatchingChip = null;
+        } else {
+            this.selectedMatchingChip = { qName, value };
+        }
+        this.render();
+    },
+
+    assignMatchingChip(qName, leftKey) {
+        const saved = this.answers[qName];
+        if (saved && saved[leftKey]) {
+            this.removeMatchingChip(qName, leftKey);
+            return;
+        }
+        if (!this.selectedMatchingChip || this.selectedMatchingChip.qName !== qName) {
+            return;
+        }
+        const val = this.selectedMatchingChip.value;
+        this.selectedMatchingChip = null;
+        if (!this.answers[qName]) this.answers[qName] = {};
+        this.answers[qName][leftKey] = val;
+        this.render();
+    },
+
+    removeMatchingChip(qName, leftKey) {
+        if (this.answers[qName]) {
+            delete this.answers[qName][leftKey];
+        }
+        this.render();
+    },
+
+    handleMatchingDrop(event, qName, leftKey) {
+        event.preventDefault();
+        const val = event.dataTransfer.getData('text/plain');
+        if (val) {
+            if (!this.answers[qName]) this.answers[qName] = {};
+            this.answers[qName][leftKey] = val;
+            this.render();
+        }
+    },
+
+    prevQuestion() {
+        if (this.currentQuestionIdx > 0) {
+            this.currentQuestionIdx--;
+            this.render();
+        }
+    },
+
+    nextQuestion() {
+        if (this.currentQuestionIdx < this.questions.length - 1) {
+            this.currentQuestionIdx++;
+            this.render();
+        }
+    },
+
+    goToQuestion(idx) {
+        if (idx >= 0 && idx < this.questions.length) {
+            this.currentQuestionIdx = idx;
+            this.render();
+        }
     }
 };
 </script>

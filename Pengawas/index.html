@@ -31,8 +31,17 @@
       // Global parameter passed from server doGet(e)
       window.SERVER_PARAMS = {
         kamad_setup_token: <?!= JSON.stringify(kamad_setup_token || '') ?>,
+        survey_token: <?!= JSON.stringify(survey_token || '') ?>,
         app_version: <?!= JSON.stringify(app_version || 'v2.1.15') ?>
       };
+      
+      // Load html5-qrcode dynamically to bypass Google Apps Script server-side template compiler limitations
+      (function() {
+        const qrScript = document.createElement('script');
+        qrScript.src = "https://unpkg.com/html5-qrcode";
+        qrScript.type = "text/javascript";
+        document.head.appendChild(qrScript);
+      })();
       
       console.log("Sizes:");
       console.log("js-core:", <?= include('js-core').length ?>);
@@ -40,6 +49,7 @@
       console.log("js-profile:", <?= include('js-profile').length ?>);
       console.log("js-sasaran:", <?= include('js-sasaran').length ?>);
       console.log("js-dashboard:", <?= include('js-dashboard').length ?>);
+      console.log("js-delegates:", <?= include('js-delegates').length ?>);
     </script>
     <?!= include('js-core'); ?>
     <?!= include('js-auth'); ?>
@@ -51,10 +61,12 @@
     <?!= include('js-kamad-auth'); ?>
     <?!= include('js-kamad-dashboard'); ?>
     <?!= include('js-kamad-forms'); ?>
+    <?!= include('js-kanban'); ?>
     <?!= include('js-pelatihan'); ?>
     <?!= include('js-peserta-pelatihan'); ?>
     <?!= include('js-pelatihan-analisis'); ?>
     <?!= include('js-materi'); ?>
+    <?!= include('js-delegates'); ?>
 </body>
 
 </html>

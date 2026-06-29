@@ -261,6 +261,38 @@ function apiError(message, code = null, details = null) {
  * SERVE HTML
  */
 function doGet(e) {
+    // Auto-register web app URL to shared spreadsheet settings
+    try {
+        const currentUrl = ScriptApp.getService().getUrl();
+        if (currentUrl && currentUrl.includes('script.google.com')) {
+            const ss = getDb();
+            if (ss) {
+                let settingsSheet = ss.getSheetByName('App_Settings');
+                if (!settingsSheet) {
+                    settingsSheet = ss.insertSheet('App_Settings');
+                    settingsSheet.appendRow(['key', 'value']);
+                }
+                const data = settingsSheet.getDataRange().getValues();
+                let foundIdx = -1;
+                for (let i = 1; i < data.length; i++) {
+                    if (data[i][0] === 'madrasah_url') {
+                        foundIdx = i;
+                        break;
+                    }
+                }
+                if (foundIdx !== -1) {
+                    if (data[foundIdx][1] !== currentUrl) {
+                        settingsSheet.getRange(foundIdx + 1, 2).setValue(currentUrl);
+                    }
+                } else {
+                    settingsSheet.appendRow(['madrasah_url', currentUrl]);
+                }
+            }
+        }
+    } catch(err) {
+        console.error('Failed to auto-save web app URL:', err);
+    }
+
     // Check if this is a survey token request
     if (e && e.parameter && e.parameter.survey_token) {
         var template = HtmlService.createTemplateFromFile('index');

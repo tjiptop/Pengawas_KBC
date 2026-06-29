@@ -1,6 +1,8 @@
 <script>
 const AuthViews = {
-    Login: () => `
+    Login: () => {
+        const lastNip = localStorage.getItem('last_pengawas_nip') || '';
+        return `
         <div class="auth-wrap">
           <div class="auth-card">
             <div class="auth-brand">
@@ -14,7 +16,7 @@ const AuthViews = {
             <div class="form-group">
               <label style="font-size:0.82rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:6px;display:block;">NIP</label>
               <input type="text" id="login-nip" class="form-control" placeholder="Masukkan NIP Anda"
-                     autocomplete="username" inputmode="numeric" style="margin-bottom:0;">
+                     autocomplete="username" inputmode="numeric" style="margin-bottom:0;" value="${lastNip}">
             </div>
             <div class="form-group" style="margin-bottom:12px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -43,7 +45,8 @@ const AuthViews = {
             </div>
           </div>
         </div>
-    `,
+    `;
+    },
 
     SetPassword: (nip) => `
         <div class="auth-card card" style="max-width: 400px; margin: 40px auto; padding: 30px;">
@@ -141,6 +144,7 @@ const AuthManager = {
             App.loading(false);
             resetBtn();
             if (res.success) {
+                localStorage.setItem('last_pengawas_nip', res.nip || nip);
                 if (res.sessionToken) {
                     localStorage.setItem('session_token', res.sessionToken);
                 }

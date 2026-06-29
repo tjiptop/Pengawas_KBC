@@ -65,7 +65,7 @@ const FormsManager = {
     if (!banner) return;
     
     const madrasah = this.state.selectedMadrasah;
-    if (madrasah) {
+    if (madrasah && madrasah.nama !== 'Mandiri (Pengawas)') {
       banner.style.display = 'block';
       banner.innerHTML = `
         <div class="card" style="padding: 10px 15px; background: rgba(26,115,232,0.08); border-left: 4px solid var(--color-primary); display: flex; justify-content: space-between; align-items: center; border-radius: 8px; font-size: 0.9em; margin-bottom: 5px;">
@@ -106,19 +106,24 @@ const FormsManager = {
             this.startForm(fid);
           }
         } else {
-          document.getElementById('forms-list-container').innerHTML =
-            `<p style="color:#c0392b;text-align:center;">Gagal memuat form: ${res.error}</p>`;
+          const container = document.getElementById('forms-list-container');
+          if (container) {
+            container.innerHTML = `<p style="color:#c0392b;text-align:center;">Gagal memuat form: ${res.error}</p>`;
+          }
         }
       })
       .withFailureHandler(err => {
-        document.getElementById('forms-list-container').innerHTML =
-          `<p style="color:#c0392b;text-align:center;">Error: ${err.message}</p>`;
+        const container = document.getElementById('forms-list-container');
+        if (container) {
+          container.innerHTML = `<p style="color:#c0392b;text-align:center;">Error: ${err.message}</p>`;
+        }
       })
       .apiGetAvailableForms();
   },
 
   renderFormsList() {
     const container = document.getElementById('forms-list-container');
+    if (!container) return;
     const forms = this.state.forms;
 
     if (!forms || forms.length === 0) {
@@ -177,6 +182,7 @@ const FormsManager = {
 
   renderHistory() {
     const container = document.getElementById('history-list-container');
+    if (!container) return;
     const history = this.state.history;
 
     if (!history || history.length === 0) {
@@ -265,7 +271,17 @@ const FormsManager = {
 
   openForm(formId, madrasah) {
     this.state.currentForm = formId;
-    this.state.selectedMadrasah = madrasah;
+    if (madrasah && madrasah.nsm) {
+      const fullMadrasah = (App.state.madrasahSasaran || []).find(m => String(m.nsm).trim() === String(madrasah.nsm).trim());
+      if (fullMadrasah) {
+        madrasah = { ...fullMadrasah, ...madrasah };
+      }
+    }
+    const formMeta = this.state.forms.find(f => f.id === formId) || {};
+    if (formMeta.requiresMadrasah) {
+      this.state.selectedMadrasah = madrasah;
+    }
+    this.activeMadrasah = madrasah;
 
     // Tampilkan panel form fill
     document.getElementById('panel-forms').style.display = 'none';
@@ -343,7 +359,7 @@ const FormsManager = {
       if (typeof FormEngine !== 'undefined' && FormEngine.init) {
         FormEngine.init('form-engine-mount', yamlStr, {}, (data) => {
           FormsManager.submitForm(data);
-        }, formId, this.state.selectedMadrasah);
+        }, formId, this.activeMadrasah);
 
         // Hiding of duplicate title and submit button are handled safely by high-performance CSS overrides in css.html
       } else {
@@ -428,7 +444,7 @@ const FormsManager = {
 
   submitForm(customData) {
     const formId = this.state.currentForm;
-    const madrasah = this.state.selectedMadrasah;
+    const madrasah = this.activeMadrasah;
 
     if (!formId || !madrasah) return;
 

@@ -1,0 +1,1591 @@
+<script>
+// ============================================================
+// KANBAN BOARD CLIENT-SIDE MODULE
+// ============================================================
+
+const KanbanView = {
+  skeleton: () => {
+    return `
+    <div class="header no-print">
+      <div style="display:flex;align-items:center;gap:12px;width:100%;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="header-page-icon">🎯</div>
+          <div>
+            <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Program Kerja</h1>
+            <div class="skeleton" style="width:120px;height:12px;margin-top:2px;"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="skeleton" style="width:34px;height:30px;border-radius:6px;"></div>
+          <div class="skeleton" style="width:75px;height:30px;border-radius:6px;"></div>
+          <div class="skeleton" style="width:85px;height:30px;border-radius:6px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="content" style="max-width: 100%; width: 100%; overflow: hidden;">
+      <div style="display:flex;gap:16px;height:calc(100vh - 180px);overflow-x:auto;padding-bottom:15px;">
+        <div class="kanban-column" style="height:100%;"><div class="kanban-column-header"><div class="skeleton" style="width:80px;height:14px;"></div></div><div class="kanban-card-list"><div class="skeleton" style="height:80px;margin-bottom:10px;"></div><div class="skeleton" style="height:80px;"></div></div></div>
+        <div class="kanban-column" style="height:100%;"><div class="kanban-column-header"><div class="skeleton" style="width:80px;height:14px;"></div></div><div class="kanban-card-list"></div></div>
+        <div class="kanban-column" style="height:100%;"><div class="kanban-column-header"><div class="skeleton" style="width:80px;height:14px;"></div></div><div class="kanban-card-list"></div></div>
+      </div>
+    </div>`;
+  },
+
+  /**
+   * Render tag icons html based on configured tag definitions
+   */
+  renderTagIconsHtml(cardTags, fontSize = '0.82rem', padding = '2px') {
+    const tagIconMap = {};
+    const catFallbackIcons = {
+      'KBC': '🧩',
+      'Level': '📈'
+    };
+
+    (KanbanManager.state.tags || []).forEach(t => {
+      const parts = t.split('|');
+      const cat = parts[0] || '';
+      const sub = parts[1] || '';
+      const icon = parts[2] || '';
+      if (cat && sub) {
+        tagIconMap[`${cat}|${sub}`.toLowerCase()] = icon;
+      }
+    });
+
+    return cardTags.map(t => {
+      const parts = t.split('|');
+      const cat = parts[0] || '';
+      const sub = parts[1] || t;
+      
+      const key = `${cat}|${sub}`.toLowerCase();
+      const icon = tagIconMap[key] || catFallbackIcons[cat] || '🏷️';
+      
+      return `<span style="cursor:help; font-size:${fontSize}; padding: ${padding}; display:inline-flex; align-items:center;" title="${cat}: ${sub}">${icon}</span>`;
+    }).join('');
+  },
+
+  /**
+   * Main Board View
+   */
+  main: (madrasahName, cards, comments) => {
+    const isSupervisor = !!App.state.isSupervisorViewAs;
+    
+    // Status columns mapping
+    const columns = [
+      { id: 'Belum Mulai', title: 'Belum Mulai', colorClass: 'indicator-todo' },
+      { id: 'Sedang Berjalan', title: 'Sedang Berjalan', colorClass: 'indicator-proses' },
+      { id: 'Selesai', title: 'Selesai', colorClass: 'indicator-selesai' }
+    ];
+
+    // Group cards by status
+    const cardsByStatus = { 'Belum Mulai': [], 'Sedang Berjalan': [], 'Selesai': [], 'Dibatalkan': [] };
+    cards.forEach(c => {
+      if (cardsByStatus[c.status] !== undefined) {
+        cardsByStatus[c.status].push(c);
+      } else {
+        cardsByStatus['Belum Mulai'].push(c); // Fallback
+      }
+    });
+
+    let boardColumnsHtml = columns.map(col => {
+      const colCards = cardsByStatus[col.id];
+      
+      const cardsHtml = colCards.map(card => {
+        // Calculate unread comments count for this card
+        const cardComments = comments.filter(comm => comm.card_id === card.card_id);
+        const meId = String(isSupervisor ? App.state.user?.NIP : App.state.kamad?.nsm).trim();
+        let unreadComments = 0;
+        
+        cardComments.forEach(comm => {
+          if (String(comm.author_id).trim() !== meId) {
+            const lastSeenTime = localStorage.getItem(`kanban_card_last_seen_${card.card_id}`) || '0';
+            if (new Date(comm.created_at).getTime() > new Date(lastSeenTime).getTime()) {
+              unreadComments++;
+            }
+          }
+        });
+
+        const cardTags = card.tag ? card.tag.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const tagIconsHtml = KanbanView.renderTagIconsHtml(cardTags, '0.82rem', '2px');
+
+        let badgesHtml = '';
+        card.attachments.forEach(att => {
+          let icon = '📎';
+          let title = att.name || 'Lampiran';
+          let badgeClass = 'badge-link';
+          
+          if (att.type === 'image') {
+            icon = '🖼️';
+            badgeClass = 'badge-image';
+          } else if (att.type === 'pdf') {
+            icon = '📄';
+            badgeClass = 'badge-pdf';
+          } else if (att.type === 'link') {
+            icon = '🔗';
+            badgeClass = 'badge-link';
+          }
+
+          if (att.url) {
+            badgesHtml += `
+              <a href="${att.url}" target="_blank" class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
+                ${icon}
+              </a>
+            `;
+          }
+        });
+
+        return `
+          <div class="kanban-card" 
+               id="${card.card_id}" 
+               draggable="${!isSupervisor}"
+               ondragstart="KanbanManager.onDragStart(event)"
+               onclick="KanbanManager.openCardModal('${card.card_id}')">
+            ${card.approved_by_supervisor ? `
+              <div style="background:rgba(16, 185, 129, 0.1); color:rgb(16, 185, 129); font-size:0.65rem; font-weight:700; padding:2px 6px; border-radius:4px; margin-bottom:8px; display:inline-block; border:1px solid rgba(16, 185, 129, 0.2);">
+                ✅ Disahkan Pengawas
+              </div>
+            ` : ''}
+            ${card.delete_requested ? `
+              <div style="background:rgba(239, 68, 68, 0.1); color:rgb(239, 68, 68); font-size:0.65rem; font-weight:700; padding:2px 6px; border-radius:4px; margin-bottom:8px; display:inline-block; border:1px solid rgba(239, 68, 68, 0.2);">
+                ⚠️ Pengajuan Hapus
+              </div>
+            ` : ''}
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <h4 class="kanban-card-title-text" style="flex:1; margin:0;">${card.title}</h4>
+              ${cardTags.length > 0 ? `<div style="display:flex; gap:2px; align-items:center;">${tagIconsHtml}</div>` : ''}
+            </div>
+            ${card.description ? `<p class="kanban-card-desc-text">${card.description}</p>` : ''}
+            
+            <div class="kanban-badges-row">
+              <div style="flex:1;"></div>
+              
+              <!-- Komentar badge dengan pulsing red dot jika unread -->
+              <span class="kanban-badge-item kanban-comments-count">
+                💬 ${cardComments.length}
+                ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+              </span>
+            </div>
+            
+            <div class="kanban-card-meta">
+              <div style="display:flex; gap:4px; align-items:center;">${badgesHtml}</div>
+              <span>${Utils.formatTimeAgo(card.updated_at)}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="kanban-column" 
+             id="col-${col.id}"
+             ondragover="KanbanManager.onDragOver(event)"
+             ondragleave="KanbanManager.onDragLeave(event)"
+             ondrop="KanbanManager.onDrop(event, '${col.id}')">
+          <div class="kanban-column-header">
+            <div class="kanban-column-title-wrapper">
+              <span class="kanban-indicator ${col.colorClass}"></span>
+              <h3 class="kanban-column-title">${col.title}</h3>
+            </div>
+            <span class="kanban-column-counter">${colCards.length}</span>
+          </div>
+          <div class="kanban-card-list" id="list-${col.id}">
+            ${cardsHtml || `
+              <div style="text-align:center;padding:30px 10px;color:var(--color-text-light);font-size:0.75rem;border:1px dashed rgba(0,0,0,0.05);border-radius:var(--radius-md);margin-top:10px;">
+                Belum ada kartu
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Generate Dibatalkan bottom section
+    const cancelledCol = { id: 'Dibatalkan', title: 'Dibatalkan/Tunda', colorClass: 'indicator-dibatalkan' };
+    const cancelledCards = cardsByStatus['Dibatalkan'] || [];
+    
+    const cancelledCardsHtml = cancelledCards.map(card => {
+      const cardComments = comments.filter(comm => comm.card_id === card.card_id);
+      const meId = String(isSupervisor ? App.state.user?.NIP : App.state.kamad?.nsm).trim();
+      let unreadComments = 0;
+      cardComments.forEach(comm => {
+        if (String(comm.author_id).trim() !== meId) {
+          const lastSeenTime = localStorage.getItem(`kanban_card_last_seen_${card.card_id}`) || '0';
+          if (new Date(comm.created_at).getTime() > new Date(lastSeenTime).getTime()) {
+            unreadComments++;
+          }
+        }
+      });
+
+      const cardTags = card.tag ? card.tag.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const tagIconsHtml = KanbanView.renderTagIconsHtml(cardTags, '0.7rem', '1px');
+
+      let badgesHtml = '';
+      card.attachments.forEach(att => {
+        let icon = '📎';
+        let title = att.name || 'Lampiran';
+        let badgeClass = 'badge-link';
+        
+        if (att.type === 'image') {
+          icon = '🖼️';
+          badgeClass = 'badge-image';
+        } else if (att.type === 'pdf') {
+          icon = '📄';
+          badgeClass = 'badge-pdf';
+        } else if (att.type === 'link') {
+          icon = '🔗';
+          badgeClass = 'badge-link';
+        }
+
+        if (att.url) {
+          badgesHtml += `
+            <a href="${att.url}" target="_blank" class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
+              ${icon}
+            </a>
+          `;
+        }
+      });
+
+      return `
+        <div class="kanban-card" 
+             id="${card.card_id}" 
+             draggable="${!isSupervisor}"
+             ondragstart="KanbanManager.onDragStart(event)"
+             onclick="KanbanManager.openCardModal('${card.card_id}')"
+             style="flex: 0 0 260px; max-width: 260px; cursor: grab; padding: var(--spacing-sm); gap: var(--spacing-xs);">
+          ${card.approved_by_supervisor ? `
+            <div style="background:rgba(16, 185, 129, 0.1); color:rgb(16, 185, 129); font-size:0.58rem; font-weight:700; padding:1px 4px; border-radius:4px; margin-bottom:4px; display:inline-block; border:1px solid rgba(16, 185, 129, 0.2);">
+              ✅ Disahkan Pengawas
+            </div>
+          ` : ''}
+          ${card.delete_requested ? `
+            <div style="background:rgba(239, 68, 68, 0.1); color:rgb(239, 68, 68); font-size:0.58rem; font-weight:700; padding:1px 4px; border-radius:4px; margin-bottom:4px; display:inline-block; border:1px solid rgba(239, 68, 68, 0.2);">
+              ⚠️ Pengajuan Hapus
+            </div>
+          ` : ''}
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <h4 class="kanban-card-title-text" style="font-size:0.75rem; text-decoration: line-through; opacity: 0.65; flex:1; margin:0;">${card.title}</h4>
+            <div style="display:flex; gap:2px; align-items:center;">${tagIconsHtml}</div>
+          </div>
+          
+          <div class="kanban-badges-row" style="margin-top: 4px;">
+            <div style="flex:1;"></div>
+            <span class="kanban-badge-item kanban-comments-count" style="font-size: 0.62rem; padding: 1px 4px;">
+              💬 ${cardComments.length}
+              ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+            </span>
+          </div>
+          
+          <div class="kanban-card-meta" style="margin-top: 2px;">
+            <div style="display:flex; gap:4px; align-items:center;">${badgesHtml}</div>
+            <span style="font-size:0.58rem;">${Utils.formatTimeAgo(card.updated_at)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const cancelledSectionHtml = `
+      <div class="kanban-cancelled-section">
+        <div class="kanban-cancelled-header">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="kanban-indicator ${cancelledCol.colorClass}"></span>
+            <span style="font-weight:700;font-size:0.75rem;color:var(--color-text);text-transform:uppercase;letter-spacing:0.5px;">${cancelledCol.title}</span>
+            <span class="kanban-column-counter" style="font-size:0.65rem;padding:1px 6px;">${cancelledCards.length}</span>
+          </div>
+        </div>
+        <div class="kanban-cancelled-list" 
+             id="list-Dibatalkan"
+             ondragover="KanbanManager.onDragOver(event)"
+             ondragleave="KanbanManager.onDragLeave(event)"
+             ondrop="KanbanManager.onDrop(event, 'Dibatalkan')">
+          ${cancelledCardsHtml || `
+            <div style="width:100%;text-align:center;padding:10px;color:var(--color-text-light);font-size:0.7rem;border:1px dashed rgba(0,0,0,0.05);border-radius:var(--radius-md);background:rgba(0,0,0,0.01);">
+              Belum ada kartu dibatalkan/ditunda (Geser kartu ke area ini untuk membatalkan/menunda)
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+
+    return `
+      <div class="header no-print">
+        <div style="display:flex;align-items:center;gap:12px;width:100%;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="header-page-icon">🎯</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Program Kerja</h1>
+                ${isSupervisor ? `
+                  <span style="background:rgba(239,68,68,0.1); color:var(--color-danger); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:2px; height:16px;" title="Anda sedang masuk menggunakan hak akses Pengawas">
+                    👁️ PENGAWAS
+                  </span>` : ''}
+              </div>
+              <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;margin-top:2px;">${madrasahName}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <!-- Segar button -->
+            <button onclick="KanbanManager.refreshBoard()" class="back-btn no-print" style="border-color:var(--color-primary); color:var(--color-primary); margin:0; padding:6px 10px; width:34px; justify-content:center;" title="Segarkan Papan">
+              <span style="font-size:1em;line-height:1;">🔄</span>
+            </button>
+            
+            <!-- +Kartu button (Kamad only) -->
+            ${!isSupervisor ? `
+              <button onclick="KanbanManager.openNewCardModal()" class="back-btn no-print" style="border-color:#0f9b58; color:#0f9b58; margin:0;">
+                <span style="font-size:1em;">➕</span> Kartu
+              </button>
+            ` : ''}
+
+            <!-- Kembali button -->
+            <button class="back-btn no-print" onclick="App.router('kamad-dashboard')" style="margin:0;">
+              <span style="font-size:0.9em;">‹</span> Kembali
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content" style="max-width: 100%; width: 100%; padding-top: 10px;">
+        <div class="kanban-wrapper" style="height: auto; min-height: 100%;">
+          <div class="kanban-board" style="flex: none; min-height: 380px;">
+            ${boardColumnsHtml}
+          </div>
+          ${cancelledSectionHtml}
+        </div>
+      </div>
+
+      <!-- Modal Card Detail & Komentar -->
+      <div id="kanban-modal" class="modal-overlay" style="display:none; overflow-y:auto; align-items:flex-start; padding: 20px 10px;" onclick="KanbanManager.closeModal()">
+        <div class="modal-content" style="max-width:760px;width:95%;padding:28px 24px;border-radius:16px;animation:slideUp 0.2s ease; margin: 20px auto;" onclick="event.stopPropagation()">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--color-border-light);padding-bottom:12px;">
+            <span style="font-size:0.95rem;font-weight:700;color:var(--color-text);letter-spacing:0.3px;">Detail Tugas Kanban</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <button id="modal-refresh-btn" onclick="KanbanManager.refreshCardDetail()" style="border:none;background:transparent;font-size:1.1rem;cursor:pointer;line-height:1;color:var(--color-text-light);padding:4px;display:flex;align-items:center;justify-content:center;transition:color 0.2s;" title="Segarkan Detail">🔄</button>
+              <button class="close-btn" onclick="KanbanManager.closeModal()" style="border:none;background:transparent;font-size:1.4rem;cursor:pointer;line-height:1;color:var(--color-text-light);">&times;</button>
+            </div>
+          </div>
+          
+          <div id="kanban-modal-content"></div>
+        </div>
+      </div>
+    `;
+  },
+  /**
+   * Modal Content (Card Details & Comment Box)
+   */
+  modalContent: (card, comments) => {
+    const isSupervisor = !!App.state.isSupervisorViewAs;
+    const isDeleteRequested = !!card.delete_requested;
+    const isApproved = !!card.approved_by_supervisor;
+    const editable = !isSupervisor && !isDeleteRequested && !isApproved;
+
+    let alertBannerHtml = '';
+    if (isApproved) {
+      alertBannerHtml = `
+        <div style="background:rgba(16, 185, 129, 0.08); color:rgb(16, 185, 129); font-size:0.8rem; font-weight:600; padding:12px 14px; border-radius:8px; margin-bottom:16px; border:1px solid rgba(16, 185, 129, 0.2); display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.1rem; line-height:1;">✅</span>
+          <span>Penyelesaian tugas ini telah disetujui dan disahkan oleh Pengawas Binaan.</span>
+        </div>
+      `;
+    } else if (isDeleteRequested) {
+      if (isSupervisor) {
+        alertBannerHtml = `
+          <div style="background:rgba(239, 68, 68, 0.08); color:rgb(239, 68, 68); font-size:0.8rem; font-weight:600; padding:12px 14px; border-radius:8px; margin-bottom:16px; border:1px solid rgba(239, 68, 68, 0.2); display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem; line-height:1;">⚠️</span>
+            <span>Kepala Madrasah mengajukan permohonan penghapusan kartu ini. Silakan berikan keputusan Anda.</span>
+          </div>
+        `;
+      } else {
+        alertBannerHtml = `
+          <div style="background:rgba(245, 158, 11, 0.08); color:rgb(245, 158, 11); font-size:0.8rem; font-weight:600; padding:12px 14px; border-radius:8px; margin-bottom:16px; border:1px solid rgba(245, 158, 11, 0.2); display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem; line-height:1;">⚠️</span>
+            <span>Kartu ini sedang diajukan untuk dihapus. Menunggu persetujuan Pengawas Binaan.</span>
+          </div>
+        `;
+      }
+    }
+    
+    // Status Pilling
+    const statuses = [
+      { id: 'Belum Mulai', label: 'Todo', pillClass: 'todo' },
+      { id: 'Sedang Berjalan', label: 'Proses', pillClass: 'proses' },
+      { id: 'Selesai', label: 'Selesai', pillClass: 'selesai' },
+      { id: 'Dibatalkan', label: 'Dibatalkan/Tunda', pillClass: 'dibatalkan' }
+    ];
+
+    const statusPillsHtml = statuses.map(st => {
+      const active = card.status === st.id ? 'active' : '';
+      if (editable) {
+        return `<button class="status-pill-btn ${st.pillClass} ${active}" onclick="KanbanManager.setModalStatus('${st.id}')">${st.label}</button>`;
+      } else {
+        return card.status === st.id ? `<button class="status-pill-btn ${st.pillClass} active" disabled>${st.label}</button>` : '';
+      }
+    }).join('');
+
+    // Parse selected tags
+    const selectedTags = card.tag ? card.tag.split(',').map(s => s.trim()).filter(Boolean) : [];
+    
+    // Group tags by category
+    const groupedTags = {};
+    const tagIconMap = {};
+    (KanbanManager.state.tags || []).forEach(t => {
+      const parts = t.split('|');
+      const category = parts[0] || 'Lainnya';
+      const subcategory = parts[1] || t;
+      const icon = parts[2] || '';
+      const key = `${category}|${subcategory}`;
+      if (!groupedTags[category]) {
+        groupedTags[category] = [];
+      }
+      groupedTags[category].push({ key: key, sub: subcategory, icon: icon });
+      if (category && subcategory) {
+        tagIconMap[key.toLowerCase()] = icon;
+      }
+    });
+
+    // Generate edit tag selection (grouped checkboxes)
+    const tagsSelectionHtml = Object.keys(groupedTags).map(cat => {
+      const optionsHtml = groupedTags[cat].map(item => {
+        const isChecked = selectedTags.includes(item.key) ? 'checked' : '';
+        return `
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; cursor:pointer; padding:4px 8px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" class="modal-card-tag-checkbox" value="${item.key}" ${isChecked} style="cursor:pointer; width:14px; height:14px; margin:0;">
+            <span style="color:var(--color-text);">${item.icon ? item.icon + ' ' : ''}${item.sub}</span>
+          </label>
+        `;
+      }).join('');
+      
+      return `
+        <div style="margin-bottom: 12px; border-bottom: 1px dashed var(--color-border-light); padding-bottom: 8px;">
+          <div style="font-size:0.72rem; font-weight:700; color:var(--color-primary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
+            📁 ${cat}
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; padding-left: 4px;">
+            ${optionsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Generate read-only tag pills
+    const tagPillsHtml = selectedTags.map(t => {
+      const parts = t.split('|');
+      const cat = parts[0] || '';
+      const sub = parts[1] || t;
+      const key = `${cat}|${sub}`.toLowerCase();
+      const icon = tagIconMap[key] || '🏷️';
+      const display = `${cat} | ${sub}`;
+      return `
+        <span style="background:rgba(13, 110, 253, 0.08); color:#0d6efd; border:1px solid rgba(13, 110, 253, 0.15); padding:4px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; margin: 2px 0;">
+          ${icon} ${display}
+        </span>
+      `;
+    }).join('');
+
+    // Attachments lists
+    const attachmentsHtml = card.attachments.map((att, index) => {
+      let icon = '📎';
+      if (att.type === 'image') icon = '🖼️';
+      if (att.type === 'pdf') icon = '📄';
+      if (att.type === 'link') icon = '🔗';
+
+      return `
+        <div class="attachment-item-edit">
+          <div style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+            <span>${icon}</span>
+            <a href="${att.url}" target="_blank" style="color:var(--color-primary);text-decoration:none;font-size:0.8rem;font-weight:600;">${att.name}</a>
+          </div>
+          ${editable ? `
+            <button onclick="KanbanManager.removeAttachment(${index})" style="border:none;background:transparent;color:var(--color-danger);cursor:pointer;font-size:0.8rem;" title="Hapus">🗑️</button>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    // Comments log and Unread Comments count
+    const cardComments = comments.filter(comm => comm.card_id === card.card_id);
+    const meId = String(isSupervisor ? App.state.user?.NIP : App.state.kamad?.nsm).trim();
+    let unreadComments = 0;
+    
+    cardComments.forEach(comm => {
+      if (String(comm.author_id).trim() !== meId) {
+        const lastSeenTime = localStorage.getItem(`kanban_card_last_seen_${card.card_id}`) || '0';
+        if (new Date(comm.created_at).getTime() > new Date(lastSeenTime).getTime()) {
+          unreadComments++;
+        }
+      }
+    });
+
+    cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); // Oldest first
+
+    const commentsLogHtml = cardComments.map(comm => {
+      const isKamad = comm.author_role === 'Kamad';
+      const bubbleClass = isKamad ? 'kamad' : 'pengawas';
+      const roleBadge = isKamad ? 'role-kamad' : 'role-pengawas';
+
+      return `
+        <div class="comment-item ${bubbleClass}">
+          <div class="comment-meta">
+            <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
+            <span>${comm.author_name}</span>
+          </div>
+          <div style="word-break:break-word;">${comm.comment_text}</div>
+          <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      ${alertBannerHtml}
+      <!-- Tab Controls -->
+      <div class="kanban-modal-tabs" style="display: flex; border-bottom: 1px solid var(--color-border-light); margin-bottom: 20px; gap: 8px;">
+        <button class="kanban-modal-tab active" id="tab-btn-details" onclick="KanbanManager.switchModalTab('details')" style="background:transparent; border:none; padding: 10px 16px; font-weight:700; font-size:0.82rem; color:var(--color-primary); border-bottom: 2px solid var(--color-primary); cursor:pointer; transition: all var(--transition-fast); display:flex; align-items:center; gap:6px;">
+          📋 Detail Tugas
+        </button>
+        <button class="kanban-modal-tab" id="tab-btn-discussion" onclick="KanbanManager.switchModalTab('discussion')" style="background:transparent; border:none; padding: 10px 16px; font-weight:600; font-size:0.82rem; color:var(--color-text-secondary); border-bottom: 2px solid transparent; cursor:pointer; transition: all var(--transition-fast); position:relative; display:flex; align-items:center; gap:6px;">
+          💬 Ruang Diskusi & Umpan Balik
+          ${unreadComments > 0 ? `
+            <span class="kanban-unread-dot" style="position:static; display:inline-block; animation: pulseUnread 1.5s infinite;"></span>
+            <span style="font-size:0.65rem; font-weight:800; color:var(--color-accent);">${unreadComments} baru</span>
+          ` : ''}
+        </button>
+        ${card.card_id ? `
+          <button class="kanban-modal-tab" id="tab-btn-approval" onclick="KanbanManager.switchModalTab('approval')" style="background:transparent; border:none; padding: 10px 16px; font-weight:600; font-size:0.82rem; color:var(--color-text-secondary); border-bottom: 2px solid transparent; cursor:pointer; transition: all var(--transition-fast); display:flex; align-items:center; gap:6px; position:relative;">
+            🛡️ Pengesahan
+            ${(card.delete_requested || (card.status === 'Selesai' && !card.approved_by_supervisor)) ? `
+              <span style="background:var(--color-danger); color:#fff; width:8px; height:8px; border-radius:50%; display:inline-block; animation: pulseUnread 1.5s infinite;"></span>
+            ` : ''}
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Tab Content 1: Details (Judul sampai dengan Unggahan) -->
+      <div id="tab-content-details" class="kanban-tab-content" style="display: block;">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label class="kanban-modal-label">Judul Kartu</label>
+            ${editable ? `
+              <input type="text" id="modal-card-title" class="kanban-modal-title-input" value="${card.title || ''}" placeholder="Masukkan judul program kerja...">
+            ` : `
+              <h3 style="margin:0;font-size:1.2rem;font-weight:700;color:var(--color-text);">${card.title || ''}</h3>
+            `}
+          </div>
+
+          <div>
+            <label class="kanban-modal-label">Tahapan Status</label>
+            <div class="status-select-pill">
+              ${statusPillsHtml}
+            </div>
+          </div>
+
+          <div>
+            <label class="kanban-modal-label">Kategori / Tagging (Bisa pilih lebih dari satu)</label>
+            ${editable ? `
+              <div style="display:flex; flex-direction:column; border:1px solid var(--color-border); border-radius:var(--radius-md); padding:12px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.01);">
+                ${tagsSelectionHtml || '<div style="font-size:0.75rem;color:var(--color-text-light);">Belum ada kategori diatur di sheet.</div>'}
+              </div>
+            ` : `
+              <div style="display:flex; flex-wrap:wrap; gap:6px; padding: 2px 0;">
+                ${tagPillsHtml || '<span style="font-size:0.8rem;color:var(--color-text-light);">Tidak ada tagging.</span>'}
+              </div>
+            `}
+          </div>
+
+          <div>
+            <label class="kanban-modal-label">Deskripsi Rincian</label>
+            ${editable ? `
+              <textarea id="modal-card-desc" style="width:100%;height:100px;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 12px;outline:none;font-size:0.82rem;background:transparent;color:var(--color-text);resize:vertical;" placeholder="Masukkan rincian penjelasan program kerja...">${card.description || ''}</textarea>
+            ` : `
+              <div style="border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:10px 12px;font-size:0.82rem;line-height:1.5;background:rgba(0,0,0,0.01);min-height:60px;white-space:pre-wrap;color:var(--color-text);">${card.description || 'Tidak ada deskripsi.'}</div>
+            `}
+          </div>
+
+          <div>
+            <label class="kanban-modal-label">Catatan Detail / Rincian Pekerjaan (Tidak tampil di kartu)</label>
+            ${editable ? `
+              <textarea id="modal-card-work-details" style="width:100%;height:140px;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 12px;outline:none;font-size:0.82rem;background:transparent;color:var(--color-text);resize:vertical;" placeholder="Tulis rincian penjelasan detail, catatan kemajuan, atau deskripsi panjang pekerjaan di sini...">${card.work_details || ''}</textarea>
+            ` : `
+              <div style="border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:10px 12px;font-size:0.82rem;line-height:1.5;background:rgba(0,0,0,0.01);min-height:80px;white-space:pre-wrap;color:var(--color-text);">${card.work_details || 'Tidak ada catatan detail.'}</div>
+            `}
+          </div>
+
+          <div>
+            <label class="kanban-modal-label">Lampiran Dokumen (${card.attachments.length})</label>
+            <div class="attachment-list-edit" id="modal-attachments-list">
+              ${attachmentsHtml || `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`}
+            </div>
+            
+            ${editable ? `
+              <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:12px;background:rgba(0,0,0,0.01);">
+                <span style="font-size:0.72rem;font-weight:700;color:var(--color-text-secondary);">UNGGAH FOTO ATAU PDF:</span>
+                <input type="file" id="kanban-file-uploader" style="font-size:0.75rem;" accept="image/*,application/pdf" onchange="KanbanManager.handleFileUpload(event)">
+                
+                <div style="display:flex;align-items:center;gap:6px;margin-top:6px;border-top:1px solid var(--color-border-light);padding-top:10px;">
+                  <input type="text" id="kanban-link-name" placeholder="Nama Link" style="width:40%;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;">
+                  <input type="text" id="kanban-link-url" placeholder="https:&#47;&#47;example.com" style="flex:1;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;">
+                  <button class="btn" onclick="KanbanManager.addLinkAttachment()" style="width: auto; padding: 4px 12px; font-size: 0.72rem; margin: 0;">Tambah Link</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          ${editable ? `
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;border-top:1px solid var(--color-border-light);padding-top:16px;">
+              ${card.card_id ? `
+                <button class="btn" style="width: auto; background: var(--color-accent); color: white; padding: 8px 16px; margin: 0;" onclick="KanbanManager.deleteCard('${card.card_id}')">🗑️ Hapus Kartu</button>
+              ` : ''}
+              <div style="flex:1;"></div>
+              <button class="btn btn-secondary" style="width: auto; padding: 8px 16px; margin: 0;" onclick="KanbanManager.closeModal()">Batal</button>
+              <button class="btn" style="width: auto; padding: 8px 16px; margin: 0;" onclick="KanbanManager.saveCard()">Simpan Perubahan</button>
+            </div>
+          ` : `
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;border-top:1px solid var(--color-border-light);padding-top:16px;width:100%;">
+              <div style="flex:1;"></div>
+              <button class="btn btn-secondary" style="width: auto; padding: 8px 16px; margin: 0;" onclick="KanbanManager.closeModal()">Tutup</button>
+            </div>
+          `}
+        </div>
+      </div>
+
+      <!-- Tab Content 2: Discussion (Ruang Diskusi & Umpan Balik) -->
+      <div id="tab-content-discussion" class="kanban-tab-content" style="display: none; flex-direction: column; gap: 12px;">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="comments-wrapper" style="height: 340px;">
+            <div class="comments-log" id="modal-comments-log">
+              ${commentsLogHtml || `
+                <div style="text-align:center;padding:40px 10px;color:var(--color-text-light);font-size:0.75rem;margin:auto;">
+                  💬 Belum ada diskusi.<br>Tulis komentar pertama Anda di bawah ini!
+                </div>
+              `}
+            </div>
+            
+            <div class="comment-input-area">
+              <input type="text" id="comment-message" class="comment-text-input" placeholder="Tulis masukan atau pertanyaan..." onkeypress="if(event.key === 'Enter') KanbanManager.submitComment()">
+              <button class="btn" onclick="KanbanManager.submitComment()" style="border-radius:50%;width:34px;height:34px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--color-primary);color:white;border:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </div>
+          </div>
+          <div style="font-size:0.65rem;color:var(--color-text-light);line-height:1.3;margin-bottom:10px;">
+            💡 Diskusi ini dapat dibaca oleh Kepala Madrasah dan Pengawas Binaan terkait untuk konsultasi langsung.
+          </div>
+          
+          <div style="display:flex;justify-content:flex-end;border-top:1px solid var(--color-border-light);padding-top:16px;">
+            <button class="btn btn-secondary" style="width: auto; padding: 8px 16px; margin: 0;" onclick="KanbanManager.closeModal()">Tutup</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content 3: Approval (Pengesahan) -->
+      ${card.card_id ? `
+      <div id="tab-content-approval" class="kanban-tab-content" style="display: none;">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          
+          ${isSupervisor ? `
+            <!-- Supervisor View -->
+            ${isDeleteRequested ? `
+              <div style="background:rgba(239, 68, 68, 0.08); color:rgb(239, 68, 68); font-size:0.82rem; font-weight:600; padding:16px; border-radius:8px; border:1px solid rgba(239, 68, 68, 0.2); display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem; line-height:1;">⚠️</span>
+                  <span style="font-size:0.9rem; font-weight:700;">Pengajuan Hapus Kartu</span>
+                </div>
+                <div>Kepala Madrasah mengajukan permohonan untuk menghapus tugas ini. Silakan berikan keputusan Anda.</div>
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                  <button class="btn" style="width: auto; padding: 8px 16px; margin: 0; background: var(--color-primary); color: white;" onclick="KanbanManager.approveDelete('${card.card_id}')">✅ Setujui Hapus</button>
+                  <button class="btn" style="width: auto; padding: 8px 16px; margin: 0; background: var(--color-accent); color: white;" onclick="KanbanManager.rejectDelete('${card.card_id}')">❌ Tolak Hapus</button>
+                </div>
+              </div>
+            ` : ''}
+
+            ${card.status === 'Selesai' ? `
+              <div style="background:${isApproved ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)'}; color:${isApproved ? 'rgb(16, 185, 129)' : 'rgb(245, 158, 11)'}; font-size:0.82rem; font-weight:600; padding:16px; border-radius:8px; border:1px solid ${isApproved ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem; line-height:1;">${isApproved ? '✅' : '⏳'}</span>
+                  <span style="font-size:0.9rem; font-weight:700;">${isApproved ? 'Tugas Telah Disahkan' : 'Persetujuan Selesai'}</span>
+                </div>
+                <div>${isApproved ? 'Penyelesaian tugas ini telah Anda setujui dan disahkan.' : 'Tugas ini telah diselesaikan oleh Kepala Madrasah. Silakan periksa pekerjaan dan berikan pengesahan.'}</div>
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                  ${!isApproved ? `
+                    <button class="btn" style="width: auto; padding: 8px 16px; margin: 0; background: var(--color-success); color: white;" onclick="KanbanManager.executeApproveCompletion('${card.card_id}')">✔️ Setujui Selesai</button>
+                  ` : `
+                    <button class="btn" style="width: auto; padding: 8px 16px; margin: 0; background: var(--color-accent); color: white;" onclick="KanbanManager.executeCancelCompletion('${card.card_id}')">⚠️ Batalkan Setuju</button>
+                  `}
+                </div>
+              </div>
+            ` : ''}
+
+            ${(!isDeleteRequested && card.status !== 'Selesai') ? `
+              <div style="text-align:center; padding:40px 20px; color:var(--color-text-secondary); font-size:0.82rem; border:1px dashed var(--color-border); border-radius:var(--radius-md); background:rgba(0,0,0,0.01);">
+                🛡️ <strong style="display:block; margin-top:8px; color:var(--color-text);">Tidak Ada Pengajuan Aktif</strong>
+                Tugas ini masih berstatus <strong>"${card.status}"</strong>.<br>Pengesahan hanya tersedia untuk tugas yang berstatus <strong>"Selesai"</strong> atau sedang diajukan untuk <strong>"Dihapus"</strong>.
+              </div>
+            ` : ''}
+          ` : `
+            <!-- Kamad View -->
+            ${isDeleteRequested ? `
+              <div style="background:rgba(245, 158, 11, 0.08); color:rgb(245, 158, 11); font-size:0.82rem; font-weight:600; padding:16px; border-radius:8px; border:1px solid rgba(245, 158, 11, 0.2); display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem; line-height:1;">⏳</span>
+                  <span style="font-size:0.9rem; font-weight:700;">Menunggu Persetujuan Penghapusan</span>
+                </div>
+                <div>Kartu ini sedang diajukan untuk dihapus. Menunggu persetujuan dari Pengawas Binaan.</div>
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                  <button class="btn" style="width: auto; padding: 8px 16px; margin: 0; background: var(--color-accent); color: white;" onclick="KanbanManager.cancelDeleteRequest('${card.card_id}')">🔄 Batalkan Pengajuan Hapus</button>
+                </div>
+              </div>
+            ` : ''}
+
+            ${card.status === 'Selesai' ? `
+              <div style="background:${isApproved ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)'}; color:${isApproved ? 'rgb(16, 185, 129)' : 'rgb(245, 158, 11)'}; font-size:0.82rem; font-weight:600; padding:16px; border-radius:8px; border:1px solid ${isApproved ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}; display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem; line-height:1;">${isApproved ? '✅' : '⏳'}</span>
+                  <span style="font-size:0.9rem; font-weight:700;">${isApproved ? 'Tugas Telah Disahkan' : 'Menunggu Pengesahan'}</span>
+                </div>
+                <div>${isApproved ? 'Penyelesaian tugas ini telah disetujui dan disahkan oleh Pengawas Binaan.' : 'Tugas telah diselesaikan dan sedang menunggu pengesahan dari Pengawas Binaan.'}</div>
+              </div>
+            ` : ''}
+
+            ${(!isDeleteRequested && card.status !== 'Selesai') ? `
+              <div style="text-align:center; padding:40px 20px; color:var(--color-text-secondary); font-size:0.82rem; border:1px dashed var(--color-border); border-radius:var(--radius-md); background:rgba(0,0,0,0.01);">
+                🛡️ <strong style="display:block; margin-top:8px; color:var(--color-text);">Status Pengesahan</strong>
+                Tugas ini berstatus <strong>"${card.status}"</strong>.<br>Pengesahan akan diperlukan jika tugas dipindahkan ke status <strong>"Selesai"</strong> atau jika Anda mengajukan penghapusan kartu.
+              </div>
+            ` : ''}
+          `}
+          
+          <div style="display:flex; justify-content:flex-end; border-top:1px solid var(--color-border-light); padding-top:16px; margin-top:10px;">
+            <button class="btn btn-secondary" style="width: auto; padding: 8px 16px; margin: 0;" onclick="KanbanManager.closeModal()">Tutup</button>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+    `;
+  }
+};
+
+const KanbanManager = {
+  state: {
+    cards: [],
+    comments: [],
+    tags: [],
+    currentCard: null // Holds copy of card being edited
+  },
+
+  /**
+   * Initialize Kanban View
+   */
+  init() {
+    const el = document.getElementById('app');
+    el.innerHTML = KanbanView.skeleton();
+
+    this.refreshBoard();
+  },
+
+  /**
+   * Pull latest cards and comments from Google Sheet
+   */
+  refreshBoard() {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) { App.router('kamad-login'); return; }
+
+    App.loading(true, 'Mengambil data Kanban...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.state.cards = res.data.cards || [];
+          this.state.comments = res.data.comments || [];
+          this.state.tags = res.data.tags || [];
+          // Update the dashboard cached data also
+          App.state.kanbanData = res.data;
+          
+          this.render();
+        } else {
+          App.alert('Gagal memuat papan Kanban: ' + res.error, 'Error');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanGetBoardData(nsm);
+  },
+
+  /**
+   * Render board UI
+   */
+  render() {
+    const nsm = App.state.kamad?.nsm;
+    const name = App.state.kamad?.madrasah_name || 'Madrasah';
+    const el = document.getElementById('app');
+    
+    el.innerHTML = KanbanView.main(name, this.state.cards, this.state.comments);
+  },
+
+  /**
+   * Open New Card Dialog (Kamad only)
+   */
+  openNewCardModal() {
+    this.state.currentCard = {
+      card_id: '',
+      title: '',
+      description: '',
+      status: 'Belum Mulai',
+      attachments: [],
+      tag: '',
+      work_details: ''
+    };
+
+    const modal = document.getElementById('kanban-modal');
+    const content = document.getElementById('kanban-modal-content');
+    
+    content.innerHTML = KanbanView.modalContent(this.state.currentCard, []);
+    modal.style.display = 'flex';
+    this.switchModalTab('details'); // Default tab untuk kartu baru adalah detail
+  },
+
+  /**
+   * Switch Modal Tab
+   */
+  switchModalTab(tab) {
+    this.state.activeModalTab = tab;
+    
+    const btnDetails = document.getElementById('tab-btn-details');
+    const btnDiscussion = document.getElementById('tab-btn-discussion');
+    const btnApproval = document.getElementById('tab-btn-approval');
+    
+    const contentDetails = document.getElementById('tab-content-details');
+    const contentDiscussion = document.getElementById('tab-content-discussion');
+    const contentApproval = document.getElementById('tab-content-approval');
+    
+    const setActive = (btn, content, displayStyle = 'block') => {
+      if (btn) {
+        btn.style.color = 'var(--color-primary)';
+        btn.style.borderBottomColor = 'var(--color-primary)';
+        btn.style.fontWeight = '700';
+      }
+      if (content) {
+        content.style.display = displayStyle;
+      }
+    };
+    
+    const setInactive = (btn, content) => {
+      if (btn) {
+        btn.style.color = 'var(--color-text-secondary)';
+        btn.style.borderBottomColor = 'transparent';
+        btn.style.fontWeight = '600';
+      }
+      if (content) {
+        content.style.display = 'none';
+      }
+    };
+    
+    setInactive(btnDetails, contentDetails);
+    setInactive(btnDiscussion, contentDiscussion);
+    setInactive(btnApproval, contentApproval);
+    
+    if (tab === 'details') {
+      setActive(btnDetails, contentDetails, 'block');
+    } else if (tab === 'discussion') {
+      setActive(btnDiscussion, contentDiscussion, 'flex');
+      this.scrollCommentsToBottom();
+    } else if (tab === 'approval') {
+      setActive(btnApproval, contentApproval, 'block');
+    }
+  },
+
+  /**
+   * Open Card Details and Load Comments
+   */
+  openCardModal(cardId) {
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    // Clone card so we can manipulate attachments locally before saving
+    this.state.currentCard = JSON.parse(JSON.stringify(card));
+
+    // MARK AS SEEN: Save current timestamp to localStorage for unread comments tracking
+    localStorage.setItem(`kanban_card_last_seen_${cardId}`, new Date().toISOString());
+
+    const modal = document.getElementById('kanban-modal');
+    const content = document.getElementById('kanban-modal-content');
+    
+    content.innerHTML = KanbanView.modalContent(this.state.currentCard, this.state.comments);
+    modal.style.display = 'flex';
+    this.switchModalTab('discussion'); // Default tab untuk kartu lama adalah diskusi
+    
+    // Auto scroll comment panel to bottom
+    this.scrollCommentsToBottom();
+  },
+
+  refreshCardDetail() {
+    if (!this.state.currentCard || !this.state.currentCard.card_id) return;
+    
+    const cardId = this.state.currentCard.card_id;
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    const refreshBtn = document.getElementById('modal-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.style.animation = 'spin 0.8s linear infinite';
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (refreshBtn) {
+          refreshBtn.style.animation = 'none';
+        }
+        if (res.success) {
+          this.state.cards = res.data.cards || [];
+          this.state.comments = res.data.comments || [];
+          this.state.tags = res.data.tags || [];
+          App.state.kanbanData = res.data;
+
+          const card = this.state.cards.find(c => c.card_id === cardId);
+          if (card) {
+            this.state.currentCard = JSON.parse(JSON.stringify(card));
+            const content = document.getElementById('kanban-modal-content');
+            if (content) {
+              content.innerHTML = KanbanView.modalContent(this.state.currentCard, this.state.comments);
+              const activeTab = this.state.activeModalTab || 'discussion';
+              this.switchModalTab(activeTab);
+            }
+          } else {
+            App.alert('Kartu ini telah dihapus oleh pengguna lain.', 'Info');
+            this.closeModal();
+          }
+        } else {
+          App.alert('Gagal menyegarkan: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        if (refreshBtn) {
+          refreshBtn.style.animation = 'none';
+        }
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanGetBoardData(nsm);
+  },
+
+  /**
+   * Close Card Modal and refresh current board
+   */
+  closeModal() {
+    document.getElementById('kanban-modal').style.display = 'none';
+    this.state.currentCard = null;
+    
+    // Refresh UI to update unread badge counts
+    this.render();
+  },
+
+  /**
+   * Set Status locally in modal
+   */
+  setModalStatus(status) {
+    if (!this.state.currentCard) return;
+    
+    // Cegah pemindahan kembali ke 'Belum Mulai' jika kartu sudah berjalan
+    const originalCard = this.state.cards.find(c => c.card_id === this.state.currentCard.card_id);
+    const originalStatus = originalCard ? originalCard.status : 'Belum Mulai';
+
+    if (originalStatus !== 'Belum Mulai' && status === 'Belum Mulai') {
+      App.alert('Kartu yang sudah berjalan tidak dapat dikembalikan ke status Belum Mulai.', 'Tindakan Ditolak');
+      return;
+    }
+
+    this.state.currentCard.status = status;
+    
+    // Refresh status pill buttons
+    const pills = document.querySelectorAll('.status-pill-btn');
+    pills.forEach(pill => {
+      pill.classList.remove('active');
+      const text = pill.textContent.toLowerCase();
+      
+      const stMap = { 
+        'todo': 'Belum Mulai', 
+        'proses': 'Sedang Berjalan', 
+        'selesai': 'Selesai', 
+        'dibatalkan': 'Dibatalkan', 
+        'dibatalkan/tunda': 'Dibatalkan' 
+      };
+      if (stMap[text] === status) {
+        pill.classList.add('active');
+      }
+    });
+  },
+
+  /**
+   * Handle base64 file upload to Google Drive
+   */
+  handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    // Restrict size to 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      App.alert('Ukuran berkas tidak boleh melebihi 10MB.', 'Peringatan');
+      e.target.value = '';
+      return;
+    }
+
+    App.loading(true, 'Mengunggah berkas ke Drive...');
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64Data = evt.target.result;
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          App.loading(false);
+          e.target.value = ''; // Reset input
+          
+          if (res.success) {
+            const attType = file.type.startsWith('image/') ? 'image' : 'pdf';
+            this.state.currentCard.attachments.push({
+              type: attType,
+              name: file.name,
+              url: res.data.url
+            });
+            
+            // Re-render attachments list area
+            this.updateAttachmentsView();
+          } else {
+            App.alert('Gagal mengunggah berkas: ' + res.error, 'Gagal');
+          }
+        })
+        .withFailureHandler(err => {
+          App.loading(false);
+          e.target.value = '';
+          App.alert('Terjadi kesalahan koneksi: ' + (err.message || err), 'Error');
+        })
+        .kanbanUploadAttachment(nsm, base64Data, file.name);
+    };
+    reader.readAsDataURL(file);
+  },
+
+  /**
+   * Add typed Link to attachments list
+   */
+  addLinkAttachment() {
+    if (!this.state.currentCard) return;
+
+    const nameEl = document.getElementById('kanban-link-name');
+    const urlEl = document.getElementById('kanban-link-url');
+    
+    const name = nameEl.value.trim();
+    let url = urlEl.value.trim();
+
+    if (!name || !url) {
+      App.alert('Nama link dan URL harus diisi.', 'Validation');
+      return;
+    }
+
+    // Basic URL validation prepend protocol
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    this.state.currentCard.attachments.push({
+      type: 'link',
+      name: name,
+      url: url
+    });
+
+    nameEl.value = '';
+    urlEl.value = '';
+    
+    this.updateAttachmentsView();
+  },
+
+  /**
+   * Remove attachment from current list
+   */
+  removeAttachment(index) {
+    if (!this.state.currentCard) return;
+    this.state.currentCard.attachments.splice(index, 1);
+    this.updateAttachmentsView();
+  },
+
+  /**
+   * Re-render attachments container in Modal
+   */
+  updateAttachmentsView() {
+    const list = document.getElementById('modal-attachments-list');
+    if (!list) return;
+
+    const editable = !App.state.isSupervisorViewAs;
+    
+    if (this.state.currentCard.attachments.length === 0) {
+      list.innerHTML = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`;
+      return;
+    }
+
+    list.innerHTML = this.state.currentCard.attachments.map((att, index) => {
+      let icon = '📎';
+      if (att.type === 'image') icon = '🖼️';
+      if (att.type === 'pdf') icon = '📄';
+      if (att.type === 'link') icon = '🔗';
+
+      return `
+        <div class="attachment-item-edit">
+          <div style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+            <span>${icon}</span>
+            <a href="${att.url}" target="_blank" style="color:var(--color-primary);text-decoration:none;font-size:0.8rem;font-weight:600;">${att.name}</a>
+          </div>
+          ${editable ? `
+            <button onclick="KanbanManager.removeAttachment(${index})" style="border:none;background:transparent;color:var(--color-danger);cursor:pointer;font-size:0.8rem;" title="Hapus">🗑️</button>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  },
+
+  /**
+   * Save Card details to Google Sheet
+   */
+  saveCard() {
+    if (!this.state.currentCard) return;
+
+    const titleEl = document.getElementById('modal-card-title');
+    const title = titleEl ? titleEl.value.trim() : this.state.currentCard.title;
+    const descEl = document.getElementById('modal-card-desc');
+    const description = descEl ? descEl.value.trim() : this.state.currentCard.description;
+    const workDetailsEl = document.getElementById('modal-card-work-details');
+    const work_details = workDetailsEl ? workDetailsEl.value.trim() : (this.state.currentCard.work_details || '');
+
+    if (!title) {
+      App.alert('Judul kartu tidak boleh kosong.', 'Peringatan');
+      return;
+    }
+
+    this.state.currentCard.title = title;
+    this.state.currentCard.description = description;
+    this.state.currentCard.work_details = work_details;
+
+    const checkboxes = document.querySelectorAll('.modal-card-tag-checkbox');
+    const checkedTags = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        checkedTags.push(cb.value);
+      }
+    });
+    this.state.currentCard.tag = checkboxes.length > 0 ? checkedTags.join(',') : (this.state.currentCard.tag || '');
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    // Konfirmasi pemindahan keluar dari 'Belum Mulai'
+    const originalCard = this.state.cards.find(c => c.card_id === this.state.currentCard.card_id);
+    const originalStatus = originalCard ? originalCard.status : 'Belum Mulai';
+    const newStatus = this.state.currentCard.status;
+
+    if (originalStatus === 'Belum Mulai' && newStatus !== 'Belum Mulai') {
+      App.confirm(
+        'Apakah Anda yakin ingin memindahkan tugas ini dari Belum Mulai? Kartu yang sudah dipindahkan tidak dapat dihapus langsung atau dikembalikan ke Belum Mulai.',
+        'Konfirmasi Pemindahan',
+        () => {
+          this.executeSaveCard(nsm);
+        }
+      );
+    } else {
+      this.executeSaveCard(nsm);
+    }
+  },
+
+  executeSaveCard(nsm) {
+    App.loading(true, 'Menyimpan kartu...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.closeModal();
+          this.refreshBoard();
+        } else {
+          App.alert('Gagal menyimpan: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanSaveCard(nsm, this.state.currentCard);
+  },
+
+  /**
+   * Delete Kanban card
+   */
+  deleteCard(cardId) {
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    if (card.status === 'Belum Mulai') {
+      App.alert('Apakah Anda yakin ingin menghapus kartu tugas ini beserta seluruh lampiran dan komentar diskusinya? Tindakan ini tidak dapat dibatalkan.', 'Peringatan', () => {
+        const nsm = App.state.kamad?.nsm;
+        if (!nsm) return;
+
+        App.loading(true, 'Menghapus kartu...');
+        google.script.run
+          .withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+              this.closeModal();
+              this.refreshBoard();
+            } else {
+              App.alert('Gagal menghapus: ' + res.error, 'Gagal');
+            }
+          })
+          .withFailureHandler(err => {
+            App.loading(false);
+            App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+          })
+          .kanbanDeleteCard(nsm, cardId);
+      });
+    } else {
+      App.alert('Kartu dalam tahapan ini memerlukan persetujuan Pengawas Binaan untuk dihapus. Apakah Anda ingin mengajukan permohonan penghapusan kartu ini?', 'Pengajuan Hapus', () => {
+        const nsm = App.state.kamad?.nsm;
+        if (!nsm) return;
+
+        App.loading(true, 'Mengajukan penghapusan...');
+        google.script.run
+          .withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+              this.closeModal();
+              this.refreshBoard();
+            } else {
+              App.alert('Gagal mengajukan penghapusan: ' + res.error, 'Gagal');
+            }
+          })
+          .withFailureHandler(err => {
+            App.loading(false);
+            App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+          })
+          .kanbanRequestDeleteCard(nsm, cardId);
+      });
+    }
+  },
+
+  cancelDeleteRequest(cardId) {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    App.loading(true, 'Membatalkan pengajuan hapus...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.closeModal();
+          this.refreshBoard();
+        } else {
+          App.alert('Gagal membatalkan pengajuan: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanCancelDeleteRequest(nsm, cardId);
+  },
+
+  approveDelete(cardId) {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    App.alert('Apakah Anda yakin ingin menyetujui penghapusan kartu tugas ini beserta seluruh lampiran dan komentar diskusinya? Tindakan ini tidak dapat dibatalkan.', 'Persetujuan Hapus', () => {
+      App.loading(true, 'Menghapus kartu...');
+      google.script.run
+        .withSuccessHandler(res => {
+          App.loading(false);
+          if (res.success) {
+            this.closeModal();
+            this.refreshBoard();
+          } else {
+            App.alert('Gagal menghapus: ' + res.error, 'Gagal');
+          }
+        })
+        .withFailureHandler(err => {
+          App.loading(false);
+          App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+        })
+        .kanbanDeleteCard(nsm, cardId);
+    });
+  },
+
+  rejectDelete(cardId) {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    App.loading(true, 'Menolak pengajuan hapus...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          this.closeModal();
+          this.refreshBoard();
+        } else {
+          App.alert('Gagal menolak pengajuan: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanRejectDeleteCard(nsm, cardId);
+  },
+
+
+  executeApproveCompletion(cardId) {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    App.alert('Apakah Anda yakin ingin menyetujui dan mengesahkan penyelesaian tugas ini?', 'Pengesahan Selesai', () => {
+      App.loading(true, 'Mengesahkan tugas...');
+      google.script.run
+        .withSuccessHandler(res => {
+          App.loading(false);
+          if (res.success) {
+            this.closeModal();
+            this.refreshBoard();
+          } else {
+            App.alert('Gagal mengesahkan tugas: ' + res.error, 'Gagal');
+          }
+        })
+        .withFailureHandler(err => {
+          App.loading(false);
+          App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+        })
+        .kanbanApproveCompletion(nsm, cardId);
+    });
+  },
+
+  executeCancelCompletion(cardId) {
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    App.alert('Apakah Anda yakin ingin membatalkan pengesahan penyelesaian tugas ini?', 'Batalkan Pengesahan', () => {
+      App.loading(true, 'Membatalkan pengesahan...');
+      google.script.run
+        .withSuccessHandler(res => {
+          App.loading(false);
+          if (res.success) {
+            this.closeModal();
+            this.refreshBoard();
+          } else {
+            App.alert('Gagal membatalkan pengesahan: ' + res.error, 'Gagal');
+          }
+        })
+        .withFailureHandler(err => {
+          App.loading(false);
+          App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+        })
+        .kanbanCancelCompletionApproval(nsm, cardId);
+    });
+  },
+
+  /**
+   * Submit comment to Card
+   */
+  submitComment() {
+    if (!this.state.currentCard) return;
+
+    const input = document.getElementById('comment-message');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const nsm = App.state.kamad?.nsm;
+    const isSupervisor = !!App.state.isSupervisorViewAs;
+    const authorName = isSupervisor ? App.state.user?.Nama : App.state.kamad?.madrasah_name;
+    const authorRole = isSupervisor ? 'Pengawas' : 'Kamad';
+
+    input.value = ''; // Reset input field
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          // Add comment to local list immediately
+          this.state.comments.push(res.data);
+          
+          // Re-render only the comments container inside the modal
+          this.updateCommentsLogView();
+        } else {
+          App.alert('Gagal mengirim komentar: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanAddComment(nsm, this.state.currentCard.card_id, text, authorName, authorRole);
+  },
+
+  /**
+   * Re-render comment area inside Modal
+   */
+  updateCommentsLogView() {
+    const log = document.getElementById('modal-comments-log');
+    if (!log || !this.state.currentCard) return;
+
+    const cardComments = this.state.comments.filter(comm => comm.card_id === this.state.currentCard.card_id);
+    cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (cardComments.length === 0) {
+      log.innerHTML = `
+        <div style="text-align:center;padding:40px 10px;color:var(--color-text-light);font-size:0.75rem;margin:auto;">
+          💬 Belum ada diskusi.<br>Tulis komentar pertama Anda di bawah ini!
+        </div>`;
+      return;
+    }
+
+    log.innerHTML = cardComments.map(comm => {
+      const isKamad = comm.author_role === 'Kamad';
+      const bubbleClass = isKamad ? 'kamad' : 'pengawas';
+      const roleBadge = isKamad ? 'role-kamad' : 'role-pengawas';
+
+      return `
+        <div class="comment-item ${bubbleClass}">
+          <div class="comment-meta">
+            <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
+            <span>${comm.author_name}</span>
+          </div>
+          <div style="word-break:break-word;">${comm.comment_text}</div>
+          <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+
+    this.scrollCommentsToBottom();
+  },
+
+  scrollCommentsToBottom() {
+    const log = document.getElementById('modal-comments-log');
+    if (log) {
+      setTimeout(() => { log.scrollTop = log.scrollHeight; }, 30);
+    }
+  },
+
+  // ============================================================
+  // HTML5 DRAG AND DROP HANDLERS
+  // ============================================================
+
+  onDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.id);
+    e.target.classList.add('dragging');
+  },
+
+  onDragOver(e) {
+    e.preventDefault();
+    const list = e.currentTarget.querySelector('.kanban-card-list');
+    if (list) {
+      list.classList.add('dragover');
+    }
+  },
+
+  onDragLeave(e) {
+    const list = e.currentTarget.querySelector('.kanban-card-list');
+    if (list) {
+      list.classList.remove('dragover');
+    }
+  },
+
+  onDrop(e, targetStatus) {
+    e.preventDefault();
+    const cardId = e.dataTransfer.getData('text/plain');
+    const cardEl = document.getElementById(cardId);
+    if (cardEl) {
+      cardEl.classList.remove('dragging');
+    }
+
+    const list = e.currentTarget.querySelector('.kanban-card-list');
+    if (list) {
+      list.classList.remove('dragover');
+    }
+
+    // Find card and check if status actually changed
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card || card.status === targetStatus) return;
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    // Cegah pemindahan kembali ke 'Belum Mulai' jika kartu sudah berjalan
+    if (card.status !== 'Belum Mulai' && targetStatus === 'Belum Mulai') {
+      App.alert('Kartu yang sudah berjalan tidak dapat dikembalikan ke status Belum Mulai.', 'Tindakan Ditolak');
+      return;
+    }
+
+    // Konfirmasi pemindahan keluar dari 'Belum Mulai'
+    if (card.status === 'Belum Mulai' && targetStatus !== 'Belum Mulai') {
+      App.confirm(
+        'Apakah Anda yakin ingin memindahkan tugas ini dari Belum Mulai? Kartu yang sudah dipindahkan tidak dapat dihapus langsung atau dikembalikan ke Belum Mulai.',
+        'Konfirmasi Pemindahan',
+        () => {
+          this.executeCardMove(nsm, card, targetStatus);
+        }
+      );
+    } else {
+      this.executeCardMove(nsm, card, targetStatus);
+    }
+  },
+
+  executeCardMove(nsm, card, targetStatus) {
+    // Optimistic UI update
+    card.status = targetStatus;
+    this.render();
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) {
+          App.alert('Gagal memindahkan kartu: ' + res.error, 'Gagal');
+          this.refreshBoard();
+        }
+      })
+      .withFailureHandler(err => {
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+        this.refreshBoard();
+      })
+      .kanbanMoveCard(nsm, card.card_id, targetStatus);
+  }
+};
+
+// Central Utility time formatting helper (safe fallback if not exist)
+if (typeof Utils === 'undefined') {
+  window.Utils = {
+    formatTimeAgo: (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const seconds = Math.floor((now - date) / 1000);
+      
+      if (isNaN(seconds)) return '';
+      
+      const intervals = {
+        'tahun': 31536000,
+        'bulan': 2592000,
+        'hari': 86400,
+        'jam': 3600,
+        'menit': 60
+      };
+
+      for (let key in intervals) {
+        const interval = Math.floor(seconds / intervals[key]);
+        if (interval >= 1) {
+          return `${interval} ${key} yang lalu`;
+        }
+      }
+      return 'baru saja';
+    }
+  };
+} else if (!Utils.formatTimeAgo) {
+  Utils.formatTimeAgo = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    if (isNaN(seconds)) return '';
+    const intervals = { 'tahun': 31536000, 'bulan': 2592000, 'hari': 86400, 'jam': 3600, 'menit': 60 };
+    for (let key in intervals) {
+      const interval = Math.floor(seconds / intervals[key]);
+      if (interval >= 1) return `${interval} ${key} yang lalu`;
+    }
+    return 'baru saja';
+  };
+}
+</script>

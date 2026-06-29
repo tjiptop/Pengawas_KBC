@@ -281,9 +281,9 @@
                     if (!Array.isArray(val)) val = [];
                     inp = (q.options || []).map(o => {
                         const isChecked = val.includes(o) ? 'checked' : '';
-                        return `<label style="display:block;padding:8px 0;cursor:pointer">
-                                  <input type="checkbox" name="${q.name}" value="${o}" ${isChecked} style="width:18px;height:18px;margin-right:8px;vertical-align:middle;cursor:pointer"> 
-                                  <span style="vertical-align:middle">${o}</span>
+                        return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;cursor:pointer">
+                                  <input type="checkbox" name="${q.name}" value="${o}" ${isChecked} style="width:18px;height:18px;margin-top:3px;flex-shrink:0;cursor:pointer"> 
+                                  <span>${o}</span>
                                 </label>`;
                     }).join('');
 
@@ -310,7 +310,10 @@
 
             } else if (q.type == 'radio') {
                 inp = (q.options || []).map(o => {
-                    return `<label style="display:block;padding:5px 0;cursor:pointer"><input type="radio" name="${q.name}" value="${o}" ${o === val ? 'checked' : ''}> ${o}</label>`;
+                    return `<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer">
+                              <input type="radio" name="${q.name}" value="${o}" ${o === val ? 'checked' : ''} style="width:18px;height:18px;margin-top:3px;flex-shrink:0;cursor:pointer"> 
+                              <span>${o}</span>
+                            </label>`;
                 }).join('');
 
             } else if (q.type == 'button_group') {
@@ -400,7 +403,7 @@
 
                 const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
                 const prevHtml = val ? ('<img src="' + val + '" style="max-width:100%;border-radius:4px;margin-top:5px;border:1px solid var(--color-border)">') : '';
-                inp = '<input type="file" id="f-' + q.name + '-file" accept="image/*" capture style="display:none" onchange="FormEngine.img(\'' + q.name + '\',this)">' +
+                inp = '<input type="file" id="f-' + q.name + '-file" accept="image/png, image/jpeg, image/gif, image/webp" capture style="display:none" onchange="FormEngine.img(\'' + q.name + '\',this)">' +
                     '<button type="button" class="' + buttonClass + '" style="' + buttonStyle + '" onclick="document.getElementById(\'f-' + q.name + '-file\').click()">📷 Photo</button>' +
                     '<input type="hidden" name="' + q.name + '" id="f-' + q.name + '" value="' + (val || '') + '">' +
                     '<div id="prev-' + q.name + '">' + prevHtml + '</div>';
@@ -462,8 +465,8 @@
                 const filesInputId = 'f-' + q.name + '-files';
                 const previewId = 'prev-' + q.name;
 
-                inp = '<input type="file" id="' + cameraInputId + '" accept="image/*" capture style="display:none" onchange="FormEngine.multiImg(\'' + q.name + '\',this)">' +
-                      '<input type="file" id="' + filesInputId + '" accept="image/*" multiple style="display:none" onchange="FormEngine.multiImg(\'' + q.name + '\',this)">' +
+                inp = '<input type="file" id="' + cameraInputId + '" accept="image/png, image/jpeg, image/gif, image/webp" capture style="display:none" onchange="FormEngine.multiImg(\'' + q.name + '\',this)">' +
+                      '<input type="file" id="' + filesInputId + '" accept="image/png, image/jpeg, image/gif, image/webp" multiple style="display:none" onchange="FormEngine.multiImg(\'' + q.name + '\',this)">' +
                       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
                           '<button type="button" class="' + buttonClass + '" style="' + buttonStyle + 'margin-left:0;margin-right:0;" onclick="document.getElementById(\'' + cameraInputId + '\').click()" ' + disabledAttr + '>' +
                               '📷 Ambil Foto (' + val.length + '/' + maxImages + ')' +
@@ -594,23 +597,12 @@
                 `;
 
             } else if (q.type == 'audio') {
-                const agc = q.agc !== undefined ? q.agc : true;
-                const quality = q.quality || 'medium';
+                // FALLBACK: Karena Record Audio terblokir di sandboxed iframe GAS, 
+                // ubah tipe input menjadi file upload khusus berkas audio.
                 const buttonColor = q.button_color || '';
                 const buttonWidth = q.button_width || 'auto';
                 const heightVal = q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : (q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : '');
                 const fontSize = q.button_font_size || '1em';
-
-                let prevHtml = '';
-                if (val) {
-                    const fileSize = val.startsWith('data:audio') ? `${(val.length * 0.75 / 1024 / 1024).toFixed(2)} MB` : 'Drive file';
-                    prevHtml = `
-                        <audio controls src="${val}" style="width:100%;margin-bottom:4px"></audio>
-                        <div style="font-size:0.75em;color:#666">
-                            🎙️ ${fileSize} | Quality: ${quality.toUpperCase()} | AGC: ${agc ? 'ON' : 'OFF'}
-                        </div>
-                    `;
-                }
 
                 let buttonStyle = `width:${buttonWidth};font-size:${fontSize};`;
                 if (buttonColor) {
@@ -622,44 +614,39 @@
 
                 const buttonClass = buttonColor ? 'btn' : 'btn btn-secondary';
 
-                inp = `<input type="hidden" id="f-${q.name}" name="${q.name}" data-agc="${agc}" data-quality="${quality}" value="${val || ''}">
-                       <button type="button" class="${buttonClass}" id="btn-rec-${q.name}" style="${buttonStyle}" onclick="FormEngine.rec('${q.name}')">🎙 Record</button>
-                       <div id="prev-aud-${q.name}" style="margin-top:10px">${prevHtml}</div>`;
+                let prevHtml = '';
+                if (val) {
+                    let fileName = 'Audio File';
+                    let fileSize = '';
+                    if (typeof val === 'object' && val.data) {
+                        fileSize = `${(q.max_size ? q.max_size : (val.size ? val.size / 1024 / 1024 : val.data.length * 0.75 / 1024 / 1024)).toFixed(2)} MB`;
+                        fileName = val.name || 'Audio File';
+                    } else if (typeof val === 'string') {
+                        fileSize = `${(val.length * 0.75 / 1024 / 1024).toFixed(2)} MB`;
+                    }
+                    
+                    const audioSrc = (typeof val === 'object' && val.data) ? val.data : (typeof val === 'string' ? val : '');
+                    
+                    prevHtml = `
+                        <div style="margin-top:5px;font-size:0.9em;margin-bottom:8px">📄 ${fileName} (${fileSize})</div>
+                        ${audioSrc ? `<audio controls src="${audioSrc}" style="width:100%;margin-bottom:4px"></audio>` : ''}
+                    `;
+                }
+
+                const acceptAttr = 'accept="audio/*,.mp3,.wav,.ogg,.m4a,.amr,.flac,.webm"';
+                inp = `<input type="file" id="f-${q.name}-doc" ${acceptAttr} style="display:none" onchange="FormEngine.doc('${q.name}',this)">
+                       <button type="button" class="${buttonClass}" style="${buttonStyle}" onclick="document.getElementById('f-${q.name}-doc').click()">🎙️ Upload Audio File</button>
+                       <div id="prev-${q.name}">${prevHtml}</div>`;
 
             } else if (q.type == 'gps') {
-                const buttonColor = q.button_color || '';
-                const heightVal = q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : (q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : '');
-                let btnStyle = 'width:auto;';
-                if (buttonColor) {
-                    btnStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
-                }
-                if (heightVal) {
-                    btnStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
-                }
-
-                inp = `<div style="display:flex;gap:5px"><input name="${q.name}" id="f-${q.name}" class="form-control" placeholder="-7.xxx, 112.xxx" ${widthStyle} ${req} value="${val || ''}"><button type="button" class="btn" style="${btnStyle}" onclick="FormEngine.gps('${q.name}')">📍</button></div>`;
+                // FALLBACK: Karena Geolocation terblokir di sandboxed iframe GAS, 
+                // jadikan input teks manual biasa dengan petunjuk placeholder koordinat.
+                inp = `<input name="${q.name}" id="f-${q.name}" class="form-control" placeholder="Contoh: -7.xxx, 112.xxx (Isi Manual)" ${widthStyle} ${req} value="${val || ''}" onchange="FormEngine.change('${q.name}',this.value)">`;
 
             } else if (q.type == 'qrcode_scan') {
-                const buttonColor = q.button_color || '';
-                const heightVal = q.height ? (typeof q.height === 'number' ? q.height + 'px' : q.height) : (q.button_height ? (typeof q.button_height === 'number' ? q.button_height + 'px' : q.button_height) : '');
-                const fontSize = q.button_font_size || '1em';
-
-                let btnStyle = `font-size:${fontSize};border-top-left-radius:0;border-bottom-left-radius:0;`;
-                if (buttonColor) {
-                    btnStyle += `background:${buttonColor};border-color:${buttonColor};color:white;`;
-                }
-                if (heightVal) {
-                    btnStyle += `height:${heightVal};display:flex;align-items:center;justify-content:center;`;
-                }
-
-                inp = `
-                    <div class="input-group" style="display:flex">
-                        <input type="text" name="${q.name}" id="f-${q.name}" class="form-control" ${req} value="${val || ''}" placeholder="${q.placeholder || 'Scan result...'}" style="border-top-right-radius:0;border-bottom-right-radius:0;flex:1">
-                        <div class="input-group-append">
-                            <button class="btn btn-outline-secondary" type="button" style="${btnStyle}" onclick="FormEngine.openScannerModal('${q.name}')">📷 Scan</button>
-                        </div>
-                    </div>
-                `;
+                // FALLBACK: Karena Kamera terblokir di sandboxed iframe GAS, 
+                // jadikan input teks manual biasa tanpa tombol scanner kamera.
+                inp = `<input type="text" name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${req} value="${val || ''}" placeholder="${q.placeholder || 'Masukkan kode/teks QR secara manual...'}" onchange="FormEngine.change('${q.name}',this.value)">`;
 
             } else if (q.type == 'qrcode_generator') {
                 const size = q.size || 128;
@@ -942,13 +929,30 @@
                 descHtml = `<p class="form-text text-muted" style="font-size:0.85em; color:var(--color-text-secondary); margin-top:-2px; margin-bottom:8px">${descText}</p>`;
             }
 
-            if (q.inline) {
-                // Build label with optional TTS speaker
-                let labelHtml = `${q.label} ${req ? '*' : ''}`;
+            // Build label with optional TTS speaker
+            let labelHtml = '';
+            let optionsMarginStyle = '';
+            const numMatch = q.label.match(/^(\d+\.)\s+([\s\S]*)$/);
+            if (numMatch) {
+                const numPart = numMatch[1];
+                let textPart = numMatch[2] + (req ? ' *' : '');
                 if (q.speech_label || q.voice_label) {
-                    labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+                    textPart += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
                 }
+                labelHtml = `<div style="display:flex;align-items:flex-start;gap:8px">
+                    <span style="flex-shrink:0;min-width:24px">${numPart}</span>
+                    <span style="flex-grow:1">${textPart}</span>
+                </div>`;
+                optionsMarginStyle = `style="margin-left:32px"`;
+            } else {
+                let textPart = q.label + (req ? ' *' : '');
+                if (q.speech_label || q.voice_label) {
+                    textPart += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+                }
+                labelHtml = textPart;
+            }
 
+            if (q.inline) {
                 return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px">
                     <div style="flex-shrink:0;max-width:60%">
                         <label ${labelStyle} style="margin:0;display:block">${labelHtml}</label>
@@ -958,17 +962,21 @@
                 </div>`;
             }
 
-            // Build label with optional TTS speaker
-            let labelHtml = `${q.label} ${req ? '*' : ''}`;
-            if (q.speech_label || q.voice_label) {
-                labelHtml += ` <button type="button" onclick="FormEngine.speak('${q.label.replace(/'/g, "\\'")}')" style="background:transparent;border:none;cursor:pointer;font-size:1.1em;padding:0 5px;" title="Read aloud">🔊</button>`;
+            if (optionsMarginStyle) {
+                return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
+                    <label ${labelStyle} style="display:block;margin-bottom:8px">${labelHtml}</label>
+                    <div ${optionsMarginStyle}>
+                        ${descHtml}
+                        ${inp}
+                    </div>
+                </div>`;
+            } else {
+                return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
+                    <label ${labelStyle} style="display:block;margin-bottom:8px">${labelHtml}</label>
+                    ${descHtml}
+                    ${inp}
+                </div>`;
             }
-
-            return `<div class="form-group" id="w-${q.name}" style="${indentStyleProp}">
-                <label ${labelStyle}>${labelHtml}</label>
-                ${descHtml}
-                ${inp}
-            </div>`;
         },
 
         renderTableRow(tableName, rowIdx, columns, rowData, isFixed = false) {
@@ -2034,13 +2042,7 @@
             if (hasVal && q.type !== 'note' && !q.speech_label && !q.voice_label) return;
 
             // Map field types to their auto-start actions
-            if (q.type === 'qrcode_scan') {
-                // QR Scanner: Open scanner modal
-                this.openScannerModal(q.name);
-            } else if (q.type === 'gps') {
-                // GPS: Get location
-                if (!this.data[q.name]) this.gps(q.name);
-            } else if ((q.type === 'text' || q.type === 'textarea') && (q.speech_input || q.voice_input)) {
+            if ((q.type === 'text' || q.type === 'textarea') && (q.speech_input || q.voice_input)) {
                 // Voice Input: Auto-start mic (with delay to ensure render complete)
                 setTimeout(() => this.listen(q.name), 500);
             } else if (q.speech_label || q.voice_label) {

@@ -17,7 +17,7 @@ function apiGetAvailableForms() {
       const iconMatch = yamlStr.match(/^icon:\s*["']?(.+?)["']?\s*$/m);
       const groupMatch = yamlStr.match(/^group:\s*["']?(.+?)["']?\s*$/m);
       const reqMadrasahMatch = yamlStr.match(/^requires_madrasah:\s*(\w+)/m);
-      const requiresMadrasah = reqMadrasahMatch ? reqMadrasahMatch[1] === 'true' : true; // Default ke true jika tidak dispesifikasi
+      const requiresMadrasah = reqMadrasahMatch ? reqMadrasahMatch[1] === 'true' : false; // Default ke false jika tidak dispesifikasi untuk Pengawas
 
       return {
         id: formId,
@@ -90,7 +90,7 @@ function apiSubmitForm(payload) {
       if (target !== 'Form_Responses') {
         let sheet = ss.getSheetByName(target);
         const keys = Object.keys(payload.data || {});
-        const standardHeaders = ['submission_id', 'madrasah_id', 'timestamp', 'username'];
+        const standardHeaders = ['submission_id', 'timestamp', 'username'];
 
         if (!sheet) {
           sheet = ss.insertSheet(target);
@@ -126,7 +126,6 @@ function apiSubmitForm(payload) {
         const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
         const row = headers.map(h => {
           if (h === 'submission_id') return submissionId;
-          if (h === 'madrasah_id') return nsmMadrasah;
           if (h === 'timestamp') return timestamp;
           if (h === 'username') return String(payload.nip).trim();
           let val = (payload.data || {})[h];
@@ -138,7 +137,7 @@ function apiSubmitForm(payload) {
 
         // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada
         const tableFields = extractTableFieldsFromYAML(yaml);
-        writeTableDataToSheets(ss, target, tableFields, payload.data || {}, submissionId, nsmMadrasah, timestamp);
+        writeTableDataToSheets(ss, target, tableFields, payload.data || {}, submissionId, timestamp);
       }
 
       // 4. Selalu catat rekap pusat ke sheet Form_Responses (untuk history & backup)
@@ -335,11 +334,10 @@ function extractTableFieldsFromYAML(yaml) {
  * @param {Array<object>} tableFields
  * @param {object} processedData
  * @param {string} msgId
- * @param {string} madrasah_id
  * @param {Date} timestamp
  * @returns {Array<string>} Affected sheet names
  */
-function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData, msgId, madrasah_id, timestamp) {
+function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData, msgId, timestamp) {
   const affectedSheets = [];
 
   tableFields.forEach(tableField => {
@@ -366,7 +364,7 @@ function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData,
 
     if (!tableSheet) {
       tableSheet = ss.insertSheet(tableSheetName);
-      const tableHeaders = ['submission_id', 'madrasah_id', 'timestamp'];
+      const tableHeaders = ['submission_id', 'timestamp'];
       if (tableField.type === 'table_col_fix') {
         const firstColName = tableField.firstColLabel || 'row_label';
         tableHeaders.push(firstColName);
@@ -387,7 +385,6 @@ function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData,
     tableData.forEach(rowData => {
       const row = headers.map(h => {
         if (h === 'submission_id') return msgId;
-        if (h === 'madrasah_id') return madrasah_id;
         if (h === 'timestamp') return timestamp;
 
         if (tableField.type === 'table_col_fix') {

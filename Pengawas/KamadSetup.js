@@ -167,7 +167,29 @@ function generateKamadSetupLink(nsm, requesterNip) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const ss = getAppDb_();
-    getKamadSheet(ss, 'KamadTokens').appendRow([token, nsmStr, now.toISOString(), expiresAt.toISOString(), 'false']);
+    const tokenSheet = getKamadSheet(ss, 'KamadTokens');
+
+    // Hapus token lama dengan NSM yang sama agar hanya berlaku yang terakhir saja
+    if (tokenSheet.getLastRow() > 1) {
+      const data = tokenSheet.getDataRange().getValues();
+      const headers = data[0];
+      const tH = headers.map(h => String(h).toLowerCase().trim());
+      const nsmIdx = tH.indexOf('nsm');
+      
+      if (nsmIdx !== -1) {
+        const newRows = [headers];
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (String(row[nsmIdx]).trim() !== nsmStr) {
+            newRows.push(row);
+          }
+        }
+        tokenSheet.clearContents();
+        tokenSheet.getRange(1, 1, newRows.length, headers.length).setValues(newRows);
+      }
+    }
+
+    tokenSheet.appendRow([token, nsmStr, now.toISOString(), expiresAt.toISOString(), 'false']);
 
     const props = PropertiesService.getScriptProperties();
     const base = props.getProperty('PENGAWAS_DEPLOYMENT_URL') || ScriptApp.getService().getUrl();

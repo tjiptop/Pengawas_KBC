@@ -162,7 +162,7 @@ window.ProfileViews = {
 
                     <div class="form-group" style="margin-bottom:20px; padding:15px; border:1px solid #ddd; border-radius:8px;">
                         <label>Foto Profil (Upload / Kamera HP)</label>
-                        <input type="file" id="prof-foto" class="form-control" accept="image/*" capture="user" onchange="ProfileManager.previewFoto(this)" style="margin-top:5px;">
+                        <input type="file" id="prof-foto" class="form-control" accept="image/png, image/jpeg, image/gif, image/webp" capture="user" onchange="ProfileManager.previewFoto(this)" style="margin-top:5px;">
                         ${imgPreview}
                         <input type="hidden" id="prof-foto-base64">
                         <input type="hidden" id="prof-foto-filename">

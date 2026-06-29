@@ -1,5 +1,5 @@
 // ============================================================
-// PENGAWAS KBC - Google Apps Script Backend (v2.5.2)
+// PENGAWAS KBC - Google Apps Script Backend (v2.6.0)
 // ============================================================
 
 // Global database and template configurations
@@ -15,7 +15,7 @@ const ADMIN_EMAIL        = PropertiesService.getScriptProperties().getProperty('
 const IS_STAGING         = APP_ENV === 'staging';
 
 // Application Version
-const APP_VERSION = 'v.2.5.2';
+const APP_VERSION = 'v.2.6.0';
 
 // ============================================================
 // ENTRY POINT (Web App serving)
@@ -30,6 +30,7 @@ function doGet(e) {
   let template = HtmlService.createTemplateFromFile('index');
   // Pass query parameters to template safely (bypasses iframe parameter loss)
   template.kamad_setup_token = (e && e.parameter && e.parameter.kamad_setup_token) ? e.parameter.kamad_setup_token : '';
+  template.survey_token = (e && e.parameter && e.parameter.survey_token) ? e.parameter.survey_token : '';
   template.app_version = APP_VERSION;
   return template.evaluate()
       .setTitle('Aplikasi Pengawas KBC')

@@ -8,6 +8,7 @@ function onOpen(e) {
   ui.createMenu('🛠️ Menu Pengawas')
     .addItem('▶️ Jalankan Setup Awal', 'SetupAwal')
     .addItem('🔄 Reset Cache Madrasah', 'resetMasterCache')
+    .addItem('🧹 Bersihkan Token Kedaluwarsa', 'clearExpiredTokens')
     .addToUi();
 }
 
@@ -76,6 +77,17 @@ function SetupAwal() {
     'NIP', 'Nama', 'Kelamin', 'Golongan', 'Provinsi', 'Kabupaten', 
     'Jenjang', 'WA', 'Email', 'Alamat', 
     'Tempat Lahir', 'Tanggal Lahir', 'Foto URL'
+  ]);
+  
+  // Setup sub-profile sheets
+  setupSheet(ss, 'ProfilPelatihan', [
+    'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Sumber', 'created_at'
+  ]);
+  setupSheet(ss, 'ProfilPenghargaan', [
+    'id', 'NIP', 'Nama Penghargaan', 'Pemberi', 'Tahun', 'Deskripsi', 'Sumber', 'created_at'
+  ]);
+  setupSheet(ss, 'ProfilMasterTrainer', [
+    'id', 'NIP', 'Bidang Keahlian', 'Lembaga', 'Tahun', 'No Sertifikat', 'Sumber', 'created_at'
   ]);
   
   // 3. Setup Sheet Sasaran
@@ -153,6 +165,20 @@ function SetupAwal() {
     Logger.log('Sinkronisasi target sheet YAML forms Madrasah (Kamad) berhasil!');
   } catch(e) {
     Logger.log('Error sinkronisasi target sheet YAML Madrasah: ' + e.toString());
+  }
+
+  // 8. Inisialisasi Sheet Kanban
+  setupSheet(ss, 'KanbanCards', ['card_id', 'nsm', 'title', 'description', 'status', 'attachments', 'created_by', 'created_at', 'updated_at', 'delete_requested', 'tag', 'work_details']);
+  setupSheet(ss, 'KanbanComments', ['comment_id', 'card_id', 'author_name', 'author_role', 'author_id', 'comment_text', 'created_at']);
+  
+  const tagSheet = setupSheet(ss, 'KanbanTags', ['category', 'subcategory', 'icon']);
+  if (tagSheet.getLastRow() <= 1) {
+    tagSheet.appendRow(['KBC', 'Nilai Spiritual', '🧩']);
+    tagSheet.appendRow(['KBC', 'Personal', '👤']);
+    tagSheet.appendRow(['Level', 'Belum Tumbuh', '🌱']);
+    tagSheet.appendRow(['Level', 'Tumbuh', '🌿']);
+    tagSheet.appendRow(['Level', 'Berkembang', '🌳']);
+    tagSheet.appendRow(['Level', 'Membudaya', '🏆']);
   }
   
   Logger.log('Setup Selesai!');
@@ -262,7 +288,7 @@ function syncPengawasFormSheets(ss) {
         tf.columns.forEach(col => nestedColumns.add(col));
       });
       
-      const desiredFields = ['submission_id', 'madrasah_id', 'timestamp', 'username'];
+      const desiredFields = ['submission_id', 'timestamp', 'username'];
       const fieldRegex = /name:\s*(['"]?)([^'"\n\r]+)\1/g;
       let m;
       while ((m = fieldRegex.exec(yaml)) !== null) {
@@ -291,7 +317,7 @@ function syncPengawasFormSheets(ss) {
       // 3. Setup sheet sub-tabel terpisah untuk field bertipe tabel
       tableFields.forEach(tableField => {
         const tableSheetName = `${targetSheetName}|${tableField.name}`;
-        const tableHeaders = ['submission_id', 'madrasah_id', 'timestamp'];
+        const tableHeaders = ['submission_id', 'timestamp'];
         if (tableField.type === 'table_col_fix') {
           const firstColName = tableField.firstColLabel || 'row_label';
           tableHeaders.push(firstColName);
@@ -416,4 +442,95 @@ function updateSetting(key, value) {
     }
   }
   sheet.appendRow([key, value]);
+}
+
+/**
+ * Pembersih token setup kamad dan survey yang sudah kedaluwarsa atau selesai digunakan.
+ * Dijalankan secara manual melalui menu Spreadsheet '🛠️ Menu Pengawas'.
+ */
+function clearExpiredTokens() {
+  const ui = SpreadsheetApp.getUi();
+  const lock = LockService.getScriptLock();
+  try {
+    // Kunci proses selama maksimal 10 detik agar aman dari race condition
+    if (!lock.tryLock(10000)) {
+      ui.alert('Sistem sedang sibuk. Silakan coba beberapa saat lagi.');
+      return;
+    }
+    
+    const ss = getAppDb_();
+    const now = new Date();
+    let kamadCleaned = 0;
+    let surveyCleaned = 0;
+
+    // 1. Membersihkan KamadTokens (kedaluwarsa atau status used === true)
+    const kamadSheet = ss.getSheetByName('KamadTokens');
+    if (kamadSheet && kamadSheet.getLastRow() > 1) {
+      const data = kamadSheet.getDataRange().getValues();
+      const headers = data[0];
+      const tH = headers.map(h => String(h).toLowerCase().trim());
+      const expiresIdx = tH.indexOf('expires_at');
+      const usedIdx = tH.indexOf('used');
+      
+      const newRows = [headers];
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const expiresAt = expiresIdx !== -1 ? new Date(row[expiresIdx]) : null;
+        const used = usedIdx !== -1 ? String(row[usedIdx]).toLowerCase().trim() : 'false';
+        
+        const isExpired = expiresAt && now > expiresAt;
+        const isUsed = used === 'true';
+        
+        if (isExpired || isUsed) {
+          kamadCleaned++;
+        } else {
+          newRows.push(row);
+        }
+      }
+      
+      // Tulis kembali data yang masih aktif
+      kamadSheet.clearContents();
+      kamadSheet.getRange(1, 1, newRows.length, headers.length).setValues(newRows);
+    }
+
+    // 2. Membersihkan Survey_Tokens (kedaluwarsa atau status CLOSED / EXPIRED)
+    const surveySheet = ss.getSheetByName('Survey_Tokens');
+    if (surveySheet && surveySheet.getLastRow() > 1) {
+      const data = surveySheet.getDataRange().getValues();
+      const headers = data[0];
+      const tH = headers.map(h => String(h).toLowerCase().trim());
+      const endIdx = tH.indexOf('end_time');
+      const statusIdx = tH.indexOf('status');
+      
+      const newRows = [headers];
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const endTime = endIdx !== -1 ? new Date(row[endIdx]) : null;
+        const status = statusIdx !== -1 ? String(row[statusIdx]).toUpperCase().trim() : '';
+        
+        const isExpired = endTime && now > endTime;
+        const isClosed = status === 'CLOSED' || status === 'EXPIRED';
+        
+        if (isExpired || isClosed) {
+          surveyCleaned++;
+        } else {
+          newRows.push(row);
+        }
+      }
+      
+      // Tulis kembali data yang masih aktif
+      surveySheet.clearContents();
+      surveySheet.getRange(1, 1, newRows.length, headers.length).setValues(newRows);
+    }
+
+    ui.alert('🧹 Pembersihan Selesai', 
+             `Proses pembersihan berhasil dijalankan:\n\n` +
+             `• ${kamadCleaned} token KamadTokens yang kedaluwarsa/terpakai berhasil dihapus.\n` +
+             `• ${surveyCleaned} token Survey_Tokens yang kedaluwarsa/ditutup berhasil dihapus.`, 
+             ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('⚠️ Kesalahan', 'Terjadi kesalahan sistem saat membersihkan token: ' + e.toString(), ui.ButtonSet.OK);
+  } finally {
+    lock.releaseLock();
+  }
 }

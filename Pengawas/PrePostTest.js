@@ -498,17 +498,28 @@ function apiGetTestUntukPeserta(soalId, nipPeserta, tipe) {
       cache.put(cacheKey, seed, 7200); // Tahan 2 jam
     }
     
-    // Catat waktu mulai pengerjaan pertama kali
-    const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
-    let startTime = cache.get(startKey);
-    if (!startTime) {
-      startTime = new Date().toISOString();
-      cache.put(startKey, startTime, 7200); // Tahan 2 jam
-    }
-    
     // 5. Parse dan acak soal
     const testConfig = getTestConfigFromCell_(soalRow[idxYaml]);
     if (!testConfig) return apiError('Gagal memproses definisi soal.', 'YAML_PARSE_ERROR');
+    
+    // Catat waktu mulai pengerjaan pertama kali
+    const startKey = 'start_' + nipPeserta + '_' + soalId + '_' + tipe;
+    let startTime = cache.get(startKey);
+    if (startTime) {
+      // Cek apakah sudah melebihi batas waktu (plus toleransi 2 menit)
+      if (testConfig && testConfig.time_limit_minutes > 0) {
+        const start = new Date(startTime);
+        const now = new Date();
+        const elapsedMinutes = (now - start) / 60000;
+        const limitMinutes = parseInt(testConfig.time_limit_minutes);
+        if (elapsedMinutes > (limitMinutes + 2)) {
+          return apiError('Batas waktu pengerjaan ujian telah habis. Jawaban Anda tidak dapat diterima.', 'TIME_LIMIT_EXCEEDED');
+        }
+      }
+    } else {
+      startTime = new Date().toISOString();
+      cache.put(startKey, startTime, 7200); // Tahan 2 jam
+    }
     
     const rand = createRandom_(seed);
     
