@@ -261,6 +261,23 @@ const FormsManager = {
           border-color: var(--color-border-light);
           cursor: default;
         }
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #panel-form-fill, #panel-form-fill * {
+            visibility: visible;
+          }
+          #panel-form-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .no-print, .no-print * {
+            display: none !important;
+          }
+        }
       </style>
     `;
 
@@ -482,7 +499,7 @@ const FormsManager = {
           Kembali ke Daftar Form
         </button>
         ${!canFill && submissionId ? `
-          <button class="kamad-print-btn" onclick="window.print()" style="float:right;background:#137333;color:white;border:none;padding:5px 12px;border-radius:4px;font-size:0.85em;cursor:pointer;font-weight:bold;">
+          <button onclick="window.focus(); window.print();" class="kamad-print-btn" style="float:right; padding:6px 14px; background:#0f9b58; color:white; border:none; border-radius:18px; font-weight:600; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); transition:background 0.2s;">
             🖨️ Cetak Jawaban
           </button>
         ` : ''}
