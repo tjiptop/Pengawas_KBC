@@ -7,8 +7,21 @@ const KamadDataViews = {
   Main: () => `
     <div class="header">
       <div class="header-title-wrap">
-        <div class="header-page-icon">📊</div>
-        <h1>Data Madrasah</h1>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="header-page-icon">📊</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Data Madrasah</h1>
+            </div>
+            <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;margin-top:2px;">${App.state.kamad?.madrasah_name || 'Madrasah Anda'}</div>
+            ${!!App.state.isSupervisorViewAs ? `
+              <div style="margin-top:4px;">
+                <span style="background:rgba(239,68,68,0.1); color:var(--color-danger); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; height:16px;" title="Anda sedang masuk menggunakan hak akses Pengawas">
+                  PENGAWAS
+                </span>
+              </div>` : ''}
+          </div>
+        </div>
       </div>
       <button class="back-btn" onclick="App.router('kamad-dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
