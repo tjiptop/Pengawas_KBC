@@ -286,6 +286,9 @@ const App = {
     } else if (view === 'materi') {
       el.innerHTML = MateriViews.Main();
       MateriManager.init();
+    } else if (view === 'kamad-materi') {
+      el.innerHTML = KamadMateriViews.Main();
+      KamadMateriManager.init();
     }
   },
 

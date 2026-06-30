@@ -63,13 +63,27 @@ function SetupAwal() {
     sheetMateriPel.appendRow(['MAT-004', 'Supervisi Akademik', 'Teknik dan instrumen supervisi akademik untuk pengawas']);
   }
   
-  const sheetMateri = setupSheet(ss, 'Materi', [
-    'Kelompok', 'Sub Kelompok', 'Judul Materi', 'Link', 'Status'
+  // Rename sheet 'Materi' ke 'Pengawas_Materi' jika ada
+  let oldMateriSheet = ss.getSheetByName('Materi');
+  if (oldMateriSheet) {
+    oldMateriSheet.setName('Pengawas_Materi');
+  }
+
+  const sheetPengawasMateri = setupSheet(ss, 'Pengawas_Materi', [
+    'Kelompok', 'Sub Kelompok', 'Judul Materi', 'Link', 'Status', 'Icon'
   ]);
-  if (sheetMateri.getLastRow() <= 1) {
-    sheetMateri.appendRow(['KBC', 'Modul Dasar', 'Pengantar KBC', 'https://example.com/kbc1', 'Aktif']);
-    sheetMateri.appendRow(['KBC', 'Modul Lanjutan', 'Strategi KBC', 'https://example.com/kbc2', 'Aktif']);
-    sheetMateri.appendRow(['MAGIS', 'Materi Inti', 'Konsep MAGIS', 'https://example.com/magis1', 'Aktif']);
+  if (sheetPengawasMateri.getLastRow() <= 1) {
+    sheetPengawasMateri.appendRow(['KBC', 'Modul Dasar', 'Pengantar KBC', 'https://example.com/kbc1', 'Aktif', '📄']);
+    sheetPengawasMateri.appendRow(['KBC', 'Modul Lanjutan', 'Strategi KBC', 'https://example.com/kbc2', 'Aktif', '📄']);
+    sheetPengawasMateri.appendRow(['MAGIS', 'Materi Inti', 'Konsep MAGIS', 'https://example.com/magis1', 'Aktif', '📄']);
+  }
+
+  const sheetKamadMateri = setupSheet(ss, 'Kamad_Materi', [
+    'Kelompok', 'Sub Kelompok', 'Judul Materi', 'Link', 'Status', 'Icon'
+  ]);
+  if (sheetKamadMateri.getLastRow() <= 1) {
+    sheetKamadMateri.appendRow(['KBC Madrasah', 'Buku Panduan', 'Panduan KBC untuk Kamad', 'https://example.com/kamad_kbc', 'Aktif', '📕']);
+    sheetKamadMateri.appendRow(['MAGIS Madrasah', 'Buku Panduan', 'Panduan MAGIS untuk Kamad', 'https://example.com/kamad_magis', 'Aktif', '📕']);
   }
   
   // 2. Setup Sheet Profil
