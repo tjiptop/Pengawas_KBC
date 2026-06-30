@@ -72,6 +72,20 @@ function getKamadPbsSummary(nsm) {
     const nsmStr = String(nsm).trim();
     const matchedRows = data.slice(1).filter(row => String(row[idxNsm]).trim() === nsmStr);
 
+    // Hitung jumlah siswa L dan P dari Kolom L (index 11)
+    let siswaL = 0;
+    let siswaP = 0;
+    matchedRows.forEach(row => {
+      if (row.length > 11) {
+        const genderVal = String(row[11] || '').trim().toLowerCase();
+        if (genderVal.indexOf('l') === 0) {
+          siswaL++;
+        } else if (genderVal.indexOf('p') === 0) {
+          siswaP++;
+        }
+      }
+    });
+
     // Hitung akumulasi Kesulitan
     const kesulitanRekap = diffList.map(diff => {
       let sedikit = 0;
@@ -144,6 +158,11 @@ function getKamadPbsSummary(nsm) {
     });
 
     const resultPayload = {
+      stats: {
+        total: matchedRows.length,
+        l: siswaL,
+        p: siswaP
+      },
       kesulitan: kesulitanRekap,
       alat_bantu: alatBantuRekap,
       penyesuaian: penyesuaianRekap
