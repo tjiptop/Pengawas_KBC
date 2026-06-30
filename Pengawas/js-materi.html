@@ -13,7 +13,11 @@ const MateriViews = {
       </div>
       <button class="back-btn" onclick="App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
-    <div class="content">
+    <div class="content" style="padding-top:16px;">
+      <!-- Search Bar -->
+      <div style="margin-bottom: 16px; position: sticky; top: 0; background: var(--color-bg); padding-bottom: 10px; z-index: 10;">
+        <input type="text" id="search-materi" class="form-control" placeholder="🔍 Cari judul, kelompok, atau sub-materi..." onkeyup="MateriManager.filter(this.value)" style="width: 100%; box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 10px; font-size: 0.9rem; background: var(--color-bg-elevated); color: var(--color-text); transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--color-primary)'" onblur="this.style.borderColor='var(--color-border)'">
+      </div>
       <div id="materi-container">
         <!-- Content will be injected here -->
       </div>
@@ -70,6 +74,61 @@ const MateriManager = {
     item.classList.toggle('active');
   },
 
+  filter(query) {
+    const q = query.toLowerCase().trim();
+    const container = document.getElementById('materi-container');
+    if (!container) return;
+
+    if (!q) {
+      this.render();
+      return;
+    }
+
+    const filtered = this.state.materi.filter(item => 
+      (item.judul || '').toLowerCase().includes(q) ||
+      (item.kelompok || '').toLowerCase().includes(q) ||
+      (item.subKelompok || '').toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="card" style="text-align:center; padding:40px; color:var(--color-text-light);">
+            <div style="font-size:3.5rem; margin-bottom:12px;">🔍</div>
+            <p style="margin:0; font-size:0.95em; font-weight:600;">Tidak ditemukan materi yang cocok</p>
+            <p style="margin:4px 0 0 0; font-size:0.85rem; color:var(--color-text-secondary);">Coba kata kunci lain.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = `
+      <div class="card" style="padding: 16px 20px;">
+        <h3 style="margin: 0 0 16px 0; font-size: 0.85rem; font-weight:700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Hasil Pencarian (${filtered.length})</h3>
+        <div class="materi-list-band">
+    `;
+
+    filtered.forEach(item => {
+      const displayIcon = item.icon || '📄';
+      const badgeText = [item.kelompok, item.subKelompok].filter(Boolean).join(' · ');
+      html += `
+          <div onclick="window.open('${item.link}', '_blank')" class="materi-card-band">
+            <div class="materi-card-icon">${displayIcon}</div>
+            <div class="materi-card-info">
+              <div class="materi-card-title" title="${item.judul}" style="font-weight:600;">${item.judul}</div>
+              <div style="font-size:0.75rem; color:var(--color-text-light); margin-top:2px;">${badgeText}</div>
+            </div>
+            <div class="materi-card-arrow">›</div>
+          </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+    container.innerHTML = html;
+  },
+
   render() {
     const container = document.getElementById('materi-container');
     if (!container) return;
@@ -102,16 +161,17 @@ const MateriManager = {
       const subKeys = Object.keys(grouped[kelompok]);
       const hasMultipleSubs = subKeys.length > 1;
 
+      // Render accordion groups as expanded/active by default for better usability
       html += `
-        <div class="accordion-group-card">
+        <div class="accordion-group-card active">
           <div class="group-card-header" onclick="MateriManager.toggleGroup(this)">
-            <h2 style="margin:0; font-size:1.1rem; color:var(--color-text); display:flex; align-items:center; gap:8px;">
+            <h2 style="margin:0; font-size:1.05rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
               <span style="color:var(--color-primary);">📚</span> ${kelompok}
             </h2>
             <span class="group-arrow-icon">▼</span>
           </div>
           <div class="group-card-content">
-            <div class="group-card-content-inner" style="padding: 12px 16px 16px 16px;">
+            <div class="group-card-content-inner" style="padding: 4px 16px 16px 16px;">
       `;
       
       let isFirstSub = true;
@@ -120,13 +180,13 @@ const MateriManager = {
         const subTitle = subData.title;
         const items = subData.items;
         
-        const marginTop = isFirstSub ? '0px' : '16px';
+        const marginTop = isFirstSub ? '12px' : '16px';
         isFirstSub = false;
 
         if (hasMultipleSubs) {
-          // If there are multiple sub-kelompoks, render them as accordions with black arrows
+          // Render sub-accordions as expanded/active by default for quick access
           html += `
-            <div class="accordion-sub-item" style="margin-top:${marginTop};">
+            <div class="accordion-sub-item active" style="margin-top:${marginTop};">
               <div class="sub-card-header" onclick="MateriManager.toggleSub(this)">
                 <span class="sub-header-text">📁 ${subTitle}</span>
                 <div class="sub-header-right">
