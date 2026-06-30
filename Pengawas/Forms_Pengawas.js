@@ -1,9 +1,9 @@
 const FormsPengawas = {
 
   'kesiapan_kbc_pengawas': `
+title: "1. Kesiapan Pengawas"
 group: "Program KBC Pengawas"
 icon: "🧑‍🏫"
-title: "1. Kesiapan Pengawas"
 description: "Instrumen Evaluasi Kesiapan & Kebutuhan Pengawas Madrasah (Program KBC)"
 target_sheet: "Pengawas_Kesiapan_KBC"
 submission_limit: 0

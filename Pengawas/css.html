@@ -140,10 +140,7 @@
        FORM ENGINE OVERRIDES & PREMIUM LAYOUT
        ======================================== */
 
-    /* Hide FormEngine direct title rendering to avoid duplicate headers */
-    #form-engine-mount > h2 {
-        display: none !important;
-    }
+    /* FormEngine direct title rendering is now shown for consistency */
 
     /* Hide FormEngine primary submit button so we can use a cohesive outer submit button */
     #form-engine-mount #sf button:not([type="button"]) {
@@ -2596,12 +2593,15 @@
         border-radius: var(--radius-full);
         background: rgba(15,155,88,0.1);
         color: #0a7a45;
-        display: inline-block;
-        margin-bottom: 8px;
+        display: block;
+        width: max-content;
+        margin: 0 auto 8px 0;
+        white-space: nowrap;
     }
 
     .kamad-form-fill-title {
-        margin: 0;
+        display: block;
+        margin: 4px 0 0 0;
         font-size: 1.05rem;
         font-weight: 700;
         color: var(--color-text);

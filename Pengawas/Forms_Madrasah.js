@@ -22,6 +22,8 @@ function getMadrasahFormDefinitions() {
     'form_personil': `    # FORM 0.1. PERSONIL
 title: 0.1. Data Personil
 group: 0. Data Madrasah
+icon: "🧑‍🏫"
+description: "Data Personil dan Guru yang akan ikut Program KBC Inovasi"
 submission_limit: 0
 target_sheet: 0_1_Personil
 enable_delegation: true
@@ -159,6 +161,8 @@ questions:
     'form_observasi': `    # FORM 1.0. OBSERVASI FINAL
 title: 1.0. Observasi Akhir Penilaian
 group: 1. Observasi
+icon: "🔍"
+description: "Observasi Akhir Penilaian Program KBC Inovasi"
 submission_limit: 0
 target_sheet: 1_0_Observasi
 allowed_roles: [district]
@@ -374,6 +378,8 @@ questions:
     'instrumen_angket_guru': `    ### 2.1. ANGKET GURU ###
 title: 2.1. Instrumen Angket Guru
 group: 2. Angket
+icon: "📝"
+description: "Instrumen Angket Guru Program KBC Inovasi"
 submission_limit: 4
 target_sheet: 2_1_Angket_Guru
 enable_delegation: true
@@ -605,6 +611,8 @@ questions:
     'instrumen_angket_kamad': `### 2.1. ANGKET KAMAD ###
 title: 2.2. Instrumen Angket Kepala Madrasah
 group: 2. Angket
+icon: "📝"
+description: "Instrumen Angket Kepala Madrasah Program KBC Inovasi"
 target_sheet: 2_2_Angket_Kamad
 enable_delegation: false
 allowed_roles: [madrasah]
@@ -820,6 +828,8 @@ questions:
     'instrumen_angket_ortu': `### 2.1. ANGKET ORTU ###
 title: 2.3. Instrumen Angket Orang Tua
 group: 2. Angket
+icon: "👨‍👩‍👧‍👦"
+description: "Instrumen Angket Orang Tua Program KBC Inovasi"
 submission_limit: 4
 target_sheet: 2_2_Angket_Ortu
 enable_delegation: true
