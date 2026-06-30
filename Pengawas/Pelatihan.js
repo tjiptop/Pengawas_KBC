@@ -1479,14 +1479,11 @@ function apiSubmitAbsensi(pelatihanId, nip, tanggal, inputtedCode) {
       
       const targetDate = tanggal || getPelatihanLocalTodayStr_(pelatihanId);
       
-      // Check config in Properties
-      const key = 'absen_config_' + pelatihanId + '_' + targetDate;
-      const configStr = PropertiesService.getScriptProperties().getProperty(key);
-      if (!configStr) {
+      // Check config in Sheet and Cache
+      const config = getAbsenConfig_(pelatihanId, targetDate);
+      if (!config) {
         return apiError('Absensi belum diaktifkan oleh pelatih untuk hari ini.', 'NOT_ACTIVATED');
       }
-      
-      const config = JSON.parse(configStr);
       if (config.type.endsWith('min')) {
         const minutes = parseInt(config.type.replace('min', '')) || 10;
         const elapsedMs = Date.now() - new Date(config.openedAt).getTime();
@@ -1594,13 +1591,11 @@ function apiGetTodayAbsensiStatus(pelatihanId, nip) {
       return apiSuccess({ sudah_absen: true, tanggal: todayStr });
     }
     
-    // Cek status buka/aktifasi dari Properties
-    const key = 'absen_config_' + pelatihanId + '_' + todayStr;
-    const configStr = PropertiesService.getScriptProperties().getProperty(key);
+    // Cek status buka/aktifasi dari Sheet dan Cache
+    const config = getAbsenConfig_(pelatihanId, todayStr);
     let statusAbsen = 'belum_mulai';
     
-    if (configStr) {
-      const config = JSON.parse(configStr);
+    if (config) {
       if (config.type.endsWith('min')) {
         const minutes = parseInt(config.type.replace('min', '')) || 10;
         const elapsedMs = Date.now() - new Date(config.openedAt).getTime();
@@ -1614,8 +1609,7 @@ function apiGetTodayAbsensiStatus(pelatihanId, nip) {
       }
     }
     
-    const configParsed = configStr ? JSON.parse(configStr) : null;
-    return apiSuccess({ sudah_absen: false, tanggal: todayStr, status_absen: statusAbsen, config: configParsed });
+    return apiSuccess({ sudah_absen: false, tanggal: todayStr, status_absen: statusAbsen, config: config });
   } catch(e) {
     return apiError(e.toString());
   }
@@ -1628,12 +1622,11 @@ function apiActivateAbsensi(pelatihanId, expiryType) {
   try {
     const todayStr = getPelatihanLocalTodayStr_(pelatihanId);
     
-    const key = 'absen_config_' + pelatihanId + '_' + todayStr;
     const config = {
       openedAt: new Date().toISOString(),
       type: expiryType
     };
-    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(config));
+    setAbsenConfig_(pelatihanId, todayStr, config);
     
     return apiGetAbsensiRekap(pelatihanId);
   } catch (e) {
@@ -1761,9 +1754,7 @@ function apiGetAbsensiRekap(pelatihanId) {
     const todayStr = getPelatihanLocalTodayStr_(pelatihanId);
     const attendanceCode = generateAttendanceCode_(pelatihanId, todayStr);
     
-    const configKey = 'absen_config_' + pelatihanId + '_' + todayStr;
-    const configStr = PropertiesService.getScriptProperties().getProperty(configKey);
-    const activeConfig = configStr ? JSON.parse(configStr) : null;
+    const activeConfig = getAbsenConfig_(pelatihanId, todayStr);
     
     return apiSuccess({
       participants: participants,
@@ -2084,4 +2075,110 @@ function generateAttendanceCode_(pelatihanId, dateStr) {
     temp = Math.floor(temp / chars.length);
   }
   return code;
+}
+
+/**
+ * Helper: Mengambil atau membuat sheet PelatihanAbsenConfig
+ */
+function ensureAbsenConfigSheet_(ss) {
+  let sheet = ss.getSheetByName('PelatihanAbsenConfig');
+  if (!sheet) {
+    sheet = ss.insertSheet('PelatihanAbsenConfig');
+    sheet.appendRow(['pelatihan_id', 'tanggal', 'opened_at', 'expiry_type']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#d9ead3');
+  }
+  return sheet;
+}
+
+/**
+ * Helper: Menyimpan konfigurasi absensi ke Sheet dan Cache (maksimal 6 jam / 21600 detik)
+ */
+function setAbsenConfig_(pelatihanId, tanggal, configObj) {
+  const ss = getAppDb_();
+  const sheet = ensureAbsenConfigSheet_(ss);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idxPid = headers.indexOf('pelatihan_id');
+  const idxDate = headers.indexOf('tanggal');
+
+  const tz = getPelatihanTimezone_(ss, pelatihanId);
+  let targetRow = -1;
+  for (let i = 1; i < data.length; i++) {
+    const rowDateStr = formatSheetDate_(data[i][idxDate], tz);
+    if (String(data[i][idxPid]).trim() === String(pelatihanId).trim() &&
+        rowDateStr === String(tanggal).trim()) {
+      targetRow = i + 1;
+      break;
+    }
+  }
+
+  const values = [pelatihanId, tanggal, configObj.openedAt, configObj.type];
+  if (targetRow !== -1) {
+    sheet.getRange(targetRow, 1, 1, 4).setValues([values]);
+  } else {
+    sheet.appendRow(values);
+  }
+
+  // Caching: Simpan ke CacheService (maksimal 6 jam / 21600 detik)
+  const cacheKey = 'absen_config_' + pelatihanId + '_' + tanggal;
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.put(cacheKey, JSON.stringify(configObj), 21600); // 6 jam
+  } catch (e) {
+    console.warn('Gagal menulis cache:', e);
+  }
+}
+
+/**
+ * Helper: Mengambil konfigurasi absensi dari Cache (prioritas) atau Fallback ke Sheet
+ */
+function getAbsenConfig_(pelatihanId, tanggal) {
+  const cacheKey = 'absen_config_' + pelatihanId + '_' + tanggal;
+  
+  // 1. Coba dari cache
+  try {
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.warn('Gagal membaca cache:', e);
+  }
+
+  // 2. Jika cache-miss, baca dari Sheet PelatihanAbsenConfig
+  const ss = getAppDb_();
+  const sheet = ss.getSheetByName('PelatihanAbsenConfig');
+  if (!sheet) return null;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idxPid = headers.indexOf('pelatihan_id');
+  const idxDate = headers.indexOf('tanggal');
+  const idxOpened = headers.indexOf('opened_at');
+  const idxExpiry = headers.indexOf('expiry_type');
+
+  const tz = getPelatihanTimezone_(ss, pelatihanId);
+  for (let i = 1; i < data.length; i++) {
+    const rowDateStr = formatSheetDate_(data[i][idxDate], tz);
+    if (String(data[i][idxPid]).trim() === String(pelatihanId).trim() &&
+        rowDateStr === String(tanggal).trim()) {
+      
+      const configObj = {
+        openedAt: String(data[i][idxOpened]),
+        type: String(data[i][idxExpiry])
+      };
+
+      // Tulis kembali ke cache agar request berikutnya cepat
+      try {
+        const cache = CacheService.getScriptCache();
+        cache.put(cacheKey, JSON.stringify(configObj), 21600); // 6 jam
+      } catch (e) {}
+
+      return configObj;
+    }
+  }
+
+  return null;
 }

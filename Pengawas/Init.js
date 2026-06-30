@@ -51,6 +51,11 @@ function SetupAwal() {
     'sertifikat_id', 'pelatihan_id', 'nip_peserta', 'nama_peserta',
     'nomor_sertifikat', 'google_doc_id', 'pdf_url', 'generated_at'
   ]);
+  
+  // Setup Sheet PelatihanAbsenConfig
+  setupSheet(ss, 'PelatihanAbsenConfig', [
+    'pelatihan_id', 'tanggal', 'opened_at', 'expiry_type'
+  ]);
 
   const sheetMateriPel = setupSheet(ss, 'Materi_Pelatihan', [
     'materi_id', 'judul_materi', 'deskripsi', 'konfigurasi_template', 'konfigurasi_soal'
