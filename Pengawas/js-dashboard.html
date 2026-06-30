@@ -19,7 +19,7 @@ const DashboardViews = {
                         <!-- Menu Materi -->
                         <div class="menu-item" onclick="App.router('materi'); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">📚</span>
-                            <span class="menu-item-text">Materi Pembelajaran</span>
+                            <span class="menu-item-text">Buku dan Materi Terkait</span>
                         </div>
 
                         ${user['Pelatih'] === 'Nasional' ? `
@@ -130,8 +130,8 @@ const DashboardViews = {
                 <div class="card form-card" onclick="App.router('materi')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0;">
                     <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(63, 81, 181, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:#3f51b5; flex-shrink:0;">📚</div>
                     <div style="flex:1; min-width:0;">
-                        <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Materi Pembelajaran</h3>
-                        <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Akses seluruh modul materi pembelajaran KBC dan MAGIS.</div>
+                        <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Buku dan Materi Terkait</h3>
+                        <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Akses dari daftar buku dan materi.</div>
                     </div>
                 </div>
             </div>
