@@ -10,14 +10,14 @@ function getKamadPbsSummary(nsm) {
       try { return JSON.parse(cached); } catch(e) {}
     }
 
-    const ss = getMasterDb_();
-    const sheet = ss.getSheetByName('pbs');
-    if (!sheet) {
-      return apiError('Sheet pbs tidak ditemukan pada Database Master.', 'NOT_FOUND');
-    }
+    const data = getCachedMasterData_('master_pbs_rows', () => {
+      const ss = getMasterDb_();
+      const sheet = ss.getSheetByName('pbs');
+      if (!sheet) return [];
+      return sheet.getDataRange().getValues();
+    }, 21600); // Cache 6 jam
 
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) {
+    if (!data || data.length <= 1) {
       return apiSuccess({ kesulitan: [], alat_bantu: [] }); // Data kosong
     }
 
