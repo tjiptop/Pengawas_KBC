@@ -102,6 +102,10 @@ const KamadDashboard = {
             <div class="menu-dropdown">
               <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('kamad-menu').classList.toggle('show')" title="Menu">☰</button>
               <div id="kamad-menu" class="menu-dropdown-content">
+                <div class="menu-item" onclick="App.router('kamad-data-madrasah'); document.getElementById('kamad-menu').classList.remove('show')">
+                  <span class="menu-item-icon">📊</span>
+                  <span class="menu-item-text">Data Madrasah</span>
+                </div>
                 <div class="menu-item" onclick="App.router('kamad-forms'); document.getElementById('kamad-menu').classList.remove('show')">
                   <span class="menu-item-icon">📋</span>
                   <span class="menu-item-text">Form Instrumen</span>
@@ -113,10 +117,6 @@ const KamadDashboard = {
                 <div class="menu-item" onclick="App.router('kamad-materi'); document.getElementById('kamad-menu').classList.remove('show')">
                   <span class="menu-item-icon">📚</span>
                   <span class="menu-item-text">Buku dan Materi Terkait</span>
-                </div>
-                <div class="menu-item" onclick="App.router('kamad-data-madrasah'); document.getElementById('kamad-menu').classList.remove('show')">
-                  <span class="menu-item-icon">📊</span>
-                  <span class="menu-item-text">Data Madrasah</span>
                 </div>
                 ${isSupervisor ? `
                 <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
