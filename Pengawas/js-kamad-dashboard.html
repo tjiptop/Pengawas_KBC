@@ -249,11 +249,21 @@ const KamadDashboard = {
 
   init() {
     const el = document.getElementById('app');
-    el.innerHTML = KamadDashboard.views.skeleton();
-
     const nsm = App.state.kamad?.nsm;
     if (!nsm) { App.router('kamad-login'); return; }
 
+    // Jika data dashboard sudah ada di App.state (memori lokal), render seketika tanpa loading server
+    if (App.state.kamad?.madrasahInfo) {
+      el.innerHTML = KamadDashboard.views.main(
+        App.state.kamad.madrasahInfo,
+        App.state.kamadStats || {},
+        App.state.kamadForms || [],
+        App.state.kamadHistory || []
+      );
+      return;
+    }
+
+    el.innerHTML = KamadDashboard.views.skeleton();
     // Load dashboard data
     App.loading(true, 'Memuat dashboard...');
     google.script.run
@@ -262,6 +272,7 @@ const KamadDashboard = {
         if (res.success) {
           App.state.kamad = App.state.kamad || {};
           App.state.kamad.madrasahInfo = res.data.madrasahInfo;
+          App.state.kamadStats = res.data.stats || {};
           App.state.kamadForms = res.data.forms || [];
           App.state.kamadHistory = res.data.history || [];
           App.state.kanbanData = res.data.kanbanData || { cards: [], comments: [] };
@@ -297,6 +308,7 @@ const KamadDashboard = {
         if (res.success) {
           App.state.kamad = App.state.kamad || {};
           App.state.kamad.madrasahInfo = res.data.madrasahInfo;
+          App.state.kamadStats = res.data.stats || {};
           App.state.kamadForms = res.data.forms || [];
           App.state.kamadHistory = res.data.history || [];
           App.state.kanbanData = res.data.kanbanData || { cards: [], comments: [] };
