@@ -2,12 +2,8 @@
   "name": "pengawas_kbc",
   "version": "2.7.1",
   "description": "",
-  "main": "Madrasah/CacheManager.js",
+  "main": "Pengawas/Code.js",
   "scripts": {
-    "clasp:madrasah:pull": "cd Madrasah && clasp pull",
-    "clasp:madrasah:push": "cd Madrasah && clasp push",
-    "clasp:madrasah:status": "cd Madrasah && clasp status",
-    "clasp:madrasah:watch": "cd Madrasah && clasp push --watch",
     "clasp:pengawas:pull": "cd Pengawas && clasp pull",
     "clasp:pengawas:push": "cd Pengawas && clasp push",
     "clasp:pengawas:status": "cd Pengawas && clasp status",
