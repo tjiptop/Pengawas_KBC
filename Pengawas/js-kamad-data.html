@@ -13,16 +13,20 @@ const KamadDataViews = {
       <button class="back-btn" onclick="App.router('kamad-dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
     <div class="content" style="padding-top:16px;">
-      <!-- Card 1: Kesulitan Siswa -->
-      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm); margin-bottom:20px;">
+      <!-- Main Card Panel -->
+      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
         <h2 style="margin:0 0 8px 0; font-size:1.1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
-          🩺 Profil Kesulitan Siswa (PBS)
+          🩺 Profil Belajar Siswa (PBS)
         </h2>
         <p style="margin:0 0 20px 0; font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">
-          Rekapitulasi kesulitan belajar/perkembangan siswa yang tercatat dalam sistem PBS (Profil Belajar Siswa). Data dikelompokkan berdasarkan jenis kesulitan dan tingkat keparahannya.
+          Rekapitulasi perkembangan, kondisi kesulitan belajar, serta kebutuhan alat bantu siswa di madrasah ini yang tercatat dalam sistem PBS (Profil Belajar Siswa).
         </p>
 
-        <div class="table-responsive">
+        <!-- Section 1: Ragam Kesulitan -->
+        <h3 style="margin:24px 0 12px 0; font-size:0.95rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px;">
+          📌 Ragam Kesulitan
+        </h3>
+        <div class="table-responsive" style="margin-bottom:24px;">
           <table class="data-table-pbs" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.88rem;">
             <thead>
               <tr style="border-bottom:2px solid var(--color-border); background:var(--color-bg); color:var(--color-text);">
@@ -39,17 +43,11 @@ const KamadDataViews = {
             </tbody>
           </table>
         </div>
-      </div>
 
-      <!-- Card 2: Kebutuhan Alat Bantu -->
-      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
-        <h2 style="margin:0 0 8px 0; font-size:1.1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
+        <!-- Section 2: Kebutuhan Alat Bantu -->
+        <h3 style="margin:24px 0 12px 0; font-size:0.95rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px;">
           ♿ Kebutuhan Alat Bantu
-        </h2>
-        <p style="margin:0 0 20px 0; font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">
-          Rekapitulasi kebutuhan alat bantu bagi siswa madrasah yang tercatat dalam sistem PBS (Profil Belajar Siswa).
-        </p>
-
+        </h3>
         <div class="table-responsive">
           <table class="data-table-pbs" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.88rem;">
             <thead>
