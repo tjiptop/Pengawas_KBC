@@ -18,7 +18,7 @@ function getKamadPbsSummary(nsm) {
     }, 21600); // Cache 6 jam
 
     if (!data || data.length <= 1) {
-      return apiSuccess({ kesulitan: [], alat_bantu: [] }); // Data kosong
+      return apiSuccess({ kesulitan: [], alat_bantu: [], penyesuaian: [] }); // Data kosong
     }
 
     const headers = data[0].map(h => String(h).trim());
@@ -51,6 +51,19 @@ function getKamadPbsSummary(nsm) {
         alatList.push({
           index: col,
           name: cleanName || ('Alat ' + (col - startColAlat + 1))
+        });
+      }
+    }
+
+    // 3. Rekapitulasi Penyesuaian (Kolom AN s/d BA -> Index 39 s/d 52)
+    const startColAdjust = 39;
+    const endColAdjust = 52;
+    const adjustList = [];
+    for (let col = startColAdjust; col <= endColAdjust; col++) {
+      if (col < headers.length) {
+        adjustList.push({
+          index: col,
+          name: headers[col] || ('Penyesuaian ' + (col - startColAdjust + 1))
         });
       }
     }
@@ -105,9 +118,35 @@ function getKamadPbsSummary(nsm) {
       };
     });
 
+    // Hitung akumulasi Penyesuaian
+    const penyesuaianRekap = adjustList.map(adj => {
+      let sudah = 0;
+      let belum = 0;
+      let bantuan = 0;
+
+      matchedRows.forEach(row => {
+        const val = String(row[adj.index] || '').trim().toLowerCase();
+        if (val === 'kami sudah melakukan penyesuaian' || val === 'sudah disesuaikan') {
+          sudah++;
+        } else if (val === 'belum, tetapi akan melakukan penyesuaian' || val === 'belum disesuaikan') {
+          belum++;
+        } else if (val === 'belum dapat dilakukan karena keterbatasan sumber daya dan kapasitas' || val === 'membutuhkan bantuan') {
+          bantuan++;
+        }
+      });
+
+      return {
+        penyesuaian: adj.name,
+        sudah: sudah,
+        belum: belum,
+        bantuan: bantuan
+      };
+    });
+
     const resultPayload = {
       kesulitan: kesulitanRekap,
-      alat_bantu: alatBantuRekap
+      alat_bantu: alatBantuRekap,
+      penyesuaian: penyesuaianRekap
     };
 
     const res = apiSuccess(resultPayload);
