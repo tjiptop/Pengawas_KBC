@@ -495,12 +495,21 @@ const FormsManager = {
 
     const container = document.getElementById('form-fill-container');
     container.innerHTML = `
+      <div id="pengawas-doc-id" class="print-only-block" style="display:none;"></div>
+      
       <!-- Back Button: Sleek, high-end floating link -->
       <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;" class="no-print">
-        <button onclick="FormsManager.cancelForm()" class="kamad-back-inline">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-          Kembali
-        </button>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button onclick="FormsManager.cancelForm()" class="kamad-back-inline">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Kembali
+          </button>
+          ${madrasah && madrasah.nama && madrasah.nama !== 'Mandiri (Pengawas)' ? `
+            <span style="font-size:0.75rem; color:var(--color-text-secondary); background:var(--color-bg-alt); padding:2px 8px; border-radius:12px;">
+              🏫 ${madrasah.nama}
+            </span>
+          ` : ''}
+        </div>
         ${!canFill && submissionId ? `
           <button onclick="window.focus(); window.print();" class="kamad-print-btn" style="padding:6px 14px; background:#0f9b58; color:white; border:none; border-radius:18px; font-weight:600; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); transition:background 0.2s;">
             🖨️ Cetak Jawaban
@@ -513,14 +522,6 @@ const FormsManager = {
           ${canFill ? '✏️ Mode Pengisian' : '👁️ Mode Baca'}
         </span>
         <h1 id="form-fill-title" class="kamad-form-fill-title" style="display: none;">Memuat...</h1>
-        ${madrasah && madrasah.nama && madrasah.nama !== 'Mandiri (Pengawas)' ? `
-          <div style="font-size:0.8rem; color:var(--color-text-secondary); margin-top:6px; display:flex; align-items:center; justify-content:center; gap:4px;">
-            🏫 <span>Madrasah Sasaran: <strong>${madrasah.nama}</strong></span>
-          </div>
-        ` : ''}
-        ${!canFill ? `
-          <div id="pengawas-doc-id" style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:5px;font-style:italic;text-align:center;"></div>
-        ` : ''}
       </div>
 
       <div id="form-engine-mount"></div>
