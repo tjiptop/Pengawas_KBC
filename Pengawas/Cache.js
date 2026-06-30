@@ -70,19 +70,19 @@ function getCachedMasterData_(key, fetchFn, ttlSeconds) {
 }
 
 /**
- * Mencari data madrasah berdasarkan NSM dengan Caching 10 menit
+ * Mencari data madrasah berdasarkan NSM dengan Caching 1 jam (3600 detik)
  * @param {string|number} nsm
  * @returns {object|null}
  */
 function getMadrasahByNsm(nsm) {
   try {
     const nsmStr = String(nsm).trim();
-    // Cache selama 10 menit (600 detik)
+    // Cache selama 1 jam (3600 detik)
     const data = getCachedMasterData_('master_madrasah_rows', () => {
       const ss = getMasterDb_();
       const sheet = ss.getSheets()[0];
       return sheet.getDataRange().getDisplayValues();
-    }, 600);
+    }, 3600);
 
     if (!data || data.length < 2) return null;
 
@@ -128,6 +128,28 @@ function getMadrasahByNsm(nsm) {
 }
 
 /**
+ * Mengambil data master pengawas dengan Caching 1 jam (3600 detik)
+ * @returns {Array<Array<any>>}
+ */
+function getCachedMasterPengawasData() {
+  return getCachedMasterData_('master_pengawas_rows', () => {
+    const ss = getMasterDb_();
+    let sheetPengawas = null;
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      const name = sheets[i].getName().toLowerCase();
+      if (name.includes('pengawas') && !name.includes('profil') && !name.includes('sasaran') && !name.includes('users') && !name.includes('form') && !name.includes('settings')) {
+        sheetPengawas = sheets[i];
+        break;
+      }
+    }
+    if (!sheetPengawas) sheetPengawas = ss.getSheetByName('Pengawas') || ss.getSheetByName('pengawas');
+    if (!sheetPengawas) return [];
+    return sheetPengawas.getDataRange().getValues();
+  }, 3600);
+}
+
+/**
  * Mereset/menghapus cache data madrasah agar memuat ulang data terbaru dari Spreadsheet.
  * Dapat dipanggil dari menu Spreadsheet atau secara programmatic.
  * @returns {object} status success/error
@@ -136,7 +158,7 @@ function resetMasterCache() {
   try {
     const cache = CacheService.getScriptCache();
     
-    // 1. Hapus cache master madrasah
+    // 1. Hapus cache master madrasah dan master pengawas
     const chunkCountStr = cache.get('master_madrasah_rows_chunks');
     if (chunkCountStr) {
       const chunks = parseInt(chunkCountStr);
@@ -146,8 +168,19 @@ function resetMasterCache() {
       }
       cache.removeAll(keys);
     } else {
-      // Fallback: hapus langsung key utamanya jika tidak pakai chunks
       cache.remove('master_madrasah_rows');
+    }
+
+    const pengawasChunks = cache.get('master_pengawas_rows_chunks');
+    if (pengawasChunks) {
+      const chunks = parseInt(pengawasChunks);
+      let keys = ['master_pengawas_rows_chunks'];
+      for (let i = 0; i < chunks; i++) {
+        keys.push('master_pengawas_rows_' + i);
+      }
+      cache.removeAll(keys);
+    } else {
+      cache.remove('master_pengawas_rows');
     }
     
     // 2. Naikkan versi cache untuk membatalkan seluruh cache kabupaten lama (cache busting)
@@ -178,3 +211,4 @@ function resetMasterCache() {
     return { success: false, error: e.toString() };
   }
 }
+

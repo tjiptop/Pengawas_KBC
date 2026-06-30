@@ -14,7 +14,9 @@ function getProfile(nip) {
     
     // Coba ambil dari CacheService
     const cache = CacheService.getScriptCache();
-    const cachedProfile = cache.get('profile_' + nipStr);
+    const cacheVer = cache.get('cache_version') || '1';
+    const cacheKey = 'profile_v' + cacheVer + '_' + nipStr;
+    const cachedProfile = cache.get(cacheKey);
     if (cachedProfile) {
       try {
         return JSON.parse(cachedProfile);
@@ -63,16 +65,15 @@ function getProfile(nip) {
           
           profile['Pelatih'] = pelatihRole;
           try {
-            cache.put('profile_' + nipStr, JSON.stringify(profile), 1800); // 30 mins
+            cache.put(cacheKey, JSON.stringify(profile), 3600); // 1 jam (3600 detik)
           } catch(e) {}
           return profile;
         }
       }
     }
 
-    let sheetPengawas = getMasterSheet(ss);
-    if (sheetPengawas) {
-      const dataP = sheetPengawas.getDataRange().getValues();
+    const dataP = getCachedMasterPengawasData();
+    if (dataP && dataP.length > 1) {
       const headersP = dataP[0] || [];
       let nipIdx = headersP.findIndex(h => String(h).toUpperCase().includes('NIP'));
       if (nipIdx === -1) nipIdx = 0;
@@ -135,7 +136,7 @@ function getProfile(nip) {
           profile['NIP'] = nipStr;
           profile['Pelatih'] = pelatihRole;
           try {
-            cache.put('profile_' + nipStr, JSON.stringify(profile), 1800); // 30 mins
+            cache.put(cacheKey, JSON.stringify(profile), 3600); // 1 jam (3600 detik)
           } catch(e) {}
           return profile;
         }
@@ -161,7 +162,8 @@ function saveProfile(data) {
     // Hapus dari cache agar data terupdate terbaca di pemanggilan berikutnya
     try {
       const cache = CacheService.getScriptCache();
-      cache.remove('profile_' + nipStr);
+      const cacheVer = cache.get('cache_version') || '1';
+      cache.remove('profile_v' + cacheVer + '_' + nipStr);
     } catch(e) {}
 
     // Sanitasi semua field dari formula injection

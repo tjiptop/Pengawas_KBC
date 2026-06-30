@@ -335,6 +335,12 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
         }
       }
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + nsmStr + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + nsmStr + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess({ card_id: cardId }, 'Kartu berhasil disimpan.');
     } catch (e) {
       return apiError('Gagal menyimpan kartu: ' + e.toString(), 'SYSTEM_ERROR');
@@ -396,6 +402,12 @@ function kanbanMoveCard(nsm, cardId, newStatus, sessionToken) {
         }
       }
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Status kartu berhasil diperbarui.');
     } catch (e) {
       return apiError('Gagal memindahkan kartu: ' + e.toString(), 'SYSTEM_ERROR');
@@ -484,6 +496,12 @@ function kanbanDeleteCard(nsm, cardId, sessionToken) {
         }
       }
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Kartu dan seluruh komentar berhasil dihapus.');
     } catch (e) {
       return apiError('Gagal menghapus kartu: ' + e.toString(), 'SYSTEM_ERROR');
@@ -530,6 +548,12 @@ function kanbanRequestDeleteCard(nsm, cardId, sessionToken) {
       // Tambahkan komentar sistem
       addSystemComment_(ss, cardId, '⚠️ Kepala Madrasah mengajukan permohonan penghapusan kartu ini. Menunggu persetujuan Pengawas Binaan.');
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Permohonan penghapusan kartu berhasil diajukan.');
     } catch (e) {
       return apiError('Gagal mengajukan penghapusan kartu: ' + e.toString(), 'SYSTEM_ERROR');
@@ -574,6 +598,12 @@ function kanbanRejectDeleteCard(nsm, cardId, sessionToken) {
       // Tambahkan komentar penolakan
       addSystemComment_(ss, cardId, '❌ Pengajuan penghapusan kartu ditolak oleh Pengawas Binaan.');
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Permohonan penghapusan kartu berhasil ditolak.');
     } catch (e) {
       return apiError('Gagal menolak penghapusan kartu: ' + e.toString(), 'SYSTEM_ERROR');
@@ -616,6 +646,12 @@ function kanbanCancelDeleteRequest(nsm, cardId, sessionToken) {
       // Tambahkan komentar pembatalan
       addSystemComment_(ss, cardId, '🔄 Pengajuan penghapusan kartu dibatalkan oleh Kepala Madrasah.');
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Pengajuan hapus dibatalkan.');
     } catch (e) {
       return apiError('Gagal membatalkan pengajuan: ' + e.toString(), 'SYSTEM_ERROR');
@@ -688,6 +724,12 @@ function kanbanAddComment(nsm, cardId, commentText, authorName, authorRole, sess
 
       sheet.appendRow(rowValues);
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess({
         comment_id: commentId,
         author_name: finalAuthorName,
@@ -796,6 +838,12 @@ function kanbanApproveCompletion(nsm, cardId, sessionToken) {
       // Tambahkan komentar sistem
       addSystemComment_(ss, cardId, '✅ Disahkan oleh Pengawas ' + formatDateTime_());
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Penyelesaian tugas berhasil disetujui.');
     } catch (e) {
       return apiError('Gagal menyetujui penyelesaian tugas: ' + e.toString(), 'SYSTEM_ERROR');
@@ -840,6 +888,12 @@ function kanbanCancelCompletionApproval(nsm, cardId, sessionToken) {
       // Tambahkan komentar sistem
       addSystemComment_(ss, cardId, '⚠️ Persetujuan penyelesaian tugas ini telah dibatalkan oleh Pengawas Binaan.');
 
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + String(nsm).trim() + '_madrasah_' + cacheVer);
+      } catch(e) {}
       return apiSuccess(null, 'Persetujuan penyelesaian tugas berhasil dibatalkan.');
     } catch (e) {
       return apiError('Gagal membatalkan persetujuan: ' + e.toString(), 'SYSTEM_ERROR');

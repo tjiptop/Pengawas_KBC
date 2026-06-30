@@ -193,6 +193,15 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
  */
 function getSasaran(nip) {
   try {
+    const nipStr = String(nip).trim();
+    const cache = CacheService.getScriptCache();
+    const cacheVer = cache.get('cache_version') || '1';
+    const cacheKey = 'sasaran_v' + cacheVer + '_' + nipStr;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch(e) {}
+    }
+
     const ss = getAppDb_();
     const sheet = ss.getSheetByName('Sasaran');
     if (!sheet) return [];
@@ -364,6 +373,7 @@ function getSasaran(nip) {
         });
       }
     }
+    try { cache.put(cacheKey, JSON.stringify(sasaran), 3600); } catch(e) {}
     return sasaran;
   } catch (e) {
     console.error('getSasaran error: ' + e.toString());
@@ -380,6 +390,13 @@ function getSasaran(nip) {
 function saveSasaranList(nip, nsmListArray) {
   try {
     if (!nip) return apiError('NIP tidak valid.', 'VALIDATION');
+
+    const nipStr = String(nip).trim();
+    try {
+      const cache = CacheService.getScriptCache();
+      const cacheVer = cache.get('cache_version') || '1';
+      cache.remove('sasaran_v' + cacheVer + '_' + nipStr);
+    } catch(e) {}
 
     const ssApp = getAppDb_();
     let sheet = ssApp.getSheetByName('Sasaran');

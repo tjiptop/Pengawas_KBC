@@ -8,9 +8,20 @@
  * @param {string} viewerRole
  * @returns {object} Response standard dashboard data
  */
-function kamadGetDashboard(nsm, viewerRole) {
+function kamadGetDashboard(nsm, viewerRole, forceRefresh = false) {
   try {
     const nsmStr = String(nsm).trim();
+    const cache = CacheService.getScriptCache();
+    const cacheVer = cache.get('cache_version') || '1';
+    const cacheKey = 'kamad_dash_' + nsmStr + '_' + viewerRole + '_' + cacheVer;
+
+    if (!forceRefresh) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch(e) {}
+      }
+    }
+
     const madrasahInfo = getMadrasahByNsm(nsmStr);
     if (!madrasahInfo) return apiError('Data madrasah tidak ditemukan: ' + nsmStr, 'NOT_FOUND');
     const formsResult = kamadGetAvailableForms(nsmStr, viewerRole);
@@ -26,7 +37,7 @@ function kamadGetDashboard(nsm, viewerRole) {
     // Fetch active delegation tokens created by this Kamad (NSM)
     const myTokens = kamadGetTokens(nsmStr);
 
-    return apiSuccess({
+    const res = apiSuccess({
       madrasahInfo,
       forms,
       history,
@@ -34,6 +45,8 @@ function kamadGetDashboard(nsm, viewerRole) {
       my_tokens: myTokens,
       stats: { total: forms.length, filled: forms.filter(f => filledIds.has(f.id)).length }
     });
+    try { cache.put(cacheKey, JSON.stringify(res), 1800); } catch(e) {}
+    return res;
   } catch (e) {
     return apiError('Gagal memuat dashboard Kamad: ' + e.toString());
   }
@@ -359,6 +372,14 @@ function kamadSubmitForm(payload) {
       const log = getKamadSheet(ss, 'KamadSubmissions');
       log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
 
+      // Invalidate dashboard cache
+      try {
+        const cache = CacheService.getScriptCache();
+        const cacheVer = cache.get('cache_version') || '1';
+        cache.remove('kamad_dash_' + nsm + '_district_' + cacheVer);
+        cache.remove('kamad_dash_' + nsm + '_madrasah_' + cacheVer);
+      } catch(e) {}
+
       return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
     } catch (e) {
       return apiError('Gagal submit form Kamad: ' + e.toString());
@@ -522,6 +543,13 @@ function apiGenerateSurveyToken(formId, type, roleTarget, targetScope, expiryHou
     const baseUrl = getPengawasDeploymentUrl_(ss);
     const surveyUrl = baseUrl ? `${baseUrl}?survey_token=${token}` : `[MADRASAH_URL_BELUM_DISET]?survey_token=${token}`;
     
+    try {
+      const cache = CacheService.getScriptCache();
+      const cacheVer = cache.get('cache_version') || '1';
+      cache.remove('kamad_dash_' + requesterUsernameStr + '_district_' + cacheVer);
+      cache.remove('kamad_dash_' + requesterUsernameStr + '_madrasah_' + cacheVer);
+    } catch(e) {}
+
     return {
       success: true,
       token: token,
@@ -573,6 +601,14 @@ function apiCancelToken(token, username) {
         }
 
         sheet.getRange(i + 1, statusIdx + 1).setValue('CLOSED');
+        
+        try {
+          const cache = CacheService.getScriptCache();
+          const cacheVer = cache.get('cache_version') || '1';
+          cache.remove('kamad_dash_' + searchUser + '_district_' + cacheVer);
+          cache.remove('kamad_dash_' + searchUser + '_madrasah_' + cacheVer);
+        } catch(e) {}
+
         return { success: true };
       }
     }

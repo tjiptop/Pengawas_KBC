@@ -148,9 +148,8 @@ function login(nip, password) {
       }
     }
 
-    let sheetPengawas = getMasterSheet(ss);
-    if (sheetPengawas) {
-      const dataP = sheetPengawas.getDataRange().getValues();
+    const dataP = getCachedMasterPengawasData();
+    if (dataP && dataP.length > 1) {
       const headersP = dataP[0] || [];
       let nipIdx = headersP.findIndex(h => String(h).toUpperCase().includes('NIP'));
       if (nipIdx === -1) nipIdx = 0;
@@ -222,15 +221,16 @@ function setPassword(nip, newPassword) {
     }
 
     let valid = false;
-    let sheetP = getMasterSheet(ss);
-    if (sheetP) {
-      const dataP = sheetP.getDataRange().getValues();
+    const dataP = getCachedMasterPengawasData();
+    if (dataP && dataP.length > 1) {
       const headersP = dataP[0] || [];
       let nipIdx = headersP.findIndex(h => String(h).toUpperCase().includes('NIP'));
       if (nipIdx === -1) nipIdx = 0;
-      const pRow = findRowIndex_(sheetP, nipIdx, nipStr);
-      if (pRow !== -1) {
-        valid = true;
+      for (let i = 1; i < dataP.length; i++) {
+        if (String(dataP[i][nipIdx]).trim() == nipStr) {
+          valid = true;
+          break;
+        }
       }
     }
     

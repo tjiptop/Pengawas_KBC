@@ -41,7 +41,10 @@ const KamadForms = {
             </div>
           </div>
         </div>
-        <button class="back-btn no-print" onclick="KamadForms.closePage()"><span style="font-size:0.9em;">‹</span> Kembali</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="back-btn no-print" onclick="KamadForms.loadFormsAndHistory(true)" style="padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:4px;">🔄 Refresh</button>
+          <button class="back-btn no-print" onclick="KamadForms.closePage()"><span style="font-size:0.9em;">‹</span> Kembali</button>
+        </div>
       </div>
 
       <div class="content">
@@ -399,9 +402,20 @@ const KamadForms = {
   // DATA LOADING
   // --------------------------------------------------------
 
-  loadFormsAndHistory() {
+  loadFormsAndHistory(forceRefresh = false) {
     const nsm = App.state.kamad?.nsm;
     if (!nsm) return;
+
+    if (!forceRefresh && App.state.kamadForms && App.state.kamadForms.length > 0) {
+      this.state.forms = App.state.kamadForms;
+      this.state.history = App.state.kamadHistory || [];
+      this.state.my_tokens = App.state.my_tokens || [];
+      const listEl = document.getElementById('kforms-list');
+      if (listEl) {
+        listEl.innerHTML = KamadForms.views.formsList(this.state.forms, this.state.history);
+      }
+      return;
+    }
 
     App.loading(true, 'Memuat kuesioner...');
     const viewerRole = App.state.isSupervisorViewAs ? 'district' : 'madrasah';
@@ -410,18 +424,21 @@ const KamadForms = {
       .withSuccessHandler(resForms => {
         if (resForms.success) {
           this.state.forms = resForms.data || [];
+          App.state.kamadForms = this.state.forms;
           
           google.script.run
             .withSuccessHandler(resHist => {
               App.loading(false);
               if (resHist.success) {
                 this.state.history = resHist.data || [];
+                App.state.kamadHistory = this.state.history;
                 this.state.my_tokens = App.state.my_tokens || [];
                 
                 const listEl = document.getElementById('kforms-list');
                 if (listEl) {
                   listEl.innerHTML = KamadForms.views.formsList(this.state.forms, this.state.history);
                 }
+                if (forceRefresh) App.toast('Daftar instrumen diperbarui');
               } else {
                 this.showError('Gagal memuat riwayat: ' + resHist.error);
               }
@@ -588,6 +605,16 @@ const KamadForms = {
       .withSuccessHandler(res => {
         App.loading(false);
         if (res.success) {
+          // Perbarui memori lokal tanpa reload server
+          const newSubmission = {
+            form_id: formId,
+            timestamp: res.data?.timestamp || new Date().toISOString(),
+            status: 'final'
+          };
+          App.state.kamadHistory = App.state.kamadHistory || [];
+          App.state.kamadHistory.push(newSubmission);
+          this.state.history = App.state.kamadHistory;
+          
           App.alert(`Form berhasil dikirim!`, 'Berhasil');
           this.closeFill();
         } else {
@@ -612,7 +639,7 @@ const KamadForms = {
     if (titleEl) {
       titleEl.textContent = 'Form Instrumen';
     }
-    this.loadFormsAndHistory();
+    this.loadFormsAndHistory(false);
   }
 };
 </script>

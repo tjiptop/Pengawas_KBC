@@ -137,9 +137,12 @@ const KamadDashboard = {
               </div>
             </div>
           </div>
-          ${isSupervisor ? `
-          <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')"><span style="font-size:0.9em;">‹</span> Kembali</button>
-          ` : ''}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="back-btn" onclick="KamadDashboard.forceRefresh()" style="padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:4px;">🔄 Refresh</button>
+            ${isSupervisor ? `
+            <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+            ` : ''}
+          </div>
         </div>
 
         <div class="content" style="padding-top:16px;">
@@ -277,7 +280,43 @@ const KamadDashboard = {
         App.loading(false);
         el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-accent);">Koneksi terputus: ${err.message || err}</div></div>`;
       })
-      .kamadGetDashboard(nsm, App.state.isSupervisorViewAs ? 'district' : 'madrasah');
+      .kamadGetDashboard(nsm, App.state.isSupervisorViewAs ? 'district' : 'madrasah', false);
+  },
+
+  forceRefresh() {
+    const el = document.getElementById('app');
+    el.innerHTML = KamadDashboard.views.skeleton();
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) { App.router('kamad-login'); return; }
+
+    App.loading(true, 'Memperbarui data dashboard...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        if (res.success) {
+          App.state.kamad = App.state.kamad || {};
+          App.state.kamad.madrasahInfo = res.data.madrasahInfo;
+          App.state.kamadForms = res.data.forms || [];
+          App.state.kamadHistory = res.data.history || [];
+          App.state.kanbanData = res.data.kanbanData || { cards: [], comments: [] };
+          App.state.my_tokens = res.data.my_tokens || [];
+          el.innerHTML = KamadDashboard.views.main(
+            res.data.madrasahInfo,
+            res.data.stats,
+            res.data.forms,
+            res.data.history
+          );
+          App.toast('Dashboard diperbarui');
+        } else {
+          el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-text-secondary);">Gagal memuat: ${res.error}</div></div>`;
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        el.innerHTML = `<div class="content"><div class="card" style="text-align:center;padding:40px;color:var(--color-accent);">Koneksi terputus: ${err.message || err}</div></div>`;
+      })
+      .kamadGetDashboard(nsm, App.state.isSupervisorViewAs ? 'district' : 'madrasah', true);
   },
 
   // --------------------------------------------------------
