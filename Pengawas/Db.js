@@ -25,6 +25,27 @@ function getMasterDb_() {
 }
 
 /**
+ * Mendapatkan spreadsheet khusus form YAML (FORMS_DB_ID) dengan pattern singleton
+ * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
+ */
+function getFormDb_() {
+  if (!globalThis._formDb) {
+    if (FORMS_DB_ID) {
+      try {
+        globalThis._formDb = SpreadsheetApp.openById(FORMS_DB_ID);
+      } catch (e) {
+        console.error('Error opening FORMS_DB_ID, falling back to APP_DB: ' + e.toString());
+        globalThis._formDb = getAppDb_();
+      }
+    } else {
+      globalThis._formDb = getAppDb_();
+    }
+  }
+  return globalThis._formDb;
+}
+
+
+/**
  * Helper: Mendapatkan atau membuat sheet Kamad di database utama
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  * @param {string} sheetName

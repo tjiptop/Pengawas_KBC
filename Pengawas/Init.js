@@ -171,20 +171,22 @@ function SetupAwal() {
     ss.deleteSheet(sheet1);
   }
 
-  // 7. Sinkronisasi otomatis seluruh target sheet YAML forms Pengawas & Kamad
+  // 7. Sinkronisasi otomatis seluruh target sheet YAML forms Pengawas & Kamad ke database form terpisah
+  const formDb = getFormDb_();
   try {
-    syncPengawasFormSheets(ss);
+    syncPengawasFormSheets(formDb);
     Logger.log('Sinkronisasi target sheet YAML forms Pengawas berhasil!');
   } catch(e) {
     Logger.log('Error sinkronisasi target sheet YAML Pengawas: ' + e.toString());
   }
 
   try {
-    syncMadrasahFormSheets(ss);
+    syncMadrasahFormSheets(formDb);
     Logger.log('Sinkronisasi target sheet YAML forms Madrasah (Kamad) berhasil!');
   } catch(e) {
     Logger.log('Error sinkronisasi target sheet YAML Madrasah: ' + e.toString());
   }
+
 
   // 8. Inisialisasi Sheet Kanban
   setupSheet(ss, 'KanbanCards', ['card_id', 'nsm', 'title', 'description', 'status', 'attachments', 'created_by', 'created_at', 'updated_at', 'delete_requested', 'tag', 'work_details']);

@@ -129,8 +129,8 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
       const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
       const targetSheet = match ? match[2].trim() : formId;
 
-      const ss = getAppDb_();
-      const sheet = ss.getSheetByName(targetSheet);
+      const formDb = getFormDb_();
+      const sheet = formDb.getSheetByName(targetSheet);
       if (sheet && sheet.getLastRow() > 0) {
         const data = sheet.getDataRange().getValues();
         const headers = data[0].map(h => String(h).trim());
@@ -266,8 +266,9 @@ function kamadSubmitForm(payload) {
       const limit = sL ? parseInt(sL[1].trim()) : -1;
 
       const ss = getAppDb_();
-      let sheet = ss.getSheetByName(targetSheet);
-      if (!sheet) sheet = ss.insertSheet(targetSheet);
+      const formDb = getFormDb_();
+      let sheet = formDb.getSheetByName(targetSheet);
+      if (!sheet) sheet = formDb.insertSheet(targetSheet);
       const timestamp = new Date().toISOString();
       const flat = sanitizeObject(data);
       if (sheet.getLastRow() === 0) {
@@ -327,7 +328,7 @@ function kamadSubmitForm(payload) {
 
             // Archive detail rows
             rowsToArchive.forEach(r => {
-              archiveRowToLog(ss, targetSheet, hdrs, r.values);
+              archiveRowToLog(formDb, targetSheet, hdrs, r.values);
             });
 
             // Delete detail rows from active sheet in descending order of row index

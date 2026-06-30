@@ -88,12 +88,13 @@ function apiSubmitForm(payload) {
 
       // 2. Tulis ke target sheet spesifik jika berbeda dari Form_Responses
       if (target !== 'Form_Responses') {
-        let sheet = ss.getSheetByName(target);
+        const formDb = getFormDb_();
+        let sheet = formDb.getSheetByName(target);
         const keys = Object.keys(payload.data || {});
         const standardHeaders = ['submission_id', 'timestamp', 'username'];
 
         if (!sheet) {
-          sheet = ss.insertSheet(target);
+          sheet = formDb.insertSheet(target);
           const headers = [...standardHeaders, ...keys];
           sheet.appendRow(headers);
           sheet.getRange(1, 1, 1, headers.length)
@@ -135,10 +136,11 @@ function apiSubmitForm(payload) {
         });
         sheet.appendRow(row);
 
-        // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada
+        // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada di formDb
         const tableFields = extractTableFieldsFromYAML(yaml);
-        writeTableDataToSheets(ss, target, tableFields, payload.data || {}, submissionId, timestamp);
+        writeTableDataToSheets(formDb, target, tableFields, payload.data || {}, submissionId, timestamp);
       }
+
 
       // 4. Selalu catat rekap pusat ke sheet Form_Responses (untuk history & backup)
       let logSheet = ss.getSheetByName('Form_Responses');
