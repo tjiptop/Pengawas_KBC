@@ -312,12 +312,14 @@ const KanbanView = {
             <div>
               <div style="display:flex;align-items:center;gap:6px;">
                 <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Program Kerja</h1>
-                ${isSupervisor ? `
-                  <span style="background:rgba(239,68,68,0.1); color:var(--color-danger); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:2px; height:16px;" title="Anda sedang masuk menggunakan hak akses Pengawas">
-                    👁️ PENGAWAS
-                  </span>` : ''}
               </div>
               <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;margin-top:2px;">${madrasahName}</div>
+              ${isSupervisor ? `
+                <div style="margin-top:4px;">
+                  <span style="background:rgba(239,68,68,0.1); color:var(--color-danger); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; height:16px;" title="Anda sedang masuk menggunakan hak akses Pengawas">
+                    PENGAWAS
+                  </span>
+                </div>` : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
