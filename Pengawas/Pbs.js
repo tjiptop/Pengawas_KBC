@@ -18,7 +18,7 @@ function getKamadPbsSummary(nsm) {
 
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) {
-      return apiSuccess([]); // Data kosong
+      return apiSuccess({ kesulitan: [], alat_bantu: [] }); // Data kosong
     }
 
     const headers = data[0].map(h => String(h).trim());
@@ -27,15 +27,30 @@ function getKamadPbsSummary(nsm) {
       return apiError('Format Sheet pbs tidak sesuai. Kolom nsm tidak ditemukan.', 'FORMAT_ERROR');
     }
 
-    // Kolom O s/d X adalah index 14 s/d 23 (1-indexed kolom ke-15 s/d 24)
-    const startColIdx = 14; // Kolom O
-    const endColIdx = 23;   // Kolom X
-    const difficulties = [];
-    for (let col = startColIdx; col <= endColIdx; col++) {
+    // 1. Rekapitulasi Kesulitan (Kolom O s/d X -> Index 14 s/d 23)
+    const startColDiff = 14;
+    const endColDiff = 23;
+    const diffList = [];
+    for (let col = startColDiff; col <= endColDiff; col++) {
       if (col < headers.length) {
-        difficulties.push({
+        diffList.push({
           index: col,
-          name: headers[col] || ('Kesulitan ' + String.fromCharCode(65 + col - startColIdx))
+          name: headers[col] || ('Kesulitan ' + String.fromCharCode(65 + col - startColDiff))
+        });
+      }
+    }
+
+    // 2. Rekapitulasi Alat Bantu (Kolom Z s/d AM -> Index 25 s/d 38)
+    const startColAlat = 25;
+    const endColAlat = 38;
+    const alatList = [];
+    for (let col = startColAlat; col <= endColAlat; col++) {
+      if (col < headers.length) {
+        let rawName = headers[col] || '';
+        let cleanName = rawName.replace(/,/g, '').trim(); // "Tong, kat Putih" -> "Tongkat Putih"
+        alatList.push({
+          index: col,
+          name: cleanName || ('Alat ' + (col - startColAlat + 1))
         });
       }
     }
@@ -44,8 +59,8 @@ function getKamadPbsSummary(nsm) {
     const nsmStr = String(nsm).trim();
     const matchedRows = data.slice(1).filter(row => String(row[idxNsm]).trim() === nsmStr);
 
-    // Hitung akumulasi
-    const summary = difficulties.map(diff => {
+    // Hitung akumulasi Kesulitan
+    const kesulitanRekap = diffList.map(diff => {
       let sedikit = 0;
       let banyak = 0;
       let tidakBisa = 0;
@@ -65,7 +80,37 @@ function getKamadPbsSummary(nsm) {
       };
     });
 
-    const res = apiSuccess(summary);
+    // Hitung akumulasi Alat Bantu
+    const alatBantuRekap = alatList.map(alat => {
+      let tidakMiliki = 0;
+      let sudahMiliki = 0;
+      let tidakTahu = 0;
+
+      matchedRows.forEach(row => {
+        const val = String(row[alat.index] || '').trim().toLowerCase();
+        if (val === 'dibutuhkan tetapi tidak memiliki' || val === 'tidak punya') {
+          tidakMiliki++;
+        } else if (val === 'dibutuhkan dan sudah memiliki' || val === 'punya') {
+          sudahMiliki++;
+        } else if (val === 'tidak tahu') {
+          tidakTahu++;
+        }
+      });
+
+      return {
+        alat: alat.name,
+        dibutuhkan_tidak_memiliki: tidakMiliki,
+        dibutuhkan_sudah_memiliki: sudahMiliki,
+        tidak_tahu: tidakTahu
+      };
+    });
+
+    const resultPayload = {
+      kesulitan: kesulitanRekap,
+      alat_bantu: alatBantuRekap
+    };
+
+    const res = apiSuccess(resultPayload);
     try { cache.put(cacheKey, JSON.stringify(res), 21600); } catch(e) {} // Cache 6 jam
     return res;
   } catch (e) {

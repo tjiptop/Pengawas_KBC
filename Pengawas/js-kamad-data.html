@@ -13,13 +13,13 @@ const KamadDataViews = {
       <button class="back-btn" onclick="App.router('kamad-dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
     <div class="content" style="padding-top:16px;">
-      <!-- Card Panel -->
-      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
+      <!-- Card 1: Kesulitan Siswa -->
+      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm); margin-bottom:20px;">
         <h2 style="margin:0 0 8px 0; font-size:1.1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
           🩺 Profil Kesulitan Siswa (PBS)
         </h2>
         <p style="margin:0 0 20px 0; font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">
-          Berikut adalah data rekapitulasi kesulitan perkembangan/belajar siswa di madrasah ini yang tercatat dalam sistem PBS (Profil Belajar Siswa). Data dikelompokkan berdasarkan jenis kesulitan dan tingkat keparahannya.
+          Rekapitulasi kesulitan belajar/perkembangan siswa yang tercatat dalam sistem PBS (Profil Belajar Siswa). Data dikelompokkan berdasarkan jenis kesulitan dan tingkat keparahannya.
         </p>
 
         <div class="table-responsive">
@@ -40,14 +40,42 @@ const KamadDataViews = {
           </table>
         </div>
       </div>
+
+      <!-- Card 2: Kebutuhan Alat Bantu -->
+      <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
+        <h2 style="margin:0 0 8px 0; font-size:1.1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
+          ♿ Kebutuhan Alat Bantu
+        </h2>
+        <p style="margin:0 0 20px 0; font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">
+          Rekapitulasi kebutuhan alat bantu bagi siswa madrasah yang tercatat dalam sistem PBS (Profil Belajar Siswa).
+        </p>
+
+        <div class="table-responsive">
+          <table class="data-table-pbs" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.88rem;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--color-border); background:var(--color-bg); color:var(--color-text);">
+                <th style="padding:12px 16px; font-weight:700;">Alat Bantu</th>
+                <th style="padding:12px 16px; font-weight:700; text-align:center; width:28%;">Dibutuhkan tapi Belum Memiliki</th>
+                <th style="padding:12px 16px; font-weight:700; text-align:center; width:28%;">Dibutuhkan & Sudah Memiliki</th>
+                <th style="padding:12px 16px; font-weight:700; text-align:center; width:15%;">Tidak Tahu</th>
+              </tr>
+            </thead>
+            <tbody id="alat-table-body">
+              <tr>
+                <td colspan="4" style="padding:30px; text-align:center; color:var(--color-text-light);">Memuat data kebutuhan alat bantu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   `,
 
-  Empty: () => `
+  EmptyRow: (cols) => `
     <tr>
-      <td colspan="4" style="padding:40px; text-align:center; color:var(--color-text-light);">
+      <td colspan="${cols}" style="padding:40px; text-align:center; color:var(--color-text-light);">
         <div style="font-size:2rem; margin-bottom:8px;">📊</div>
-        Belum ada data PBS yang tercatat untuk madrasah ini.
+        Belum ada data yang tercatat untuk madrasah ini.
       </td>
     </tr>
   `
@@ -55,7 +83,8 @@ const KamadDataViews = {
 
 const KamadDataManager = {
   state: {
-    pbsData: []
+    kesulitan: [],
+    alat_bantu: []
   },
 
   init() {
@@ -65,13 +94,15 @@ const KamadDataManager = {
   loadPbsData() {
     const nsm = App.state.kamad?.nsm || App.state.user?.username;
     if (!nsm) {
-      document.getElementById('pbs-table-body').innerHTML = `
+      const errMsg = `
         <tr>
           <td colspan="4" style="padding:20px; text-align:center; color:var(--color-danger);">
             Gagal memuat data: Sesi/NSM tidak valid.
           </td>
         </tr>
       `;
+      document.getElementById('pbs-table-body').innerHTML = errMsg;
+      document.getElementById('alat-table-body').innerHTML = errMsg;
       return;
     }
 
@@ -80,55 +111,78 @@ const KamadDataManager = {
       .withSuccessHandler(res => {
         App.loading(false);
         if (res.success) {
-          this.state.pbsData = res.data || [];
+          this.state.kesulitan = res.data.kesulitan || [];
+          this.state.alat_bantu = res.data.alat_bantu || [];
           this.render();
         } else {
-          document.getElementById('pbs-table-body').innerHTML = `
+          const errMsg = `
             <tr>
               <td colspan="4" style="padding:20px; text-align:center; color:var(--color-danger);">
                 Gagal memuat data: ${res.error}
               </td>
             </tr>
           `;
+          document.getElementById('pbs-table-body').innerHTML = errMsg;
+          document.getElementById('alat-table-body').innerHTML = errMsg;
         }
       })
       .withFailureHandler(err => {
         App.loading(false);
-        document.getElementById('pbs-table-body').innerHTML = `
+        const errMsg = `
           <tr>
             <td colspan="4" style="padding:20px; text-align:center; color:var(--color-danger);">
               Koneksi terputus: ${err.message || err}
             </td>
           </tr>
         `;
+        document.getElementById('pbs-table-body').innerHTML = errMsg;
+        document.getElementById('alat-table-body').innerHTML = errMsg;
       })
       .getKamadPbsSummary(nsm);
   },
 
   render() {
-    const tbody = document.getElementById('pbs-table-body');
-    if (!tbody) return;
+    const pbsBody = document.getElementById('pbs-table-body');
+    const alatBody = document.getElementById('alat-table-body');
+    if (!pbsBody || !alatBody) return;
 
-    if (this.state.pbsData.length === 0) {
-      tbody.innerHTML = KamadDataViews.Empty();
-      return;
+    const showCount = (val) => val > 0 ? `<span class="badge-count">${val}</span>` : `<span style="color:var(--color-text-light); opacity:0.5;">-</span>`;
+
+    // 1. Render Tabel Kesulitan
+    if (this.state.kesulitan.length === 0) {
+      pbsBody.innerHTML = KamadDataViews.EmptyRow(4);
+    } else {
+      let pbsHtml = '';
+      this.state.kesulitan.forEach(row => {
+        pbsHtml += `
+          <tr class="pbs-row-item" style="border-bottom:1px solid var(--color-border-light);">
+            <td style="padding:14px 16px; font-weight:600; color:var(--color-text);">${row.kesulitan}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-primary);">${showCount(row.sedikit_kesulitan)}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-accent);">${showCount(row.banyak_kesulitan)}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-danger);">${showCount(row.tidak_bisa_sama_sekali)}</td>
+          </tr>
+        `;
+      });
+      pbsBody.innerHTML = pbsHtml;
     }
 
-    let html = '';
-    this.state.pbsData.forEach(row => {
-      const showCount = (val) => val > 0 ? `<span class="badge-count">${val}</span>` : `<span style="color:var(--color-text-light); opacity:0.5;">-</span>`;
-
-      html += `
-        <tr class="pbs-row-item" style="border-bottom:1px solid var(--color-border-light);">
-          <td style="padding:14px 16px; font-weight:600; color:var(--color-text);">${row.kesulitan}</td>
-          <td style="padding:14px 16px; text-align:center; color:var(--color-primary);">${showCount(row.sedikit_kesulitan)}</td>
-          <td style="padding:14px 16px; text-align:center; color:var(--color-accent);">${showCount(row.banyak_kesulitan)}</td>
-          <td style="padding:14px 16px; text-align:center; color:var(--color-danger);">${showCount(row.tidak_bisa_sama_sekali)}</td>
-        </tr>
-      `;
-    });
-
-    tbody.innerHTML = html;
+    // 2. Render Tabel Alat Bantu
+    if (this.state.alat_bantu.length === 0) {
+      alatBody.innerHTML = KamadDataViews.EmptyRow(4);
+    } else {
+      let alatHtml = '';
+      this.state.alat_bantu.forEach(row => {
+        alatHtml += `
+          <tr class="pbs-row-item" style="border-bottom:1px solid var(--color-border-light);">
+            <td style="padding:14px 16px; font-weight:600; color:var(--color-text);">${row.alat}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-accent);">${showCount(row.dibutuhkan_tidak_memiliki)}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-success);">${showCount(row.dibutuhkan_sudah_memiliki)}</td>
+            <td style="padding:14px 16px; text-align:center; color:var(--color-text-light);">${showCount(row.tidak_tahu)}</td>
+          </tr>
+        `;
+      });
+      alatBody.innerHTML = alatHtml;
+    }
   }
 };
 </script>
