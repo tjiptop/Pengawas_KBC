@@ -105,6 +105,33 @@ function kamadSetPassword(nsm, newPassword, token) {
     // Tandai token terpakai
     tokenSheet.getRange(tokenRow + 1, tiU + 1).setValue('true');
 
+    // Hapus cache daftar sasaran milik Pengawas yang menargetkan NSM ini
+    try {
+      const sasaranSheet = ss.getSheetByName('Sasaran');
+      if (sasaranSheet) {
+        const sasaranData = sasaranSheet.getDataRange().getValues();
+        if (sasaranData.length > 1) {
+          const sHeaders = sasaranData[0].map(h => String(h).toUpperCase().trim());
+          const nipIdx = 0;
+          const nsmIdx = sHeaders.indexOf('NSM');
+          if (nsmIdx !== -1) {
+            const cache = CacheService.getScriptCache();
+            const cacheVer = cache.get('cache_version') || '1';
+            for (let i = 1; i < sasaranData.length; i++) {
+              if (String(sasaranData[i][nsmIdx]).trim() === nsmStr) {
+                const pNip = String(sasaranData[i][nipIdx]).trim();
+                if (pNip) {
+                  cache.remove('sasaran_v' + cacheVer + '_' + pNip);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal menghapus cache sasaran Pengawas:', e);
+    }
+
     const madrasahInfo = getMadrasahByNsm(nsmStr);
     return apiSuccess({ nsm: nsmStr, madrasah_name: madrasahInfo?.nama || nsmStr, madrasahInfo }, 'Password berhasil disetel.');
   } catch (e) {
