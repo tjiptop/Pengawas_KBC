@@ -175,3 +175,79 @@ function getKamadPbsSummary(nsm) {
     return apiError('Gagal memuat rekap PBS: ' + e.toString(), 'SYSTEM_ERROR');
   }
 }
+
+/**
+ * Mengambil rekap data ANBK dari sheet anbk pada MASTER_DB_ID
+ */
+function getKamadAnbkData(nsm) {
+  try {
+    if (!nsm) return apiError('Parameter NSM tidak lengkap.', 'VALIDATION');
+
+    const cache = CacheService.getScriptCache();
+    const cacheVer = cache.get('cache_version') || '1';
+    const cacheKey = 'kamad_anbk_data_v' + cacheVer + '_' + nsm;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch(e) {}
+    }
+
+    const data = getCachedMasterData_('master_anbk_rows', () => {
+      const ss = getMasterDb_();
+      const sheet = ss.getSheetByName('anbk');
+      if (!sheet) return [];
+      return sheet.getDataRange().getDisplayValues(); // Gunakan display values agar format % aman
+    }, 21600); // Cache 6 jam
+
+    if (!data || data.length <= 1) {
+      return apiSuccess([]); // Data kosong
+    }
+
+    const headers = data[0].map(h => String(h).trim());
+    const idxNsm = headers.indexOf('nsm');
+    if (idxNsm === -1) {
+      return apiError('Format Sheet anbk tidak sesuai. Kolom nsm tidak ditemukan.', 'FORMAT_ERROR');
+    }
+
+    const nsmStr = String(nsm).trim();
+    const matchedRow = data.slice(1).find(row => String(row[idxNsm]).trim() === nsmStr);
+
+    const result = [];
+    if (matchedRow) {
+      for (let i = 0; i < headers.length; i++) {
+        if (i === idxNsm) continue;
+        
+        let val = matchedRow[i];
+        result.push({
+          label: headers[i],
+          value: val !== null && val !== undefined ? String(val).trim() : '-'
+        });
+      }
+    }
+
+    const res = apiSuccess(result);
+    try { cache.put(cacheKey, JSON.stringify(res), 21600); } catch(e) {}
+    return res;
+  } catch (e) {
+    return apiError('Gagal memuat data ANBK: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * Endpoint kombinasi untuk memuat seluruh data Madrasah (PBS & ANBK) sekaligus
+ */
+function getKamadDataMadrasahCombined(nsm) {
+  try {
+    const pbsRes = getKamadPbsSummary(nsm);
+    const anbkRes = getKamadAnbkData(nsm);
+
+    if (!pbsRes.success) return pbsRes;
+    if (!anbkRes.success) return anbkRes;
+
+    return apiSuccess({
+      pbs: pbsRes.data,
+      anbk: anbkRes.data
+    });
+  } catch (e) {
+    return apiError('Gagal memuat data gabungan madrasah: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}

@@ -1,6 +1,6 @@
 <script>
 // ============================================================
-// DATA MADRASAH VIEW & MANAGER (PBS Summary)
+// DATA MADRASAH VIEW & MANAGER (PBS & ANBK Summary)
 // ============================================================
 
 const KamadDataViews = {
@@ -26,7 +26,31 @@ const KamadDataViews = {
       <button class="back-btn" onclick="App.router('kamad-dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
     <div class="content" style="padding-top:16px;">
-      <!-- Main Card Panel -->
+      
+      <!-- Card 1: Asesmen Nasional (ANBK) Accordion -->
+      <div class="card" style="padding:0; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm); margin-bottom:20px; overflow:hidden;">
+        <!-- Header / Trigger -->
+        <div onclick="KamadDataManager.toggleAnbk()" style="padding:18px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition:background-color var(--transition-fast);" class="anbk-header-trigger">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.25rem;">📈</span>
+            <h2 style="margin:0; font-size:1.1rem; font-weight:700; color:var(--color-text);">Asesmen Nasional (ANBK)</h2>
+          </div>
+          <span id="anbk-arrow" style="font-size:1rem; font-weight:700; color:var(--color-text-secondary); transition:transform 0.3s ease-in-out;">▼</span>
+        </div>
+        <!-- Content -->
+        <div id="anbk-content" style="max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, border-top 0.2s; border-top:0px solid var(--color-border-light);">
+          <div style="padding:20px;">
+            <p style="margin:0 0 20px 0; font-size:0.85rem; color:var(--color-text-secondary); line-height:1.5;">
+              Berikut adalah nilai hasil Asesmen Nasional Berbasis Komputer (ANBK) madrasah ini yang meliputi literasi, numerasi, karakter, kualitas pembelajaran, serta iklim sekolah.
+            </p>
+            <div id="anbk-indicators-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+              <div style="grid-column:1/-1; padding:10px; text-align:center; color:var(--color-text-light);">Memuat data ANBK...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Main Card Panel (PBS) -->
       <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
         <h2 style="margin:0 0 8px 0; font-size:1.1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
           🩺 Profil Belajar Siswa (PBS)
@@ -135,14 +159,15 @@ const KamadDataManager = {
     kesulitan: [],
     alat_bantu: [],
     penyesuaian: [],
-    stats: { total: 0, l: 0, p: 0 }
+    stats: { total: 0, l: 0, p: 0 },
+    anbk: []
   },
 
   init() {
-    this.loadPbsData();
+    this.loadDataCombined();
   },
 
-  loadPbsData() {
+  loadDataCombined() {
     const nsm = App.state.kamad?.nsm || App.state.user?.username;
     if (!nsm) {
       const errMsg = `
@@ -155,18 +180,25 @@ const KamadDataManager = {
       document.getElementById('pbs-table-body').innerHTML = errMsg;
       document.getElementById('alat-table-body').innerHTML = errMsg;
       document.getElementById('adjust-table-body').innerHTML = errMsg;
+      document.getElementById('anbk-indicators-grid').innerHTML = `
+        <div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--color-danger);">
+          Gagal memuat data: Sesi/NSM tidak valid.
+        </div>
+      `;
       return;
     }
 
-    App.loading(true, 'Memuat data PBS...');
+    App.loading(true, 'Memuat data Madrasah...');
     google.script.run
       .withSuccessHandler(res => {
         App.loading(false);
         if (res.success) {
-          this.state.kesulitan = res.data.kesulitan || [];
-          this.state.alat_bantu = res.data.alat_bantu || [];
-          this.state.penyesuaian = res.data.penyesuaian || [];
-          this.state.stats = res.data.stats || { total: 0, l: 0, p: 0 };
+          const pbs = res.data.pbs || {};
+          this.state.kesulitan = pbs.kesulitan || [];
+          this.state.alat_bantu = pbs.alat_bantu || [];
+          this.state.penyesuaian = pbs.penyesuaian || [];
+          this.state.stats = pbs.stats || { total: 0, l: 0, p: 0 };
+          this.state.anbk = res.data.anbk || [];
           this.render();
         } else {
           const errMsg = `
@@ -179,6 +211,11 @@ const KamadDataManager = {
           document.getElementById('pbs-table-body').innerHTML = errMsg;
           document.getElementById('alat-table-body').innerHTML = errMsg;
           document.getElementById('adjust-table-body').innerHTML = errMsg;
+          document.getElementById('anbk-indicators-grid').innerHTML = `
+            <div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--color-danger);">
+              Gagal memuat data: ${res.error}
+            </div>
+          `;
         }
       })
       .withFailureHandler(err => {
@@ -193,21 +230,64 @@ const KamadDataManager = {
         document.getElementById('pbs-table-body').innerHTML = errMsg;
         document.getElementById('alat-table-body').innerHTML = errMsg;
         document.getElementById('adjust-table-body').innerHTML = errMsg;
+        document.getElementById('anbk-indicators-grid').innerHTML = `
+          <div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--color-danger);">
+            Koneksi terputus: ${err.message || err}
+          </div>
+        `;
       })
-      .getKamadPbsSummary(nsm);
+      .getKamadDataMadrasahCombined(nsm);
+  },
+
+  toggleAnbk() {
+    const content = document.getElementById('anbk-content');
+    const arrow = document.getElementById('anbk-arrow');
+    if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+      content.style.maxHeight = '0px';
+      content.style.borderTop = '0px solid var(--color-border-light)';
+      arrow.style.transform = 'rotate(0deg)';
+    } else {
+      content.style.maxHeight = content.scrollHeight + 'px';
+      content.style.borderTop = '1px solid var(--color-border-light)';
+      arrow.style.transform = 'rotate(180deg)';
+    }
   },
 
   render() {
-    const pbsBody = document.getElementById('pbs-table-body');
-    const alatBody = document.getElementById('alat-table-body');
-    const adjustBody = document.getElementById('adjust-table-body');
-    if (!pbsBody || !alatBody || !adjustBody) return;
-
     // 0. Render Stats
     const stats = this.state.stats || { total: 0, l: 0, p: 0 };
     document.getElementById('pbs-total-siswa').textContent = stats.total;
     document.getElementById('pbs-siswa-l').textContent = stats.l;
     document.getElementById('pbs-siswa-p').textContent = stats.p;
+
+    // 0b. Render ANBK
+    const anbkGrid = document.getElementById('anbk-indicators-grid');
+    if (anbkGrid) {
+      if (this.state.anbk.length === 0) {
+        anbkGrid.innerHTML = `
+          <div style="grid-column:1/-1; padding:30px; text-align:center; color:var(--color-text-light);">
+            <div style="font-size:2rem; margin-bottom:8px;">📊</div>
+            Belum ada data ANBK yang tercatat untuk madrasah ini.
+          </div>
+        `;
+      } else {
+        let anbkHtml = '';
+        this.state.anbk.forEach(item => {
+          anbkHtml += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--color-bg); border:1px solid var(--color-border-light); border-radius:8px; gap:12px;">
+              <span style="font-size:0.82rem; font-weight:600; color:var(--color-text); line-height:1.4;">${item.label}</span>
+              <span style="font-size:0.85rem; font-weight:700; color:var(--color-primary); background:rgba(26, 115, 232, 0.08); padding:4px 8px; border-radius:6px; white-space:nowrap;">${item.value}</span>
+            </div>
+          `;
+        });
+        anbkGrid.innerHTML = anbkHtml;
+      }
+    }
+
+    const pbsBody = document.getElementById('pbs-table-body');
+    const alatBody = document.getElementById('alat-table-body');
+    const adjustBody = document.getElementById('adjust-table-body');
+    if (!pbsBody || !alatBody || !adjustBody) return;
 
     const showCount = (val) => val > 0 ? `<span class="badge-count">${val}</span>` : `<span style="color:var(--color-text-light); opacity:0.5;">-</span>`;
 
@@ -269,6 +349,14 @@ const KamadDataManager = {
 </script>
 
 <style>
+  /* Styling Accordion ANBK */
+  .anbk-header-trigger {
+    background-color: transparent;
+  }
+  .anbk-header-trigger:hover {
+    background-color: var(--color-bg-hover);
+  }
+
   /* Styling Tabel PBS */
   .table-responsive {
     width: 100%;

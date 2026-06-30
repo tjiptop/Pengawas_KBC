@@ -194,6 +194,18 @@ function resetMasterCache() {
     } else {
       cache.remove('master_pbs_rows');
     }
+
+    const anbkChunks = cache.get('master_anbk_rows_chunks');
+    if (anbkChunks) {
+      const chunks = parseInt(anbkChunks);
+      let keys = ['master_anbk_rows_chunks'];
+      for (let i = 0; i < chunks; i++) {
+        keys.push('master_anbk_rows_' + i);
+      }
+      cache.removeAll(keys);
+    } else {
+      cache.remove('master_anbk_rows');
+    }
     
     // 2. Naikkan versi cache untuk membatalkan seluruh cache kabupaten lama (cache busting)
     try {
