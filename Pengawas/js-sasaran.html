@@ -5,6 +5,7 @@ const SasaranViews = {
             <div class="header-title-wrap">
                 <div class="header-page-icon">🏫</div>
                 <h1 id="sasaran-title">Madrasah KBC</h1>
+                <button onclick="SasaranManager.refreshData()" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; font-size:1.1rem; padding:4px 8px; display:inline-flex; align-items:center; transition: opacity var(--transition-fast);" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1" title="Refresh Data Sasaran">🔄</button>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <button id="btn-sasaran-toggle" class="btn btn-primary" onclick="SasaranManager.toggleView()" style="padding: 6px 12px; font-size: 0.85em; border-radius: 8px;">⚙️ Kelola</button>
@@ -165,6 +166,31 @@ const SasaranManager = {
             App.loading(false);
             App.alert(err.message, 'Gagal menghubungi server');
         }).getSasaranPageData(nip, kabupaten, jenjang);
+    },
+
+    refreshData() {
+        const nip = App.state.user['NIP'];
+        const kabupaten = App.state.user['Kabupaten'] || '';
+        const jenjang = App.state.user['Jenjang'] || '';
+
+        App.loading(true, 'Menyegarkan data dari server...');
+        
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res && res.success) {
+                this.selectedData = res.data.sasaran || [];
+                App.state.madrasahSasaran = this.selectedData;
+                this.allData = res.data.available || [];
+                this.historyData = res.data.history || [];
+                this.renderView();
+                App.alert('Status data sasaran berhasil diperbarui.', 'Sukses');
+            } else {
+                App.alert((res && res.error) || 'Terjadi kesalahan.', 'Gagal memuat data');
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'Gagal menghubungi server');
+        }).getSasaranPageData(nip, kabupaten, jenjang, true);
     },
 
     renderView() {

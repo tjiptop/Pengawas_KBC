@@ -191,15 +191,17 @@ function getMadrasahForSasaran(kabupaten, jenjangStr, currentNip) {
  * @param {string|number} nip
  * @returns {Array<object>} Daftar Madrasah binaan
  */
-function getSasaran(nip) {
+function getSasaran(nip, forceRefresh) {
   try {
     const nipStr = String(nip).trim();
     const cache = CacheService.getScriptCache();
     const cacheVer = cache.get('cache_version') || '1';
     const cacheKey = 'sasaran_v' + cacheVer + '_' + nipStr;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      try { return JSON.parse(cached); } catch(e) {}
+    if (!forceRefresh) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch(e) {}
+      }
     }
 
     const ss = getAppDb_();
@@ -459,9 +461,9 @@ function saveSasaranList(nip, nsmListArray) {
  * @param {string} jenjangStr
  * @returns {object} Response standard dengan data sasaran dan available madrasah
  */
-function getSasaranPageData(nip, kabupaten, jenjangStr) {
+function getSasaranPageData(nip, kabupaten, jenjangStr, forceRefresh) {
   try {
-    const activeSasaran = getSasaran(nip);
+    const activeSasaran = getSasaran(nip, forceRefresh);
     const availableMadrasah = getMadrasahForSasaran(kabupaten, jenjangStr, nip);
     const historyRes = apiGetSubmissionHistory(nip, null);
     const history = (historyRes && historyRes.success) ? (historyRes.data || []) : [];
