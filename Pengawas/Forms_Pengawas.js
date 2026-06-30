@@ -6,6 +6,7 @@ icon: "🧑‍🏫"
 title: "1. Kesiapan Pengawas"
 description: "Instrumen Evaluasi Kesiapan & Kebutuhan Pengawas Madrasah (Program KBC)"
 target_sheet: "Pengawas_Kesiapan_KBC"
+submission_limit: 0
 questions:
   - type: header
     text: "A. Aspek Pemahaman Konsep dan Kesiapan Dasar"
@@ -110,6 +111,7 @@ icon: "🧠"
 group: "Program KBC Pengawas"
 target_sheet: "Pengawas_Mindset_KBC"
 requires_madrasah: false
+submission_limit: 1
 questions:
   - type: header
     text: "Instruksi Pengisian: Pilihlah salah satu pernyataan yang paling sesuai dengan diri Anda."

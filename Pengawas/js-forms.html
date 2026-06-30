@@ -6,7 +6,7 @@
 
 const FormsViews = {
   Main: () => `
-    <div class="header">
+    <div class="header no-print">
       <div class="header-title-wrap">
         <div class="header-page-icon">📋</div>
         <h1>Instrumen Pengawasan</h1>
@@ -14,26 +14,13 @@ const FormsViews = {
       <button class="back-btn" onclick="App.router('dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
     </div>
     <div class="content">
-      <!-- Tab: Daftar Form / Riwayat -->
-      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--color-border);">
-        <button id="tab-forms" class="form-tab active" onclick="FormsManager.switchTab('forms')">📋 Form Tersedia</button>
-        <button id="tab-history" class="form-tab" onclick="FormsManager.switchTab('history')">🕐 Riwayat Isi Instrumen</button>
-      </div>
-
       <!-- Banner Madrasah Sasaran Terpilih -->
-      <div id="selected-madrasah-banner" style="display:none; margin-bottom:15px;"></div>
+      <div id="selected-madrasah-banner" style="display:none; margin-bottom:15px;" class="no-print"></div>
 
       <!-- Panel: Form tersedia -->
-      <div id="panel-forms">
+      <div id="panel-forms" class="no-print">
         <div id="forms-list-container">
           <div style="text-align:center;padding:30px;color:#999;">Memuat daftar form...</div>
-        </div>
-      </div>
-
-      <!-- Panel: Riwayat -->
-      <div id="panel-history" style="display:none;">
-        <div id="history-list-container">
-          <div style="text-align:center;padding:30px;color:#999;">Memuat riwayat...</div>
         </div>
       </div>
 
@@ -47,7 +34,6 @@ const FormsViews = {
 
 const FormsManager = {
   state: {
-    activeTab: 'forms',
     forms: [],
     history: [],
     currentForm: null,
@@ -56,8 +42,7 @@ const FormsManager = {
 
   init() {
     this.updateSelectedMadrasahBanner();
-    this.loadForms();
-    this.loadHistory();
+    this.loadFormsAndHistory();
   },
 
   updateSelectedMadrasahBanner() {
@@ -84,47 +69,84 @@ const FormsManager = {
     this.updateSelectedMadrasahBanner();
   },
 
-  switchTab(tab) {
-    this.state.activeTab = tab;
-    document.getElementById('panel-forms').style.display = tab === 'forms' ? '' : 'none';
-    document.getElementById('panel-history').style.display = tab === 'history' ? '' : 'none';
-    document.getElementById('panel-form-fill').style.display = 'none';
-
-    document.getElementById('tab-forms').classList.toggle('active', tab === 'forms');
-    document.getElementById('tab-history').classList.toggle('active', tab === 'history');
-  },
-
-  loadForms() {
+  loadFormsAndHistory() {
+    App.loading(true, 'Memuat kuesioner...');
     google.script.run
-      .withSuccessHandler(res => {
-        if (res.success) {
-          this.state.forms = res.data || [];
-          this.renderFormsList();
-          if (this.pendingFormId) {
-            const fid = this.pendingFormId;
-            this.pendingFormId = null;
-            this.startForm(fid);
-          }
+      .withSuccessHandler(formsRes => {
+        if (formsRes.success) {
+          this.state.forms = formsRes.data || [];
+          
+          google.script.run
+            .withSuccessHandler(histRes => {
+              App.loading(false);
+              if (histRes.success) {
+                this.state.history = histRes.data || [];
+                this.renderFormsList();
+                
+                if (this.pendingFormId) {
+                  const fid = this.pendingFormId;
+                  this.pendingFormId = null;
+                  this.startForm(fid);
+                }
+              } else {
+                this.renderError('Gagal memuat riwayat: ' + histRes.error);
+              }
+            })
+            .withFailureHandler(err => {
+              App.loading(false);
+              this.renderError('Error riwayat: ' + err.message);
+            })
+            .apiGetSubmissionHistory(App.state.user['NIP'], null);
         } else {
-          const container = document.getElementById('forms-list-container');
-          if (container) {
-            container.innerHTML = `<p style="color:#c0392b;text-align:center;">Gagal memuat form: ${res.error}</p>`;
-          }
+          App.loading(false);
+          this.renderError('Gagal memuat kuesioner: ' + formsRes.error);
         }
       })
       .withFailureHandler(err => {
-        const container = document.getElementById('forms-list-container');
-        if (container) {
-          container.innerHTML = `<p style="color:#c0392b;text-align:center;">Error: ${err.message}</p>`;
-        }
+        App.loading(false);
+        this.renderError('Error kuesioner: ' + err.message);
       })
       .apiGetAvailableForms();
+  },
+
+  renderError(msg) {
+    const container = document.getElementById('forms-list-container');
+    if (container) {
+      container.innerHTML = `<p style="color:#c0392b;text-align:center;">${msg}</p>`;
+    }
+  },
+
+  toggleAccordion(e, listId, formId) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const details = document.getElementById(listId);
+    const chevron = document.getElementById(`chevron-${formId}`);
+    if (details) {
+      const isOpen = details.style.display !== 'none';
+      details.style.display = isOpen ? 'none' : 'block';
+      if (chevron) {
+        chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+      }
+    }
+  },
+
+  toggleGroupAccordion(e, groupId) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const content = document.getElementById(`group-content-${groupId}`);
+    const arrow = document.getElementById(`group-arrow-${groupId}`);
+    if (content) {
+      const isOpen = content.style.display === 'block';
+      content.style.display = isOpen ? 'none' : 'block';
+      if (arrow) {
+        arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+      }
+    }
   },
 
   renderFormsList() {
     const container = document.getElementById('forms-list-container');
     if (!container) return;
     const forms = this.state.forms;
+    const history = this.state.history || [];
 
     if (!forms || forms.length === 0) {
       container.innerHTML = `
@@ -143,78 +165,230 @@ const FormsManager = {
       groups[g].push(f);
     });
 
-    let html = '';
-    for (const groupName in groups) {
-      html += `<h4 style="color:var(--color-primary);margin:20px 0 10px;font-size:0.9em;text-transform:uppercase;letter-spacing:1px;">${groupName}</h4>`;
-      groups[groupName].forEach(form => {
-        html += `
-          <div class="card form-card" onclick="FormsManager.startForm('${form.id}')" style="cursor:pointer;margin-bottom:12px;display:flex;align-items:center;gap:15px;padding:16px 18px;">
-            <div style="font-size:2em;min-width:40px;text-align:center;">${form.icon || '📋'}</div>
-            <div style="flex:1;">
-              <strong style="display:block;font-size:0.95em;margin-bottom:3px;">${form.title}</strong>
-              ${form.description ? `<small style="color:#888;">${form.description}</small>` : ''}
-            </div>
-            <div style="color:var(--color-primary);font-size:1.2em;">›</div>
-          </div>`;
-      });
-    }
-
-    container.innerHTML = html;
-  },
-
-  loadHistory() {
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res && res.success) {
-          this.state.history = res.data || [];
-          this.renderHistory();
-        } else {
-          const container = document.getElementById('history-list-container');
-          if(container) container.innerHTML = `<div style="text-align:center;padding:30px;color:red;">Gagal memuat riwayat: ${res ? res.error : 'Unknown error'}</div>`;
+    let html = `
+      <style>
+        .kamad-group-accordion-card {
+          margin-bottom: 12px;
+          background: var(--color-bg-elevated);
+          border: 1px solid var(--color-border);
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: var(--shadow-sm);
         }
-      })
-      .withFailureHandler((error) => {
-          const container = document.getElementById('history-list-container');
-          if(container) container.innerHTML = `<div style="text-align:center;padding:30px;color:red;">Koneksi terputus: ${error.message || error}</div>`;
-      })
-      .apiGetSubmissionHistory(App.state.user['NIP'], null);
-  },
+        .kamad-group-accordion-header {
+          padding: 14px 18px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          cursor: pointer;
+          background: var(--color-bg-elevated);
+          transition: background 0.2s;
+          user-select: none;
+        }
+        .kamad-group-accordion-header:hover {
+          background: var(--color-bg-hover);
+        }
+        .kamad-group-accordion-content {
+          display: none;
+          padding: 12px 14px 4px 14px;
+          border-top: 1px solid var(--color-border-light);
+          background: var(--color-bg);
+        }
+        .kamad-form-card-accordion {
+          margin-bottom: 12px;
+          background: var(--color-bg-elevated);
+          border: 1px solid var(--color-border);
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: var(--shadow-sm);
+        }
+        .kamad-form-card-header {
+          padding: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .kamad-form-card-header:hover {
+          background: var(--color-bg-hover);
+        }
+        .kamad-form-card-details {
+          padding: 15px;
+          border-top: 1px solid var(--color-border);
+          background: var(--color-bg);
+        }
+        .kamad-fill-btn-main {
+          width: 100%;
+          padding: 10px 16px;
+          background: var(--color-primary);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 0.88rem;
+          cursor: pointer;
+          transition: background 0.2s;
+          text-align: center;
+        }
+        .kamad-fill-btn-main:hover:not(.disabled) {
+          background: #1557b0;
+        }
+        .kamad-fill-btn-main.disabled {
+          background: #ccc;
+          color: #666;
+          cursor: not-allowed;
+        }
+        .kamad-history-sub-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 12px;
+          margin-top: 6px;
+          background: var(--color-bg-elevated);
+          border: 1px solid var(--color-border);
+          border-radius: 6px;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: transform 0.15s, border-color 0.15s;
+        }
+        .kamad-history-sub-item:hover:not(.disabled) {
+          border-color: var(--color-primary);
+          transform: translateY(-1px);
+        }
+        .kamad-history-sub-item.disabled {
+          background: rgba(0,0,0,0.02);
+          border-color: var(--color-border-light);
+          cursor: default;
+        }
+      </style>
+    `;
 
-  renderHistory() {
-    const container = document.getElementById('history-list-container');
-    if (!container) return;
-    const history = this.state.history;
+    let groupIdx = 0;
+    Object.keys(groups).sort().forEach(groupName => {
+      groupIdx++;
+      const groupId = `group-${groupIdx}`;
+      const formsInGroup = groups[groupName];
 
-    if (!history || history.length === 0) {
-      container.innerHTML = `
-        <div style="text-align:center;padding:40px 20px;color:#999;">
-          <div style="font-size:3em;margin-bottom:10px;">📂</div>
-          <p>Belum ada riwayat pengisian form.</p>
-        </div>`;
-      return;
-    }
+      let totalFilledInGroup = 0;
+      formsInGroup.forEach(f => {
+        const subCount = history.filter(s => s.formId === f.id).length;
+        totalFilledInGroup += subCount;
+      });
 
-    let html = history.map(item => {
-      const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('id-ID', {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-      }) : '-';
-      const formTitle = (this.state.forms.find(f => f.id === item.formId) || {}).title || item.formId;
-      
-      // Look up Madrasah Name from state
-      const targetMadrasah = (App.state.madrasahSasaran || []).find(m => String(m.nsm).trim() === String(item.nsmMadrasah).trim());
-      const madrasahName = targetMadrasah ? targetMadrasah.nama : (item.nsmMadrasah || '-');
-
-      return `
-        <div class="card" style="margin-bottom:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-          <div style="flex:1;">
-            <strong style="display:block;font-size:0.9em;">${formTitle}</strong>
-            <small style="color:#888;">${madrasahName} &bull; ${date}</small>
+      html += `
+        <div class="kamad-group-accordion-card">
+          <div class="kamad-group-accordion-header" onclick="FormsManager.toggleGroupAccordion(event, '${groupId}')">
+            <h3 class="kamad-group-accordion-title" style="margin:0; font-size:0.92rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:8px;">
+              📁 ${groupName}
+            </h3>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="kamad-badge-count" style="background:rgba(26,115,232,0.08); color:var(--color-primary); font-weight:700; padding:2px 8px; border-radius:12px; font-size:0.7rem;">
+                ${formsInGroup.length} instrumen ${totalFilledInGroup > 0 ? `· ${totalFilledInGroup} isi` : ''}
+              </span>
+              <span id="group-arrow-${groupId}" style="font-size:0.8rem; color:#999; transition:transform 0.2s; display:inline-block;">▼</span>
+            </div>
           </div>
-          <span style="font-size:0.75em;padding:3px 8px;border-radius:10px;background:${item.status === 'final' ? '#d4edda' : '#fff3cd'};color:${item.status === 'final' ? '#155724' : '#856404'};">
-            ${item.status || 'draft'}
-          </span>
-        </div>`;
-    }).join('');
+          <div id="group-content-${groupId}" class="kamad-group-accordion-content">
+      `;
+
+      formsInGroup.forEach(form => {
+        const mySubs = history.filter(s => s.formId === form.id);
+        mySubs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const subCount = mySubs.length;
+        const limit = form.submission_limit !== undefined ? parseInt(form.submission_limit) : -1;
+
+        let canFill = true;
+        if (limit > 0 && subCount >= limit) {
+          canFill = false;
+        }
+
+        const listId = `hist-${form.id}`;
+
+        if (limit === 0) {
+          const displayBadge = `<span class="kamad-badge kamad-badge-fill">Isi</span>`;
+          html += `
+            <div class="kamad-form-card-container" style="margin-bottom:10px; background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:8px; overflow:hidden;">
+              <div class="kamad-form-card"
+                   onclick="FormsManager.startForm('${form.id}')"
+                   style="margin:0; border:none; border-radius:0; background:transparent; display:flex; align-items:center; justify-content:space-between; padding:15px; cursor:pointer;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div class="kamad-form-card-icon" style="font-size:1.5rem;">${form.icon || '📋'}</div>
+                  <div style="text-align:left;">
+                    <div class="kamad-form-card-title" style="font-weight:700;">${form.title}</div>
+                    ${form.description ? `<div class="kamad-form-card-desc" style="font-size:0.75rem; color:var(--color-text-secondary);">${form.description}</div>` : ''}
+                  </div>
+                </div>
+                <div>
+                  ${displayBadge}
+                </div>
+              </div>
+            </div>`;
+        } else {
+          const historyList = mySubs.map(s => {
+            const dateStr = new Date(s.timestamp).toLocaleDateString('id-ID', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit'
+            });
+            
+            let label = `📄 Pengisian tanggal ${dateStr}`;
+            if (form.requiresMadrasah) {
+              const targetMadrasah = (App.state.madrasahSasaran || []).find(m => String(m.nsm).trim() === String(s.nsmMadrasah).trim());
+              const madrasahName = targetMadrasah ? targetMadrasah.nama : (s.nsmMadrasah || '-');
+              label = `📄 Pengisian [${madrasahName}] tanggal ${dateStr}`;
+            }
+
+            return `
+              <div class="kamad-history-sub-item" onclick="FormsManager.openForm('${form.id}', { nsm: '${s.nsmMadrasah}', nama: '${form.requiresMadrasah ? '' : 'Mandiri (Pengawas)'}' }, '${s.timestamp}')">
+                <span>${label}</span>
+                <span style="color:var(--color-primary);font-weight:600;font-size:0.8rem;">Lihat/Cetak &nbsp; &#10095;</span>
+              </div>`;
+          }).join('');
+
+          const fillBtn = canFill
+            ? `<button class="kamad-fill-btn-main" onclick="FormsManager.startForm('${form.id}')">
+                 ✏️ Isi Baru (${subCount}/${limit > 0 ? limit : '∞'})
+               </button>`
+            : `<button class="kamad-fill-btn-main disabled" style="background:#ccc;cursor:not-allowed;color:#666;" disabled>
+                 🔒 Batas Pengisian Tercapai (${subCount}/${limit})
+               </button>`;
+
+          html += `
+            <div class="kamad-form-card-accordion" style="margin-bottom:12px;">
+              <div class="kamad-form-card-header" onclick="FormsManager.toggleAccordion(event, '${listId}', '${form.id}')" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div style="display:flex; align-items:flex-start; gap:12px; flex:1; min-width:0;">
+                  <div class="kamad-form-card-icon" style="font-size:1.5rem; flex-shrink:0; margin-top:2px;">${form.icon || '📋'}</div>
+                  <div style="text-align:left; min-width:0; flex:1;">
+                    <div class="kamad-form-card-title" style="font-weight:700; line-height:1.2; word-break:break-word;">${form.title}</div>
+                    ${form.description ? `<div class="kamad-form-card-desc" style="font-size:0.75rem; color:var(--color-text-secondary); margin-top:2px; word-break:break-word;">${form.description}</div>` : ''}
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; padding-left:4px; flex-shrink:0;">
+                  <span class="kamad-badge-count" style="background:rgba(26,115,232,0.1); color:var(--color-primary); font-weight:700; padding:2px 8px; border-radius:12px; font-size:0.75rem;">
+                    ${subCount} isi
+                  </span>
+                  <span id="chevron-${form.id}" style="font-size:0.8rem; color:#999; transition: transform 0.2s;">▼</span>
+                </div>
+              </div>
+              
+              <div id="${listId}" class="kamad-form-card-details" style="display:none; text-align:left;">
+                <div style="margin-bottom:12px;">
+                  ${fillBtn}
+                </div>
+                <div class="kamad-sub-history-list">
+                  <div style="font-size:0.78rem; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px;">Daftar Pengisian Lampau:</div>
+                  ${historyList || '<div style="color:#999;font-size:0.85em;font-style:italic;">Belum ada pengisian.</div>'}
+                </div>
+              </div>
+            </div>`;
+        }
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
 
     container.innerHTML = html;
   },
@@ -228,7 +402,6 @@ const FormsManager = {
         return;
       }
 
-      // Pilih madrasah sasaran dahulu jika ada lebih dari 1
       const sasaran = App.state.madrasahSasaran || [];
 
       if (sasaran.length === 0) {
@@ -242,7 +415,6 @@ const FormsManager = {
         this.showMadrasahPicker(formId, sasaran);
       }
     } else {
-      // Bypass selection for self-evaluation forms
       this.openForm(formId, { nsm: 'N/A', nama: 'Mandiri (Pengawas)' });
     }
   },
@@ -269,7 +441,7 @@ const FormsManager = {
       </div>`;
   },
 
-  openForm(formId, madrasah) {
+  openForm(formId, madrasah, submissionId = null) {
     this.state.currentForm = formId;
     if (madrasah && madrasah.nsm) {
       const fullMadrasah = (App.state.madrasahSasaran || []).find(m => String(m.nsm).trim() === String(madrasah.nsm).trim());
@@ -283,19 +455,37 @@ const FormsManager = {
     }
     this.activeMadrasah = madrasah;
 
+    // Hitung subCount untuk validasi limit
+    const mySubs = (this.state.history || []).filter(s => s.formId === formId);
+    const subCount = mySubs.length;
+    const limit = formMeta.submission_limit !== undefined ? parseInt(formMeta.submission_limit) : -1;
+
+    let canFill = false;
+    if (submissionId === null) {
+      canFill = true;
+      if (limit > 0 && subCount >= limit) {
+        canFill = false;
+      }
+    }
+    this.currentCanFill = canFill;
+
     // Tampilkan panel form fill
     document.getElementById('panel-forms').style.display = 'none';
-    document.getElementById('panel-history').style.display = 'none';
     document.getElementById('panel-form-fill').style.display = '';
 
     const container = document.getElementById('form-fill-container');
     container.innerHTML = `
       <!-- Back Button: Sleek, high-end floating link -->
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;" class="no-print">
         <button onclick="FormsManager.cancelForm()" style="background:none;border:none;padding:0;color:var(--color-text-secondary);cursor:pointer;font-size:0.95em;font-weight:600;display:inline-flex;align-items:center;gap:8px;transition:color 0.2s;" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color='var(--color-text-secondary)'">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
           Kembali ke Daftar Form
         </button>
+        ${!canFill && submissionId ? `
+          <button class="kamad-print-btn" onclick="window.print()" style="float:right;background:#137333;color:white;border:none;padding:5px 12px;border-radius:4px;font-size:0.85em;cursor:pointer;font-weight:bold;">
+            🖨️ Cetak Jawaban
+          </button>
+        ` : ''}
       </div>
       
       <!-- Integrated Form Container -->
@@ -309,6 +499,9 @@ const FormsManager = {
           <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:var(--color-text);line-height:1.25;" id="form-fill-title">
             Memuat form...
           </h1>
+          ${!canFill ? `
+            <div id="pengawas-doc-id" style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:5px;font-style:italic;"></div>
+          ` : ''}
         </div>
         
         <!-- Form Engine Mount Area -->
@@ -330,7 +523,7 @@ const FormsManager = {
       .withSuccessHandler(res => {
         App.loading(false);
         if (res.success) {
-          this.renderFormEngine(res.data.yaml, res.data.id);
+          this.renderFormEngine(res.data.yaml, res.data.id, res.data.prefill || {}, canFill, submissionId);
         } else {
           container.innerHTML = `<p style="color:#c0392b;">Gagal memuat form: ${res.error}</p>`;
         }
@@ -339,11 +532,10 @@ const FormsManager = {
         App.loading(false);
         container.innerHTML = `<p style="color:#c0392b;">Error: ${err.message}</p>`;
       })
-      .apiGetFormDefinition(formId);
+      .apiGetFormDefinition(formId, App.state.user['NIP'], submissionId);
   },
 
-  renderFormEngine(yamlStr, formId) {
-    // Parse YAML dan render menggunakan FormEngine yang sudah tersedia
+  renderFormEngine(yamlStr, formId, prefill = {}, canFill = true, submissionId = null) {
     try {
       if (typeof FormEngine === 'undefined') {
         throw new Error('FormEngine belum dimuat. Pastikan js-form-engine.html di-include.');
@@ -357,17 +549,40 @@ const FormsManager = {
       // Mount FormEngine ke container
       const mount = document.getElementById('form-engine-mount');
       if (typeof FormEngine !== 'undefined' && FormEngine.init) {
-        FormEngine.init('form-engine-mount', yamlStr, {}, (data) => {
-          FormsManager.submitForm(data);
-        }, formId, this.activeMadrasah);
-
-        // Hiding of duplicate title and submit button are handled safely by high-performance CSS overrides in css.html
+        FormEngine.init('form-engine-mount', yamlStr, prefill, (data) => {
+          if (canFill) FormsManager.submitForm(data);
+        }, formId, this.activeMadrasah, { readonly: !canFill });
       } else {
         // Fallback: render manual sederhana
         this.renderFormManual(mount, parsed);
       }
 
-      document.getElementById('form-submit-area').style.display = '';
+      if (canFill) {
+        document.getElementById('form-submit-area').style.display = '';
+      } else {
+        document.getElementById('form-submit-area').style.display = 'none';
+        
+        // Hide standard submit button inside mount if any
+        const submitBtn = document.querySelector('#form-engine-mount #sf button:not([type="button"])');
+        if (submitBtn) submitBtn.style.display = 'none';
+
+        // Nonaktifkan semua input form untuk mode baca saja
+        const inputs = document.querySelectorAll('#form-engine-mount input, #form-engine-mount select, #form-engine-mount textarea, #form-engine-mount button');
+        inputs.forEach(el => {
+          el.disabled = true;
+          el.style.pointerEvents = 'none';
+          el.style.opacity = '0.85';
+        });
+
+        // Tampilkan ID Dokumen untuk pelacakan saat cetak
+        const docIdEl = document.getElementById('pengawas-doc-id');
+        if (docIdEl && submissionId) {
+          const nip = App.state.user['NIP'] || '';
+          const tsClean = String(submissionId).replace(/[^a-zA-Z0-9]/g, '');
+          const shortTs = tsClean.substring(0, 14); // YYYYMMDDHHMMSS
+          docIdEl.innerHTML = `ID Dokumen: <strong>${nip}-${shortTs}</strong>`;
+        }
+      }
     } catch (e) {
       document.getElementById('form-engine-mount').innerHTML =
         `<p style="color:#c0392b;">Gagal render form: ${e.message}</p>`;
@@ -378,14 +593,11 @@ const FormsManager = {
   triggerFormEngineSubmit() {
     const form = document.getElementById('sf');
     if (form) {
-      // Bypass HTML5 native validation (requestSubmit) which silently blocks hidden required inputs
-      // We rely entirely on FormEngine.validate() which nicely displays Utils.alert() warnings
       form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     } else {
       this.submitForm();
     }
   },
-
 
   // Fallback renderer manual jika FormEngine tidak tersedia
   renderFormManual(container, parsed) {
@@ -439,7 +651,9 @@ const FormsManager = {
   cancelForm() {
     this.state.currentForm = null;
     this.updateSelectedMadrasahBanner();
-    this.switchTab('forms');
+    this.loadFormsAndHistory();
+    document.getElementById('panel-forms').style.display = '';
+    document.getElementById('panel-form-fill').style.display = 'none';
   },
 
   submitForm(customData) {
@@ -448,7 +662,6 @@ const FormsManager = {
 
     if (!formId || !madrasah) return;
 
-    // Kumpulkan data dari form
     let formData = {};
     
     if (customData) {
@@ -456,19 +669,16 @@ const FormsManager = {
     } else {
       const form = document.getElementById('dynamic-form');
       if (form) {
-        // Collect semua input/textarea
         const inputs = form.querySelectorAll('input:not([type=radio]):not([type=checkbox]), textarea, select');
         inputs.forEach(el => {
           if (el.name) formData[el.name] = el.value;
         });
 
-        // Collect radio buttons (ambil yang checked)
         const radios = form.querySelectorAll('input[type=radio]:checked');
         radios.forEach(el => {
           if (el.name) formData[el.name] = el.value;
         });
 
-        // Collect checkboxes
         const checkboxes = form.querySelectorAll('input[type=checkbox]');
         const checkboxGroups = {};
         checkboxes.forEach(el => {
@@ -479,7 +689,6 @@ const FormsManager = {
         });
         Object.assign(formData, checkboxGroups);
       } else if (typeof FormEngine !== 'undefined' && FormEngine.data) {
-        // Jika FormEngine tersedia, ambil data langsung dari data property
         formData = FormEngine.data;
       }
     }
@@ -497,10 +706,7 @@ const FormsManager = {
         App.loading(false);
         if (res.success) {
           App.alert(`Form berhasil dikirim! ID: ${res.data.submissionId}`, 'Berhasil');
-          // Refresh history dan kembali ke list
-          this.loadHistory();
           this.cancelForm();
-          this.switchTab('history');
         } else {
           App.alert(res.error || 'Gagal mengirim form.', 'Gagal');
         }

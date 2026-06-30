@@ -19,13 +19,17 @@ function apiGetAvailableForms() {
       const reqMadrasahMatch = yamlStr.match(/^requires_madrasah:\s*(\w+)/m);
       const requiresMadrasah = reqMadrasahMatch ? reqMadrasahMatch[1] === 'true' : false; // Default ke false jika tidak dispesifikasi untuk Pengawas
 
+      const sL = yamlStr.match(/^submission_limit:\s*(.+)$/m);
+      const submissionLimit = sL ? parseInt(sL[1].trim()) : -1;
+
       return {
         id: formId,
         title: titleMatch ? titleMatch[1] : formId,
         description: descMatch ? descMatch[1] : '',
         icon: iconMatch ? iconMatch[1] : '📋',
         group: groupMatch ? groupMatch[1] : 'Lainnya',
-        requiresMadrasah: requiresMadrasah
+        requiresMadrasah: requiresMadrasah,
+        submission_limit: submissionLimit
       };
     });
     return apiSuccess(list);
@@ -39,12 +43,69 @@ function apiGetAvailableForms() {
  * @param {string} formId
  * @returns {object} Response standard dengan definisi YAML
  */
-function apiGetFormDefinition(formId) {
+function apiGetFormDefinition(formId, nip = null, submissionId = null) {
   if (!formId) return apiError('Form ID tidak valid.', 'VALIDATION');
   try {
     const forms = getPengawasForms();
-    if (!forms[formId]) return apiError('Form tidak ditemukan: ' + formId, 'NOT_FOUND');
-    return apiSuccess({ id: formId, yaml: forms[formId] });
+    const yaml = forms[formId];
+    if (!yaml) return apiError('Form tidak ditemukan: ' + formId, 'NOT_FOUND');
+
+    let prefill = {};
+    if (nip) {
+      const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
+      const targetSheet = match ? match[2].trim() : null;
+
+      if (targetSheet) {
+        const formDb = getFormDb_();
+        const sheet = formDb.getSheetByName(targetSheet);
+        if (sheet && sheet.getLastRow() > 0) {
+          const data = sheet.getDataRange().getValues();
+          const headers = data[0].map(h => String(h).trim());
+          const userIdx = headers.indexOf('username');
+          const subIdIdx = headers.indexOf('submission_id');
+          const timestampIdx = headers.indexOf('timestamp');
+
+          if (userIdx !== -1) {
+            for (let i = data.length - 1; i >= 1; i--) {
+              const rowUser = String(data[i][userIdx]).trim();
+              if (rowUser === String(nip).trim()) {
+                let isMatch = false;
+                if (submissionId) {
+                  const rowSubId = subIdIdx !== -1 ? String(data[i][subIdIdx]).trim() : '';
+                  const rowTimestamp = timestampIdx !== -1 ? String(data[i][timestampIdx]).trim() : '';
+                  if (rowSubId === String(submissionId).trim() || rowTimestamp === String(submissionId).trim()) {
+                    isMatch = true;
+                  }
+                } else {
+                  // If no submissionId but limit is 0 (overwrite mode), prefill with latest
+                  const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
+                  const limit = sL ? parseInt(sL[1].trim()) : -1;
+                  if (limit === 0) {
+                    isMatch = true;
+                  }
+                }
+
+                if (isMatch) {
+                  const standardCols = ['submission_id', 'timestamp', 'username'];
+                  for (let j = 0; j < headers.length; j++) {
+                    const header = headers[j];
+                    if (standardCols.includes(header.toLowerCase())) continue;
+                    let val = data[i][j];
+                    if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+                      try { val = JSON.parse(val); } catch (e) {}
+                    }
+                    prefill[header] = val;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return apiSuccess({ id: formId, yaml: yaml, prefill: prefill });
   } catch (e) {
     return apiError('Gagal mengambil definisi formulir: ' + e.toString(), 'FORM_DEF_ERROR');
   }
@@ -134,6 +195,88 @@ function apiSubmitForm(payload) {
           if (typeof val === 'object') return JSON.stringify(val);
           return val;
         });
+        // Respect submission limit (0, 1, or higher) and automatically archive older rows
+        const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
+        const limit = sL ? parseInt(sL[1].trim()) : -1;
+
+        if (limit >= 0) {
+          const activeLimit = limit === 0 ? 1 : limit;
+          const userIdx = headers.indexOf('username');
+
+          if (userIdx !== -1 && sheet.getLastRow() > 1) {
+            const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+            const matchingRows = [];
+            const userStr = String(payload.nip).trim();
+            for (let i = 0; i < dataRange.length; i++) {
+              const rowValues = dataRange[i];
+              const rowUser = String(rowValues[userIdx]).trim();
+
+              if (rowUser === userStr) {
+                matchingRows.push({
+                  rowNum: i + 2,
+                  values: rowValues
+                });
+              }
+            }
+
+            if (matchingRows.length + 1 > activeLimit) {
+              const numToArchive = (matchingRows.length + 1) - activeLimit;
+              const rowsToArchive = matchingRows.slice(0, numToArchive);
+
+              // Archive detail rows
+              rowsToArchive.forEach(r => {
+                archiveRowToLog(formDb, target, headers, r.values);
+              });
+
+              // Delete detail rows from active sheet in descending order of row index
+              const rowsToDelete = [...rowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+              rowsToDelete.forEach(r => {
+                sheet.deleteRow(r.rowNum);
+              });
+
+              // Move transaction records in Form_Responses to Form_Responses_Log in ss
+              let mainLogSheet = ss.getSheetByName('Form_Responses');
+              if (mainLogSheet && mainLogSheet.getLastRow() > 1) {
+                const logData = mainLogSheet.getDataRange().getValues();
+                const logMatchingRows = [];
+                const formIdStr = String(payload.formId).trim();
+                for (let i = 1; i < logData.length; i++) {
+                  const rUser = String(logData[i][2]).trim();
+                  const rFormId = String(logData[i][3]).trim();
+                  if (rUser === userStr && rFormId === formIdStr) {
+                    logMatchingRows.push({
+                      rowNum: i + 1,
+                      values: logData[i]
+                    });
+                  }
+                }
+
+                if (logMatchingRows.length + 1 > activeLimit) {
+                  const logNumToArchive = (logMatchingRows.length + 1) - activeLimit;
+                  const logRowsToArchive = logMatchingRows.slice(0, logNumToArchive);
+
+                  let logArchiveSheet = ss.getSheetByName('Form_Responses_Log');
+                  if (!logArchiveSheet) {
+                    logArchiveSheet = ss.insertSheet('Form_Responses_Log');
+                    const logHeaders = ['Submission_ID', 'Timestamp', 'NIP', 'Form_ID', 'NSM_Madrasah', 'Status', 'Data_JSON'];
+                    logArchiveSheet.appendRow(logHeaders);
+                    logArchiveSheet.getRange(1, 1, 1, logHeaders.length).setFontWeight('bold').setBackground('#f4cccc');
+                    logArchiveSheet.setFrozenRows(1);
+                  }
+                  logRowsToArchive.forEach(r => {
+                    logArchiveSheet.appendRow(r.values);
+                  });
+
+                  const logRowsToDelete = [...logRowsToArchive].sort((a, b) => b.rowNum - a.rowNum);
+                  logRowsToDelete.forEach(r => {
+                    mainLogSheet.deleteRow(r.rowNum);
+                  });
+                }
+              }
+            }
+          }
+        }
+
         sheet.appendRow(row);
 
         // 3. Tulis data table / table_col_fix ke sheet terpisah (target_sheet|field_name) jika ada di formDb
