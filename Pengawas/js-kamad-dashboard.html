@@ -114,6 +114,10 @@ const KamadDashboard = {
                   <span class="menu-item-icon">📚</span>
                   <span class="menu-item-text">Buku dan Materi Terkait</span>
                 </div>
+                <div class="menu-item" onclick="App.router('kamad-data-madrasah'); document.getElementById('kamad-menu').classList.remove('show')">
+                  <span class="menu-item-icon">📊</span>
+                  <span class="menu-item-text">Data Madrasah</span>
+                </div>
                 ${isSupervisor ? `
                 <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
                   <span class="menu-item-icon">🚪</span>
@@ -203,6 +207,15 @@ const KamadDashboard = {
               <div style="flex:1; min-width:0;">
                 <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Buku dan Materi Terkait</h3>
                 <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Akses dari daftar buku dan materi Madrasah.</div>
+              </div>
+            </div>
+
+            <!-- Card 4: Data Madrasah -->
+            <div class="card form-card" onclick="App.router('kamad-data-madrasah')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0; text-align:left; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); border-radius:var(--radius-lg); transition: all var(--transition-fast);">
+              <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(76, 175, 80, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:#4caf50; flex-shrink:0;">📊</div>
+              <div style="flex:1; min-width:0;">
+                <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Data Madrasah</h3>
+                <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Rekapitulasi data kesulitan belajar siswa (PBS).</div>
               </div>
             </div>
           </div>
