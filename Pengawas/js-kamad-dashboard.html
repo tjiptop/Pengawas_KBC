@@ -33,7 +33,7 @@ const KamadDashboard = {
                 <span class="menu-item-text">Program Kerja</span>
               </div>
               ${isSupervisor ? `
-              <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
+              <div class="menu-item" style="color:var(--color-danger);" onclick="App.exitSupervisorViewAs()">
                 <span class="menu-item-icon">🚪</span>
                 <span class="menu-item-text">Kembali ke Sasaran</span>
               </div>
@@ -54,7 +54,7 @@ const KamadDashboard = {
           </div>
         </div>
         ${isSupervisor ? `
-        <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+        <button class="back-btn" onclick="App.exitSupervisorViewAs()"><span style="font-size:0.9em;">‹</span> Kembali</button>
         ` : ''}
       </div>
       <div class="content">
@@ -119,7 +119,7 @@ const KamadDashboard = {
                   <span class="menu-item-text">Buku dan Materi Terkait</span>
                 </div>
                 ${isSupervisor ? `
-                <div class="menu-item" style="color:var(--color-danger);" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')">
+                <div class="menu-item" style="color:var(--color-danger);" onclick="App.exitSupervisorViewAs()">
                   <span class="menu-item-icon">🚪</span>
                   <span class="menu-item-text">Kembali ke Sasaran</span>
                 </div>
@@ -151,7 +151,7 @@ const KamadDashboard = {
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="back-btn" onclick="KamadDashboard.forceRefresh()" style="padding:4px 10px; font-size:1rem; display:flex; align-items:center; justify-content:center; width:34px;" title="Refresh Data">🔄</button>
             ${isSupervisor ? `
-            <button class="back-btn" onclick="App.state.isSupervisorViewAs=false; App.state.kamad=null; App.router('sasaran')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+            <button class="back-btn" onclick="App.exitSupervisorViewAs()"><span style="font-size:0.9em;">‹</span> Kembali</button>
             ` : ''}
           </div>
         </div>
@@ -182,7 +182,7 @@ const KamadDashboard = {
               <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(76, 175, 80, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:#4caf50; flex-shrink:0;">📊</div>
               <div style="flex:1; min-width:0;">
                 <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Data Madrasah</h3>
-                <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Data Madrasah yang dimiliki Asesmen Nasional, Profil Belajar Siswa dan data Lainnya</div>
+                <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Data asesmen nasional, profil belajar siswa dan data lain</div>
               </div>
             </div>
 

@@ -606,7 +606,7 @@ questions:
 title: 2.2. Instrumen Angket Kepala Madrasah
 group: 2. Angket
 target_sheet: 2_2_Angket_Kamad
-enable_delegation: true
+enable_delegation: false
 allowed_roles: [madrasah]
 subordinate_visibility: list
 questions:

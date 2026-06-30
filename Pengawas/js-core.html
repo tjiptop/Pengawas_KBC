@@ -411,18 +411,103 @@ const App = {
   },
 
   logout() {
-    localStorage.removeItem('pengawas_user');
-    localStorage.removeItem('session_token');
-    this.state.user = null;
-    this.state.madrasahSasaran = [];
-    this.state.submissions = [];
+    this.clearSupervisorSessionData();
+    this.clearKamadSessionData();
     this.router('login');
   },
 
   kamadLogout() {
-    localStorage.removeItem('kamad_session');
-    this.state.kamad = null;
+    this.clearKamadSessionData();
     this.router('login');
+  },
+
+  exitSupervisorViewAs() {
+    this.state.isSupervisorViewAs = false;
+    this.clearKamadSessionData();
+    this.router('sasaran');
+  },
+
+  clearSupervisorSessionData() {
+    // 1. Clear localStorage
+    localStorage.removeItem('pengawas_user');
+    localStorage.removeItem('session_token');
+
+    // 2. Clear App state supervisor caches
+    this.state.user = null;
+    this.state.madrasahSasaran = [];
+    this.state.submissions = [];
+
+    // 3. Clear FormsManager state
+    if (typeof FormsManager !== 'undefined' && FormsManager.state) {
+      FormsManager.state.forms = [];
+      FormsManager.state.history = [];
+      FormsManager.state.currentForm = null;
+      FormsManager.state.selectedMadrasah = null;
+    }
+
+    // 4. Clear MateriManager state
+    if (typeof MateriManager !== 'undefined' && MateriManager.state) {
+      MateriManager.state.materi = [];
+    }
+
+    // 5. Clear PesertaManager state/cache
+    if (typeof PesertaManager !== 'undefined') {
+      PesertaManager.listData = [];
+      PesertaManager.dashboardCache = {};
+      PesertaManager.testData = null;
+      PesertaManager.shuffledQuestions = [];
+      PesertaManager.answers = {};
+    }
+  },
+
+  clearKamadSessionData() {
+    // 1. Clear localStorage session
+    localStorage.removeItem('kamad_session');
+    
+    // 2. Clear App state caches
+    this.state.kamad = null;
+    this.state.kamadForms = [];
+    this.state.kamadHistory = [];
+    this.state.kamadStats = {};
+    this.state.kanbanData = null;
+    this.state.my_tokens = [];
+    
+    // 3. Clear KamadForms module state
+    if (typeof KamadForms !== 'undefined' && KamadForms.state) {
+      KamadForms.state.forms = [];
+      KamadForms.state.history = [];
+      KamadForms.state.currentForm = null;
+    }
+    
+    // 4. Clear KanbanManager module state
+    if (typeof KanbanManager !== 'undefined' && KanbanManager.state) {
+      KanbanManager.state.cards = [];
+      KanbanManager.state.comments = [];
+      KanbanManager.state.tags = [];
+      KanbanManager.state.currentCard = null;
+    }
+    
+    // 5. Clear KamadMateriManager module state
+    if (typeof KamadMateriManager !== 'undefined' && KamadMateriManager.state) {
+      KamadMateriManager.state.materi = [];
+    }
+    
+    // 6. Clear KamadDataManager module state
+    if (typeof KamadDataManager !== 'undefined' && KamadDataManager.state) {
+      KamadDataManager.state.kesulitan = [];
+      KamadDataManager.state.alat_bantu = [];
+      KamadDataManager.state.penyesuaian = [];
+      KamadDataManager.state.stats = { total: 0, l: 0, p: 0 };
+      KamadDataManager.state.anbk = [];
+    }
+    
+    // 7. Clear FormEngine state
+    if (typeof FormEngine !== 'undefined') {
+      FormEngine.data = {};
+      FormEngine.def = null;
+      FormEngine.onSubmit = null;
+      FormEngine.madrasahContext = null;
+    }
   },
 
   // ============================================================

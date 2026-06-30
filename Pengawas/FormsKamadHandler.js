@@ -18,7 +18,7 @@ function kamadGetDashboard(nsm, viewerRole, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = cache.get(cacheKey);
       if (cached) {
-        try { return JSON.parse(cached); } catch(e) {}
+        try { return JSON.parse(cached); } catch (e) { }
       }
     }
 
@@ -45,7 +45,7 @@ function kamadGetDashboard(nsm, viewerRole, forceRefresh = false) {
       my_tokens: myTokens,
       stats: { total: forms.length, filled: forms.filter(f => filledIds.has(f.id)).length }
     });
-    try { cache.put(cacheKey, JSON.stringify(res), 1800); } catch(e) {}
+    try { cache.put(cacheKey, JSON.stringify(res), 1800); } catch (e) { }
     return res;
   } catch (e) {
     return apiError('Gagal memuat dashboard Kamad: ' + e.toString());
@@ -74,7 +74,7 @@ function kamadGetAvailableForms(nsm, viewerRole) {
       const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
       const enableDelegation = dM ? dM[1].trim() === 'true' : false;
       const subordinateVisibility = sV ? sV[1].trim().toLowerCase() : 'hidden';
-      
+
       let canFill = false;
       let isAllowed = false;
       if (viewerRole === 'district') {
@@ -84,22 +84,23 @@ function kamadGetAvailableForms(nsm, viewerRole) {
         isAllowed = allowed.length === 0 || allowed.includes('madrasah') || allowed.includes('kamad');
         canFill = isAllowed;
       }
-      
+
       const isVisible = isAllowed || subordinateVisibility !== 'hidden';
       const submissionLimit = sL ? parseInt(sL[1].trim()) : -1;
-      return { 
-        id, 
-        title, 
-        group, 
-        canFill, 
+      return {
+        id,
+        title,
+        group,
+        canFill,
         isVisible,
-        subordinate_visibility: subordinateVisibility, 
-        icon: ICONS[group.charAt(0)] || '📋', 
-        submission_limit: submissionLimit, 
-        enable_delegation: enableDelegation 
+        subordinate_visibility: subordinateVisibility,
+        icon: ICONS[group.charAt(0)] || '📋',
+        submission_limit: submissionLimit,
+        enable_delegation: enableDelegation,
+        allowed_roles: allowed
       };
     });
-    
+
     forms.sort((a, b) => a.canFill !== b.canFill ? (a.canFill ? -1 : 1) : a.title.localeCompare(b.title));
     const visibleForms = forms.filter(f => f.isVisible);
     return apiSuccess(visibleForms);
@@ -118,7 +119,7 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
   try {
     const yaml = getMadrasahFormDefinitions()[formId];
     if (!yaml) return apiError('Form tidak ditemukan: ' + formId, 'NOT_FOUND');
-    
+
     let prefill = {};
     const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
     const limit = sL ? parseInt(sL[1].trim()) : -1;
@@ -127,7 +128,7 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
       const nsmStr = String(nsm).trim();
       const match = yaml.match(/target_sheet:\s*(['"]?)([^'"\n\r]+)\1/);
       const targetSheet = match ? match[2].trim() : formId;
-      
+
       const ss = getAppDb_();
       const sheet = ss.getSheetByName(targetSheet);
       if (sheet && sheet.getLastRow() > 0) {
@@ -139,7 +140,7 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
           // Scan dari bawah ke atas untuk mendapatkan data terbaru
           for (let i = data.length - 1; i >= 1; i--) {
             if (String(data[i][nsmIdx]).trim() === nsmStr) {
-              
+
               let isMatch = false;
               if (submissionId) {
                 // Cocokkan berdasarkan format ISO String dari timestamp
@@ -149,7 +150,7 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
                   if (rowTimestampStr === searchTimestampStr) {
                     isMatch = true;
                   }
-                } catch(e) {
+                } catch (e) {
                   // Fallback string match
                   if (String(data[i][timestampIdx]).trim() === String(submissionId).trim()) {
                     isMatch = true;
@@ -170,7 +171,7 @@ function kamadGetFormDefinition(formId, nsm, submissionId = null) {
                   let val = data[i][j];
                   // Jika berbentuk string JSON (array / objek), di-parse kembali
                   if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-                    try { val = JSON.parse(val); } catch(e) {}
+                    try { val = JSON.parse(val); } catch (e) { }
                   }
                   prefill[header] = val;
                 }
@@ -204,7 +205,7 @@ function archiveRowToLog(ss, targetSheetName, activeHeaders, rowValues) {
     logSheet.getRange(1, 1, 1, activeHeaders.length).setFontWeight('bold').setBackground('#f4cccc');
     logSheet.setFrozenRows(1);
   }
-  
+
   // Sinkronisasi kolom log secara dinamis jika struktur berubah
   let logHeaders = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
   const missing = activeHeaders.filter(h => !logHeaders.includes(h));
@@ -214,13 +215,13 @@ function archiveRowToLog(ss, targetSheetName, activeHeaders, rowValues) {
     logSheet.getRange(1, startCol, 1, missing.length).setFontWeight('bold').setBackground('#f4cccc');
     logHeaders = [...logHeaders, ...missing];
   }
-  
+
   // Petakan baris data sesuai urutan kolom log
   const logRow = logHeaders.map(h => {
     const idx = activeHeaders.indexOf(h);
     return idx !== -1 ? rowValues[idx] : '';
   });
-  
+
   logSheet.appendRow(logRow);
 }
 
@@ -233,9 +234,9 @@ function archiveRowToLog(ss, targetSheetName, activeHeaders, rowValues) {
 function kamadSubmitForm(payload) {
   return executeWithLock_(() => {
     try {
-      const nsm    = sanitizeHtml(String(payload.nsm    || '').trim());
+      const nsm = sanitizeHtml(String(payload.nsm || '').trim());
       const formId = sanitizeHtml(String(payload.formId || '').trim());
-      let data     = payload.data || {};
+      let data = payload.data || {};
       if (!nsm || !formId) return apiError('NSM dan formId wajib diisi.', 'VALIDATION');
       const madrasah = getMadrasahByNsm(nsm);
       if (!madrasah) return apiError('NSM tidak valid.', 'NOT_FOUND');
@@ -244,12 +245,16 @@ function kamadSubmitForm(payload) {
       if (!yaml) return apiError('Form tidak ditemukan.', 'NOT_FOUND');
       const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
       const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
-      
+
       const submitterRole = payload.role === 'district' ? 'district' : 'madrasah';
-      if (submitterRole === 'district') {
-        if (!allowed.includes('district')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
-      } else {
-        if (allowed.length > 0 && !allowed.includes('madrasah') && !allowed.includes('kamad')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+      if (!payload.isTokenSubmission) {
+        if (submitterRole === 'district') {
+          if (!allowed.includes('district')) return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+        } else {
+          if (allowed.length > 0 && !allowed.includes('madrasah') && !allowed.includes('kamad')) {
+            return apiError('Anda tidak berhak mengisi form ini.', 'FORBIDDEN');
+          }
+        }
       }
 
       // Process attachments for kamad files
@@ -271,7 +276,7 @@ function kamadSubmitForm(payload) {
         sheet.setFrozenRows(1);
       }
       const hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
-      
+
       // Auto-Column Add (Safe) for dynamic drift
       const payloadKeys = Object.keys(flat);
       const missing = payloadKeys.filter(k => !hdrs.includes(k));
@@ -282,11 +287,11 @@ function kamadSubmitForm(payload) {
       }
 
       const row = hdrs.map(h => {
-        if (h === 'timestamp')     return timestamp;
-        if (h === 'nsm')           return nsm;
+        if (h === 'timestamp') return timestamp;
+        if (h === 'nsm') return nsm;
         if (h === 'madrasah_nama') return madrasah.nama || '';
-        if (h === 'form_id')       return formId;
-        if (h === 'role')          return submitterRole;
+        if (h === 'form_id') return formId;
+        if (h === 'role') return submitterRole;
         const v = flat[h];
         return typeof v === 'object' && v !== null ? JSON.stringify(v) : (v !== undefined ? v : '');
       });
@@ -378,7 +383,7 @@ function kamadSubmitForm(payload) {
         const cacheVer = cache.get('cache_version') || '1';
         cache.remove('kamad_dash_' + nsm + '_district_' + cacheVer);
         cache.remove('kamad_dash_' + nsm + '_madrasah_' + cacheVer);
-      } catch(e) {}
+      } catch (e) { }
 
       return apiSuccess({ timestamp }, 'Formulir berhasil disimpan.');
     } catch (e) {
@@ -478,10 +483,10 @@ function apiGenerateSurveyToken(formId, type, roleTarget, targetScope, expiryHou
   try {
     const ss = getAppDb_();
     const requesterUsernameStr = String(requesterUsername).trim();
-    
+
     // 1. Verify requester is authorized (NIP or NSM)
     let isAuthorized = false;
-    
+
     // Check if requester is a Kamad (NSM)
     const kamadSheet = getKamadSheet(ss, 'KamadUsers');
     if (kamadSheet) {
@@ -495,7 +500,7 @@ function apiGenerateSurveyToken(formId, type, roleTarget, targetScope, expiryHou
         }
       }
     }
-    
+
     // Check if requester is a Supervisor (NIP)
     if (!isAuthorized) {
       const userSheet = ss.getSheetByName('Users');
@@ -509,23 +514,23 @@ function apiGenerateSurveyToken(formId, type, roleTarget, targetScope, expiryHou
         }
       }
     }
-    
+
     if (!isAuthorized) {
       return { success: false, message: 'Insufficient permissions' };
     }
-    
+
     // 2. Add to Survey_Tokens sheet (auto-create if missing)
     let tokenSheet = ss.getSheetByName('Survey_Tokens');
     if (!tokenSheet) {
       tokenSheet = ss.insertSheet('Survey_Tokens');
       tokenSheet.appendRow(['token', 'type', 'form_id', 'role_target', 'target_scope', 'start_time', 'end_time', 'max_usages', 'current_usages', 'status', 'created_by']);
     }
-    
+
     const token = Utilities.getUuid();
     const now = new Date();
     const expiryTime = new Date(now.getTime() + (expiryHours * 60 * 60 * 1000));
     const maxUsages = 0; // 0 = unlimited
-    
+
     tokenSheet.appendRow([
       token,
       type || 'INDIVIDUAL',
@@ -539,16 +544,16 @@ function apiGenerateSurveyToken(formId, type, roleTarget, targetScope, expiryHou
       'ACTIVE',
       requesterUsernameStr
     ]);
-    
+
     const baseUrl = getPengawasDeploymentUrl_(ss);
     const surveyUrl = baseUrl ? `${baseUrl}?survey_token=${token}` : `[MADRASAH_URL_BELUM_DISET]?survey_token=${token}`;
-    
+
     try {
       const cache = CacheService.getScriptCache();
       const cacheVer = cache.get('cache_version') || '1';
       cache.remove('kamad_dash_' + requesterUsernameStr + '_district_' + cacheVer);
       cache.remove('kamad_dash_' + requesterUsernameStr + '_madrasah_' + cacheVer);
-    } catch(e) {}
+    } catch (e) { }
 
     return {
       success: true,
@@ -601,13 +606,13 @@ function apiCancelToken(token, username) {
         }
 
         sheet.getRange(i + 1, statusIdx + 1).setValue('CLOSED');
-        
+
         try {
           const cache = CacheService.getScriptCache();
           const cacheVer = cache.get('cache_version') || '1';
           cache.remove('kamad_dash_' + searchUser + '_district_' + cacheVer);
           cache.remove('kamad_dash_' + searchUser + '_madrasah_' + cacheVer);
-        } catch(e) {}
+        } catch (e) { }
 
         return { success: true };
       }
@@ -684,12 +689,12 @@ function getAllMadrasahsForLookup_() {
     const sheet = ss.getSheets()[0];
     const data = sheet.getDataRange().getDisplayValues();
     if (!data || data.length < 2) return [];
-    
+
     const headers = data[0].map(h => String(h).trim().toUpperCase());
     const idx = name => headers.findIndex(h => h.includes(name));
-    const idxNsm  = idx('NSM');
+    const idxNsm = idx('NSM');
     const idxNama = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('NAMA') || u === 'NAME'; });
-    const idxKec  = idx('KEC');
+    const idxKec = idx('KEC');
     let idxKab = headers.findIndex(h => {
       const u = h.toUpperCase();
       return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
@@ -702,7 +707,7 @@ function getAllMadrasahsForLookup_() {
       });
     }
     const idxProv = idx('PROV');
-    
+
     const list = [];
     for (let i = 1; i < data.length; i++) {
       const nsm = String(data[i][idxNsm]).trim();
@@ -889,33 +894,34 @@ function apiSubmitSurvey(payload) {
   try {
     const token = payload.survey_token;
     if (!token) return { success: false, message: 'Survey token is required.' };
-    
+
     // 1. Validate token
     const valRes = apiValidateSurveyToken(token);
     if (!valRes.success) {
       return { success: false, message: 'Validasi token gagal: ' + valRes.message };
     }
-    
+
     // 2. Map payload to kamadSubmitForm payload format
     const targetNsm = valRes.locked_madrasah_id || payload.madrasah_id;
     if (!targetNsm) return { success: false, message: 'Madrasah ID (NSM) wajib diisi.' };
-    
+
     const subPayload = {
       nsm: targetNsm,
       formId: valRes.form_id,
       data: payload.data,
-      role: 'madrasah' // treat token user as madrasah
+      role: 'madrasah', // treat token user as madrasah
+      isTokenSubmission: true
     };
-    
+
     // 3. Call kamadSubmitForm
     const subRes = kamadSubmitForm(subPayload);
     if (!subRes.success) {
       return subRes;
     }
-    
+
     // 4. Increment usage
     apiIncrementTokenUsage(token);
-    
+
     return { success: true, message: 'Survey berhasil dikirim.' };
   } catch (e) {
     return { success: false, message: e.toString() };
