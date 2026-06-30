@@ -4,10 +4,10 @@ const SasaranViews = {
         <div class="header">
             <div class="header-title-wrap">
                 <div class="header-page-icon">🏫</div>
-                <h1 id="sasaran-title">Madrasah Binaan KBC</h1>
+                <h1 id="sasaran-title">Madrasah KBC</h1>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
-                <button id="btn-sasaran-toggle" class="btn btn-primary" onclick="SasaranManager.toggleView()" style="padding: 6px 12px; font-size: 0.85em; border-radius: 8px;">⚙️ Kelola Sasaran</button>
+                <button id="btn-sasaran-toggle" class="btn btn-primary" onclick="SasaranManager.toggleView()" style="padding: 6px 12px; font-size: 0.85em; border-radius: 8px;">⚙️ Kelola</button>
                 <button id="btn-sasaran-back" class="back-btn" onclick="App.router('dashboard')" style="padding: 6px 12px;">‹ Kembali</button>
             </div>
         </div>
@@ -169,8 +169,8 @@ const SasaranManager = {
 
     renderView() {
         if (this.activeView === 'list') {
-            document.getElementById('sasaran-title').textContent = 'Madrasah Binaan KBC';
-            document.getElementById('btn-sasaran-toggle').textContent = '⚙️ Kelola Sasaran';
+            document.getElementById('sasaran-title').textContent = 'Madrasah KBC';
+            document.getElementById('btn-sasaran-toggle').textContent = '⚙️ Kelola';
             document.getElementById('btn-sasaran-toggle').className = 'btn btn-primary';
             document.getElementById('panel-sasaran-list').style.display = 'block';
             document.getElementById('panel-sasaran-manage').style.display = 'none';
