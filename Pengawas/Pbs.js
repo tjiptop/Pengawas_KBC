@@ -185,7 +185,7 @@ function getKamadAnbkData(nsm) {
 
     const cache = CacheService.getScriptCache();
     const cacheVer = cache.get('cache_version') || '1';
-    const cacheKey = 'kamad_anbk_data_v' + cacheVer + '_' + nsm;
+    const cacheKey = 'kamad_anbk_data_s1_v' + cacheVer + '_' + nsm;
     const cached = cache.get(cacheKey);
     if (cached) {
       try { return JSON.parse(cached); } catch(e) {}
@@ -219,7 +219,7 @@ function getKamadAnbkData(nsm) {
         let val = matchedRow[i];
         result.push({
           label: headers[i],
-          value: val !== null && val !== undefined ? String(val).trim() : '-'
+          value: val !== null && val !== undefined ? formatAnbkValue_(String(val).trim()) : '-'
         });
       }
     }
@@ -250,4 +250,28 @@ function getKamadDataMadrasahCombined(nsm) {
   } catch (e) {
     return apiError('Gagal memuat data gabungan madrasah: ' + e.toString(), 'SYSTEM_ERROR');
   }
+}
+
+/**
+ * Helper untuk memformat nilai ANBK menjadi 2 digit di belakang koma
+ */
+function formatAnbkValue_(valStr) {
+  if (!valStr || valStr === '-') return '-';
+  
+  // Deteksi persentase
+  const isPercent = valStr.endsWith('%');
+  let cleanStr = isPercent ? valStr.slice(0, -1) : valStr;
+  
+  // Ganti koma ke titik untuk parsing desimal jika ada
+  cleanStr = cleanStr.replace(/,/g, '.').trim();
+  
+  const num = parseFloat(cleanStr);
+  if (isNaN(num)) {
+    return valStr; // Jika bukan angka valid, kembalikan apa adanya
+  }
+  
+  // Format menjadi 2 digit di belakang koma (misal: 69.01, 79.00)
+  const formattedNum = num.toFixed(2);
+  
+  return isPercent ? formattedNum + '%' : formattedNum;
 }
