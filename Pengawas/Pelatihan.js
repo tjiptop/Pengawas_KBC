@@ -2121,7 +2121,8 @@ function setAbsenConfig_(pelatihanId, tanggal, configObj) {
   }
 
   // Caching: Simpan ke CacheService (maksimal 6 jam / 21600 detik)
-  const cacheKey = 'absen_config_' + pelatihanId + '_' + tanggal;
+  const cacheVer = CacheService.getScriptCache().get('cache_version') || '1';
+  const cacheKey = 'absen_config_v' + cacheVer + '_' + pelatihanId + '_' + tanggal;
   try {
     const cache = CacheService.getScriptCache();
     cache.put(cacheKey, JSON.stringify(configObj), 21600); // 6 jam
@@ -2134,7 +2135,8 @@ function setAbsenConfig_(pelatihanId, tanggal, configObj) {
  * Helper: Mengambil konfigurasi absensi dari Cache (prioritas) atau Fallback ke Sheet
  */
 function getAbsenConfig_(pelatihanId, tanggal) {
-  const cacheKey = 'absen_config_' + pelatihanId + '_' + tanggal;
+  const cacheVer = CacheService.getScriptCache().get('cache_version') || '1';
+  const cacheKey = 'absen_config_v' + cacheVer + '_' + pelatihanId + '_' + tanggal;
   
   // 1. Coba dari cache
   try {
