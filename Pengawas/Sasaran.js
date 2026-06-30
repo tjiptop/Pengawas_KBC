@@ -307,7 +307,6 @@ function getSasaran(nip) {
     if (idxNsm === -1) idxNsm = 2;
     if (idxNama === -1) idxNama = 3;
 
-    const nipStr = String(nip).trim();
     let sasaran = [];
 
     // Ambil data NSM Kamad yang sudah aktif
@@ -424,7 +423,6 @@ function saveSasaranList(nip, nsmListArray) {
     }
 
     const data = sheet.getDataRange().getValues();
-    const nipStr = String(nip).trim();
 
     // Hapus baris sasaran lama milik pengawas ini
     for (let i = data.length - 1; i >= 1; i--) {
