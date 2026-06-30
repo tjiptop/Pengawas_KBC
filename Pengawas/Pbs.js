@@ -4,7 +4,7 @@ function getKamadPbsSummary(nsm) {
 
     const cache = CacheService.getScriptCache();
     const cacheVer = cache.get('cache_version') || '1';
-    const cacheKey = 'kamad_pbs_summary_v' + cacheVer + '_' + nsm;
+    const cacheKey = 'kamad_pbs_summary_s1_v' + cacheVer + '_' + nsm;
     const cached = cache.get(cacheKey);
     if (cached) {
       try { return JSON.parse(cached); } catch(e) {}
