@@ -542,10 +542,26 @@ function clearExpiredTokens() {
       surveySheet.getRange(1, 1, newRows.length, headers.length).setValues(newRows);
     }
 
+    // 3. Membersihkan seluruh Script Properties lama yang berawalan 'absen_config_' (karena sudah migrasi ke Sheet)
+    let propertiesCleaned = 0;
+    try {
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const allProps = scriptProperties.getProperties();
+      for (const key in allProps) {
+        if (key.indexOf('absen_config_') === 0) {
+          scriptProperties.deleteProperty(key);
+          propertiesCleaned++;
+        }
+      }
+    } catch(e) {
+      Logger.log('Gagal membersihkan Script Properties absen_config_: ' + e.toString());
+    }
+
     ui.alert('🧹 Pembersihan Selesai', 
              `Proses pembersihan berhasil dijalankan:\n\n` +
              `• ${kamadCleaned} token KamadTokens yang kedaluwarsa/terpakai berhasil dihapus.\n` +
-             `• ${surveyCleaned} token Survey_Tokens yang kedaluwarsa/ditutup berhasil dihapus.`, 
+             `• ${surveyCleaned} token Survey_Tokens yang kedaluwarsa/ditutup berhasil dihapus.\n` +
+             `• ${propertiesCleaned} Script Properties absen lama berhasil dibersihkan.`, 
              ui.ButtonSet.OK);
   } catch (e) {
     ui.alert('⚠️ Kesalahan', 'Terjadi kesalahan sistem saat membersihkan token: ' + e.toString(), ui.ButtonSet.OK);
