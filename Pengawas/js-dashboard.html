@@ -16,12 +16,19 @@ const DashboardViews = {
                 <div class="menu-dropdown">
                     <button class="menu-btn" onclick="event.stopPropagation(); document.getElementById('dashboard-menu').classList.toggle('show')" title="Menu">☰</button>
                     <div id="dashboard-menu" class="menu-dropdown-content">
-                        <!-- Menu Materi -->
-                        <div class="menu-item" onclick="App.router('materi'); document.getElementById('dashboard-menu').classList.remove('show')">
-                            <span class="menu-item-icon">📚</span>
-                            <span class="menu-item-text">Buku dan Materi Terkait</span>
+                        <!-- 1. Madrasah Sasaran KBC -->
+                        <div class="menu-item" onclick="App.router('sasaran'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">🏫</span>
+                            <span class="menu-item-text">Madrasah Sasaran KBC</span>
                         </div>
 
+                        <!-- 2. Form Instrumen -->
+                        <div class="menu-item" onclick="App.router('forms'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">📋</span>
+                            <span class="menu-item-text">Form Instrumen</span>
+                        </div>
+
+                        <!-- 3. Pelatihan -->
                         ${user['Pelatih'] === 'Nasional' ? `
                         <div class="menu-item" onclick="App.router('pelatihan'); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">🎓</span>
@@ -34,14 +41,12 @@ const DashboardViews = {
                         </div>
                         `}
 
-                        <div class="menu-item" onclick="App.router('forms'); document.getElementById('dashboard-menu').classList.remove('show')">
-                            <span class="menu-item-icon">📋</span>
-                            <span class="menu-item-text">Isi Instrumen</span>
+                        <!-- 4. Buku dan Materi Terkait -->
+                        <div class="menu-item" onclick="App.router('materi'); document.getElementById('dashboard-menu').classList.remove('show')">
+                            <span class="menu-item-icon">📚</span>
+                            <span class="menu-item-text">Buku dan Materi Terkait</span>
                         </div>
-                        <div class="menu-item" onclick="App.router('sasaran'); document.getElementById('dashboard-menu').classList.remove('show')">
-                            <span class="menu-item-icon">🏫</span>
-                            <span class="menu-item-text">Madrasah Sasaran</span>
-                        </div>
+
                         <div class="menu-item" onclick="App.router('profile'); document.getElementById('dashboard-menu').classList.remove('show')">
                             <span class="menu-item-icon">👤</span>
                             <span class="menu-item-text">Profil</span>
@@ -89,21 +94,21 @@ const DashboardViews = {
 
             <!-- Launchpad Modul Kerja KBC (Responsive Grid) -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
-                <!-- Card 1: Isi Instrumen -->
-                <div class="card form-card" onclick="App.router('forms')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0;">
-                    <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(26, 115, 232, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:var(--color-primary); flex-shrink:0;">📋</div>
-                    <div style="flex:1; min-width:0;">
-                        <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Isi Instrumen</h3>
-                        <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Isi instrumen pengawasan KBC dan lihat riwayat pengisian instrumen.</div>
-                    </div>
-                </div>
-
-                <!-- Card 2: Madrasah Sasaran -->
+                <!-- Card 1: Madrasah Sasaran KBC -->
                 <div class="card form-card" onclick="App.router('sasaran')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0;">
                     <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(240, 173, 0, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:#f0ad00; flex-shrink:0;">🏫</div>
                     <div style="flex:1; min-width:0;">
                         <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Madrasah Sasaran KBC</h3>
                         <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Kelola daftar madrasah binaan KBC Anda di kabupaten.</div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Form Instrumen -->
+                <div class="card form-card" onclick="App.router('forms')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0;">
+                    <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(26, 115, 232, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:var(--color-primary); flex-shrink:0;">📋</div>
+                    <div style="flex:1; min-width:0;">
+                        <h3 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--color-text);">Form Instrumen</h3>
+                        <div style="font-size:0.8rem; color:var(--color-text-light); line-height:1.4;">Mengisi Form Instrumen Khusus Diri Pengawas</div>
                     </div>
                 </div>
 
@@ -126,7 +131,7 @@ const DashboardViews = {
                 </div>
                 `}
 
-                <!-- Card 4: Link Materi -->
+                <!-- Card 4: Buku dan Materi Terkait -->
                 <div class="card form-card" onclick="App.router('materi')" style="cursor:pointer; display:flex; align-items:center; gap:16px; padding:18px; margin-bottom:0;">
                     <div style="font-size:2rem; min-width:50px; text-align:center; background:rgba(63, 81, 181, 0.1); border-radius:12px; height:50px; display:flex; align-items:center; justify-content:center; color:#3f51b5; flex-shrink:0;">📚</div>
                     <div style="flex:1; min-width:0;">
