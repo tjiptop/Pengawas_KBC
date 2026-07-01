@@ -61,16 +61,20 @@ function kamadGetDashboard(nsm, viewerRole, forceRefresh = false) {
 function kamadGetAvailableForms(nsm, viewerRole) {
   try {
     const definitions = getMadrasahFormDefinitions();
-    const ICONS = { '0': '📊', '1': '🔍', '2': '📝', '3': '🎙️', '4': '👤' };
     const forms = Object.entries(definitions).map(([id, yaml]) => {
-      const tM = yaml.match(/^title:\s*(.+)$/m);
-      const gM = yaml.match(/^group:\s*(.+)$/m);
+      const tM = yaml.match(/^title:\s*["']?(.+?)["']?\s*$/m);
+      const gM = yaml.match(/^group:\s*["']?(.+?)["']?\s*$/m);
+      const descM = yaml.match(/^description:\s*["']?(.+?)["']?\s*$/m);
+      const iconM = yaml.match(/^icon:\s*["']?(.+?)["']?\s*$/m);
       const aM = yaml.match(/^allowed_roles:\s*\[([^\]]*)\]/m);
       const sL = yaml.match(/^submission_limit:\s*(.+)$/m);
       const dM = yaml.match(/^enable_delegation:\s*(.+)$/m);
       const sV = yaml.match(/^subordinate_visibility:\s*(.+)$/m);
+
       const title = tM ? tM[1].trim() : id;
       const group = gM ? gM[1].trim() : 'Lainnya';
+      const description = descM ? descM[1].trim() : '';
+      const icon = iconM ? iconM[1].trim() : '📋';
       const allowed = aM ? aM[1].split(',').map(r => r.trim().toLowerCase()) : [];
       const enableDelegation = dM ? dM[1].trim() === 'true' : false;
       const subordinateVisibility = sV ? sV[1].trim().toLowerCase() : 'hidden';
@@ -91,10 +95,11 @@ function kamadGetAvailableForms(nsm, viewerRole) {
         id,
         title,
         group,
+        description,
+        icon,
         canFill,
         isVisible,
         subordinate_visibility: subordinateVisibility,
-        icon: ICONS[group.charAt(0)] || '📋',
         submission_limit: submissionLimit,
         enable_delegation: enableDelegation,
         allowed_roles: allowed
