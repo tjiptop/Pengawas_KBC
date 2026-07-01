@@ -495,24 +495,14 @@ const FormsManager = {
     }
     this.currentCanFill = canFill;
 
-    // Sembunyikan header utama, tampilkan panel fill (persis seperti KamadForms)
-    const pageHeader = document.getElementById('forms-page-header');
-    if (pageHeader) pageHeader.style.display = 'none';
+    // Persis seperti KamadForms: header TETAP TAMPIL, hanya ganti judul & switch panel
+    const headerTitle = document.getElementById('forms-header-title');
+    if (headerTitle) headerTitle.textContent = submissionId ? 'Detail Form' : 'Pengisian Form';
     document.getElementById('panel-forms').style.display = 'none';
     document.getElementById('panel-form-fill').style.display = '';
 
     const container = document.getElementById('form-fill-container');
     container.innerHTML = `
-      <style>
-        @media print {
-          .no-print, .kamad-back-inline, .kamad-form-header-badge, .kamad-print-btn, .header, .back-btn {
-            display: none !important;
-          }
-          body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
-          .content { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; }
-          .print-only-block { display: block !important; position: absolute !important; top: 10px !important; right: 15px !important; font-size: 0.75rem !important; color: #555 !important; font-family: monospace !important; text-align: right !important; }
-        }
-      </style>
       <div id="pengawas-doc-id" class="print-only-block" style="display:none;"></div>
       
       <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;" class="no-print">
@@ -680,9 +670,9 @@ const FormsManager = {
 
   cancelForm() {
     this.state.currentForm = null;
-    // Tampilkan kembali header utama
-    const pageHeader = document.getElementById('forms-page-header');
-    if (pageHeader) pageHeader.style.display = '';
+    // Reset judul header (seperti KamadForms.closeFill())
+    const headerTitle = document.getElementById('forms-header-title');
+    if (headerTitle) headerTitle.textContent = 'Instrumen Pengawasan';
     this.updateSelectedMadrasahBanner();
     this.loadFormsAndHistory();
     document.getElementById('panel-forms').style.display = '';
