@@ -72,9 +72,23 @@ function apiGetFormDefinition(formId, nip = null, submissionId = null) {
                 let isMatch = false;
                 if (submissionId) {
                   const rowSubId = subIdIdx !== -1 ? String(data[i][subIdIdx]).trim() : '';
-                  const rowTimestamp = timestampIdx !== -1 ? String(data[i][timestampIdx]).trim() : '';
-                  if (rowSubId === String(submissionId).trim() || rowTimestamp === String(submissionId).trim()) {
+                  if (rowSubId === String(submissionId).trim()) {
                     isMatch = true;
+                  } else {
+                    // Fallback: Cocokkan berdasarkan ISO String dari timestamp
+                    try {
+                      const rowTimestampStr = new Date(data[i][timestampIdx]).toISOString();
+                      const searchTimestampStr = new Date(submissionId).toISOString();
+                      if (rowTimestampStr === searchTimestampStr) {
+                        isMatch = true;
+                      }
+                    } catch (e) {
+                      // Fallback string match
+                      const rowTimestamp = timestampIdx !== -1 ? String(data[i][timestampIdx]).trim() : '';
+                      if (rowTimestamp === String(submissionId).trim()) {
+                        isMatch = true;
+                      }
+                    }
                   }
                 } else {
                   // If no submissionId but limit is 0 (overwrite mode), prefill with latest

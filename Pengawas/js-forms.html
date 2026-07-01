@@ -358,8 +358,8 @@ const FormsManager = {
               madrasahName = 'Mandiri (Pengawas)';
             }
 
-            return `
-              <div class="kamad-history-sub-item" onclick="FormsManager.openForm('${form.id}', { nsm: '${s.nsmMadrasah}', nama: '${madrasahName.replace(/'/g, "\\'")}' }, '${s.timestamp}')">
+             return `
+              <div class="kamad-history-sub-item" onclick="FormsManager.openForm('${form.id}', { nsm: '${s.nsmMadrasah}', nama: '${madrasahName.replace(/'/g, "\\'")}' }, '${s.submissionId}')">
                 <span>${label}</span>
                 <span style="color:var(--color-primary);font-weight:600;font-size:0.8rem;">Lihat/Cetak &nbsp; &#10095;</span>
               </div>`;
