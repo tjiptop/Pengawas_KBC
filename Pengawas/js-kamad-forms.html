@@ -426,25 +426,26 @@ const KamadForms = {
           }
         }
       </style>
-      <div id="kamad-doc-id" class="print-only-block" style="display:none;"></div>
-      
-      <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;" class="no-print">
-        <button onclick="KamadForms.closeFill()"
-          class="kamad-back-inline">
+      <div class="kamad-form-header no-print" style="margin-bottom:20px; display:flex; flex-direction:column; align-items:flex-start; gap:10px;">
+        <button onclick="KamadForms.closeFill()" class="btn-back-fill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
           Kembali
         </button>
-        ${canFill ? '' : `
-          <button onclick="window.print()" class="kamad-print-btn" style="padding:6px 14px; background:#0f9b58; color:white; border:none; border-radius:18px; font-weight:600; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); transition:background 0.2s;">
-            🖨️ Cetak Form
-          </button>
-        `}
+        
+        <div style="display:flex; width:100%; justify-content:space-between; align-items:center;">
+          <span class="kamad-form-header-badge ${canFill ? '' : 'kamad-badge-readonly'}" style="margin:0;">
+            ${canFill ? '✏️ Mode Pengisian' : '👁️ Mode Baca'}
+          </span>
+          ${canFill ? '' : `
+            <button onclick="window.print()" class="kamad-print-btn" style="padding:6px 14px; background:#0f9b58; color:white; border:none; border-radius:18px; font-weight:600; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:var(--shadow-sm); transition:background 0.2s;">
+              🖨️ Cetak Form
+            </button>
+          `}
+        </div>
       </div>
 
-      <div class="kamad-form-header">
-        <span class="kamad-form-header-badge ${canFill ? '' : 'kamad-badge-readonly'}">
-          ${canFill ? '✏️ Mode Pengisian' : '👁️ Mode Baca'}
-        </span>
+      <div class="kamad-form-header" style="margin-top: 10px;">
+        <div id="kamad-doc-id" class="print-only-block" style="display:none;"></div>
         <h1 id="kfill-title" class="kamad-form-fill-title" style="display: none;">Memuat...</h1>
       </div>
 

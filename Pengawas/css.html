@@ -2584,6 +2584,29 @@
 
     .kamad-back-inline:hover { color: var(--color-primary); }
 
+    /* Style Tombol Kembali Standard */
+    .btn-back-fill {
+        background: var(--color-bg-elevated);
+        color: var(--color-text-secondary);
+        border: 1px solid var(--color-border);
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 6px;
+        transition: all var(--transition-fast);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .btn-back-fill:hover {
+        background: var(--color-bg-hover);
+        color: var(--color-text);
+        border-color: var(--color-text-secondary);
+    }
+
     .kamad-form-header { margin-bottom: 16px; }
 
     .kamad-form-header-badge {
@@ -3285,17 +3308,6 @@
     .kanban-cancelled-list.dragover {
         background-color: rgba(234, 67, 53, 0.05);
         border-radius: var(--radius-md);
-    }
-
-    /* Sembunyikan banner "This application was created by Google Apps Script" */
-    .script-application-attribution {
-        display: none !important;
-    }
-
-    /* Target iframe info banner jika tampil via parent */
-    body > div[aria-label*="Google Apps Script"],
-    body > div[class*="apps-script"] {
-        display: none !important;
     }
 
 </style>
