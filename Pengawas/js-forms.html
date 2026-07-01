@@ -568,12 +568,12 @@ const FormsManager = {
         throw new Error('FormEngine belum dimuat. Pastikan js-form-engine.html di-include.');
       }
 
-      // Update title
+      // Update title - h1 tetap tersembunyi; FormEngine menampilkan judulnya sendiri (seperti KamadForms)
       const parsed = jsyaml.load(yamlStr);
       const titleEl = document.getElementById('form-fill-title');
       if (titleEl) {
         titleEl.textContent = parsed.title || formId;
-        titleEl.style.display = 'block';
+        // TIDAK set display:block - biarkan FormEngine yang render judul (identik dengan KamadForms)
       }
 
       // Mount FormEngine ke container

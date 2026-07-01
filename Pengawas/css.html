@@ -3287,4 +3287,15 @@
         border-radius: var(--radius-md);
     }
 
+    /* Sembunyikan banner "This application was created by Google Apps Script" */
+    .script-application-attribution {
+        display: none !important;
+    }
+
+    /* Target iframe info banner jika tampil via parent */
+    body > div[aria-label*="Google Apps Script"],
+    body > div[class*="apps-script"] {
+        display: none !important;
+    }
+
 </style>
