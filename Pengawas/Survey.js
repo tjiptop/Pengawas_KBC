@@ -223,7 +223,7 @@ function getSurveyYamlForPelatihan_(pelatihanId, type) {
 function ensurePelatihanExtColumns_(sheet) {
   if (!sheet || sheet.getLastRow() < 1) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const needed = ['sertifikat_doc_id', 'kategori', 'zona_waktu'];
+  const needed = ['sertifikat_doc_id', 'kategori', 'zona_waktu', 'moda', 'link', 'jam_mulai', 'jam_selesai', 'link_undangan'];
   needed.forEach(col => {
     if (headers.indexOf(col) === -1) {
       const newCol = sheet.getLastColumn() + 1;

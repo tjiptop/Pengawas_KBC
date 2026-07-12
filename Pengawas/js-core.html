@@ -410,6 +410,32 @@ const App = {
     if (btn) btn.textContent = dark ? '☀️' : '🌙';
   },
 
+  formatTime(val) {
+    if (!val) return '';
+    let str = String(val);
+    if (str.includes('T')) {
+      try {
+        const date = new Date(str);
+        if (!isNaN(date.getTime())) {
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${hours}:${minutes}`;
+        }
+      } catch (e) {}
+      const parts = str.split('T');
+      if (parts[1]) {
+        return parts[1].substring(0, 5);
+      }
+    }
+    if (str.includes(':')) {
+      const parts = str.split(':');
+      if (parts[0] !== undefined && parts[1] !== undefined) {
+        return `${parts[0].trim().padStart(2, '0')}:${parts[1].trim().padStart(2, '0')}`;
+      }
+    }
+    return str.substring(0, 5);
+  },
+
   logout() {
     this.clearSupervisorSessionData();
     this.clearKamadSessionData();

@@ -226,6 +226,63 @@
                 const placeholder = q.placeholder || 'Select...';
                 inp = `<select name="${q.name}" id="f-${q.name}" class="form-control" ${widthStyle} ${req}><option value="">${placeholder}</option>${opt}</select>`;
 
+            } else if (q.type == 'multiselect') {
+                let currentVal = val;
+                if (!Array.isArray(currentVal)) {
+                    if (typeof currentVal === 'string' && currentVal.length > 0) {
+                        if (currentVal.startsWith('[') && currentVal.endsWith(']')) {
+                            try {
+                                currentVal = JSON.parse(currentVal);
+                            } catch(e) {
+                                currentVal = currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                            }
+                        } else {
+                            currentVal = currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    } else {
+                        currentVal = [];
+                    }
+                }
+
+                const options = q.options || [];
+                const placeholder = q.placeholder || 'Pilih...';
+                
+                // Build badges
+                const badges = currentVal.map(v => `
+                    <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                        ${v}
+                        <span onclick="FormEngine.removeMultiselectOption('${q.name}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                    </span>
+                `).join('');
+
+                const badgeArea = badges || `<span style="color:var(--color-text-secondary);font-size:0.9em;">${placeholder}</span>`;
+
+                // Build dropdown options list
+                const optionsHtml = options.map(o => {
+                    const isChecked = currentVal.includes(o) ? 'checked' : '';
+                    return `
+                        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
+                            <input type="checkbox" data-field-id="${q.name}" value="${o}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${q.name}', '${o.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
+                            <span style="font-size:0.9em;color:var(--color-text);">${o}</span>
+                        </label>
+                    `;
+                }).join('');
+
+                inp = `
+                    <div class="multiselect-container" style="position:relative;${widthStyle}">
+                        <div id="ms-display-${q.name}" onclick="FormEngine.toggleMultiselectDropdown('${q.name}', event)" style="display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:6px 12px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-elevated);cursor:pointer;user-select:none;">
+                            <div id="ms-badges-${q.name}" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-grow:1;margin-right:10px;">
+                                ${badgeArea}
+                            </div>
+                            <span class="ms-arrow" style="font-size:0.8em;color:var(--color-text-secondary);transition:transform 0.2s;">▼</span>
+                        </div>
+                        <div id="ms-dropdown-${q.name}" class="ms-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:4px;max-height:220px;overflow-y:auto;box-shadow:0 4px 6px rgba(0,0,0,0.1);margin-top:2px;">
+                            ${optionsHtml}
+                        </div>
+                        <input type="hidden" name="${q.name}" id="f-${q.name}" value="${Security.sanitizeHtml(JSON.stringify(currentVal))}" ${req}>
+                    </div>
+                `;
+
             } else if (q.type == 'lookup') {
                 let options = [];
                 if (q.source === 'madrasahs' && App.state.madrasahs) {
@@ -991,6 +1048,95 @@
                 if (c.type === 'select') {
                     const opts = (c.options || []).map(o => `<option value="${o}" ${o == cellVal ? 'selected' : ''}>${o}</option>`).join('');
                     inputHtml = `<select class="form-control tbl-inp" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}"><option value="">Select...</option>${opts}</select>`;
+                } else if (c.type === 'multiselect') {
+                    let cellValList = [];
+                    if (Array.isArray(cellVal)) {
+                        cellValList = cellVal;
+                    } else if (typeof cellVal === 'string' && cellVal.length > 0) {
+                        if (cellVal.startsWith('[') && cellVal.endsWith(']')) {
+                            try {
+                                cellValList = JSON.parse(cellVal);
+                                if (!Array.isArray(cellValList)) {
+                                    cellValList = [cellVal];
+                                }
+                            } catch (e) {
+                                cellValList = cellVal.split(',').map(s => s.trim()).filter(Boolean);
+                            }
+                        } else {
+                            cellValList = cellVal.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    }
+
+                    const options = c.options || [];
+                    const placeholder = c.placeholder || 'Pilih...';
+                    const fieldId = `${tableName}__${rowIdx}__${c.name}`;
+
+                    // Build badges
+                    const badges = cellValList.map(v => `
+                        <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                            ${v}
+                            <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                        </span>
+                    `).join('');
+
+                    const badgeArea = badges || `<span style="color:var(--color-text-secondary);font-size:0.9em;">${placeholder}</span>`;
+
+                    // Build dropdown options list
+                    const optionsHtml = options.map(o => {
+                        const isChecked = cellValList.includes(o) ? 'checked' : '';
+                        return `
+                            <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" data-field-id="${fieldId}" value="${o}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${fieldId}', '${o.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
+                                <span style="font-size:0.9em;color:var(--color-text);">${o}</span>
+                            </label>
+                        `;
+                    }).join('');
+
+                    inputHtml = `
+                        <div class="multiselect-container" style="position:relative;min-width:150px;">
+                            <div id="ms-display-${fieldId}" onclick="FormEngine.toggleMultiselectDropdown('${fieldId}', event)" style="display:flex;align-items:center;justify-content:space-between;min-height:30px;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-elevated);cursor:pointer;user-select:none;">
+                                <div id="ms-badges-${fieldId}" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex-grow:1;margin-right:5px;">
+                                    ${badgeArea}
+                                </div>
+                                <span class="ms-arrow" style="font-size:0.7em;color:var(--color-text-secondary);transition:transform 0.2s;">▼</span>
+                            </div>
+                            <div id="ms-dropdown-${fieldId}" class="ms-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:4px;max-height:180px;overflow-y:auto;box-shadow:0 4px 6px rgba(0,0,0,0.1);margin-top:2px;">
+                                ${optionsHtml}
+                            </div>
+                        </div>
+                    `;
+                } else if (c.type === 'checkbox') {
+                    let cellValList = [];
+                    if (Array.isArray(cellVal)) {
+                        cellValList = cellVal;
+                    } else if (typeof cellVal === 'string' && cellVal.length > 0) {
+                        if (cellVal.startsWith('[') && cellVal.endsWith(']')) {
+                            try {
+                                cellValList = JSON.parse(cellVal);
+                                if (!Array.isArray(cellValList)) {
+                                    cellValList = [cellVal];
+                                }
+                            } catch (e) {
+                                cellValList = cellVal.split(',').map(s => s.trim());
+                            }
+                        } else {
+                            cellValList = cellVal.split(',').map(s => s.trim());
+                        }
+                    }
+
+                    if (c.options && c.options.length > 0) {
+                        const opts = (c.options || []).map((o, optIdx) => {
+                            const isChecked = cellValList.includes(o) ? 'checked' : '';
+                            return `<label style="display:flex;align-items:center;gap:6px;margin:2px 0;font-weight:normal;cursor:pointer;font-size:0.9em;white-space:nowrap">
+                                      <input type="checkbox" class="tbl-chk" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}" value="${o}" ${isChecked} style="width:16px;height:16px;cursor:pointer"> 
+                                      <span>${o}</span>
+                                    </label>`;
+                        }).join('');
+                        inputHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start">${opts}</div>`;
+                    } else {
+                        const isChecked = (cellVal === true || cellVal === 'true' || cellVal === 'Yes') ? 'checked' : '';
+                        inputHtml = `<input type="checkbox" class="tbl-chk" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}" value="Yes" ${isChecked} style="width:18px;height:18px;cursor:pointer;margin:0 auto;display:block">`;
+                    }
                 } else if (['integer', 'float'].includes(c.type)) {
                     const step = c.step !== undefined ? c.step : (c.type === 'integer' ? '1' : 'any');
                     const min = c.min !== undefined ? `min="${c.min}"` : '';
@@ -1046,6 +1192,9 @@
             const tableContainers = el.querySelectorAll('.table-responsive');
             tableContainers.forEach(container => {
                 container.addEventListener('scroll', () => {
+                    // Close multiselect dropdowns on table scroll
+                    FormEngine.closeAllMultiselectDropdowns();
+
                     // Detect if scrolled to end
                     const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5;
                     if (isAtEnd) {
@@ -1055,6 +1204,19 @@
                     }
                 });
             });
+
+            // Close multiselect dropdowns on outside click
+            if (!this._outsideClickListenerAdded) {
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.multiselect-container')) {
+                        FormEngine.closeAllMultiselectDropdowns();
+                    }
+                });
+                window.addEventListener('scroll', () => {
+                    FormEngine.closeAllMultiselectDropdowns();
+                }, { passive: true });
+                this._outsideClickListenerAdded = true;
+            }
         },
 
         handleInput(target) {
@@ -1063,10 +1225,22 @@
                 const r = parseInt(target.dataset.row);
                 const c = target.dataset.col;
                 if (this.data[t] && this.data[t][r]) {
-                    let value = target.value;
-                    if (typeof value === 'string' && value.length > 0) {
-                        value = Security.sanitizeHtml(value);
-                        value = Security.sanitizeFormulaInjection(value);
+                    let value;
+                    if (target.type === 'checkbox') {
+                        const q = this.def.questions.find(item => item.name === t);
+                        const colDef = q && q.columns && q.columns.find(col => col.name === c);
+                        if (colDef && colDef.options && colDef.options.length > 0) {
+                            const checkedCheckboxes = document.querySelectorAll(`input[type="checkbox"][data-table="${t}"][data-row="${r}"][data-col="${c}"]:checked`);
+                            value = Array.from(checkedCheckboxes).map(cb => cb.value);
+                        } else {
+                            value = target.checked;
+                        }
+                    } else {
+                        value = target.value;
+                        if (typeof value === 'string' && value.length > 0) {
+                            value = Security.sanitizeHtml(value);
+                            value = Security.sanitizeFormulaInjection(value);
+                        }
                     }
                     this.data[t][r][c] = value;
                     // Track changes in table
@@ -1257,7 +1431,7 @@
 
                 const val = this.data[q.name];
                 if (q.regex && val && !new RegExp(q.regex).test(val)) { Utils.alert(`Invalid format: ${q.label}`); return false; }
-                if (q.required && (val === undefined || val === '' || val === null)) { Utils.alert(`Required: ${q.label}`); return false; }
+                if (q.required && (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0))) { Utils.alert(`Required: ${q.label}`); return false; }
 
                 if ((q.type === 'integer' || q.type === 'float') && val !== '' && val !== undefined && val !== null) {
                     const num = Number(val);
@@ -1436,6 +1610,187 @@
             }
         },
 
+        toggleMultiselectDropdown(fieldId, event) {
+            event.stopPropagation();
+            
+            const dropdown = document.getElementById('ms-dropdown-' + fieldId);
+            const displayEl = document.getElementById('ms-display-' + fieldId);
+            const arrow = displayEl ? displayEl.querySelector('.ms-arrow') : null;
+            
+            if (!dropdown || !displayEl) return;
+
+            const isAlreadyOpen = dropdown.style.display === 'block';
+
+            // Close all dropdowns first
+            this.closeAllMultiselectDropdowns();
+
+            if (!isAlreadyOpen) {
+                dropdown.style.display = 'block';
+                if (arrow) arrow.style.transform = 'rotate(180deg)';
+
+                // Dynamically position dropdown with fixed position to escape overflow clipping
+                dropdown.style.position = 'fixed';
+                dropdown.style.zIndex = '9999';
+
+                const isTable = fieldId.includes('__');
+                const dropdownMaxHeight = isTable ? 180 : 220;
+                
+                const dropdownHeight = Math.min(dropdown.scrollHeight, dropdownMaxHeight);
+
+                const rect = displayEl.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const spaceAbove = rect.top;
+
+                let top, left, width;
+                left = rect.left;
+                width = rect.width;
+
+                if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                    // Position above
+                    top = rect.top - dropdownHeight;
+                    dropdown.style.borderRadius = '4px 4px 0 0';
+                    dropdown.style.borderBottom = 'none';
+                    dropdown.style.borderTop = '1px solid var(--color-border)';
+                } else {
+                    // Position below
+                    top = rect.bottom;
+                    dropdown.style.borderRadius = '0 0 4px 4px';
+                    dropdown.style.borderTop = 'none';
+                    dropdown.style.borderBottom = '1px solid var(--color-border)';
+                }
+
+                dropdown.style.top = top + 'px';
+                dropdown.style.left = left + 'px';
+                dropdown.style.width = width + 'px';
+                dropdown.style.maxHeight = dropdownMaxHeight + 'px';
+            }
+        },
+
+        closeAllMultiselectDropdowns() {
+            const allDropdowns = document.querySelectorAll('.ms-dropdown-menu');
+            allDropdowns.forEach(el => {
+                el.style.display = 'none';
+                const displayEl = el.parentElement.querySelector('div[id^="ms-display-"]');
+                const arrow = displayEl ? displayEl.querySelector('.ms-arrow') : null;
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            });
+        },
+
+        toggleMultiselectOption(fieldId, optionVal, checked) {
+            let hiddenInput = document.getElementById('f-' + fieldId);
+            const isTable = fieldId.includes('__');
+            let tableName, rowIdx, colName;
+            
+            if (isTable) {
+                const parts = fieldId.split('__');
+                tableName = parts[0];
+                rowIdx = parseInt(parts[1]);
+                colName = parts[2];
+            }
+
+            let val = [];
+            
+            if (isTable) {
+                if (this.data[tableName] && this.data[tableName][rowIdx]) {
+                    const cellVal = this.data[tableName][rowIdx][colName];
+                    if (Array.isArray(cellVal)) {
+                        val = cellVal;
+                    } else if (typeof cellVal === 'string' && cellVal.length > 0) {
+                        if (cellVal.startsWith('[') && cellVal.endsWith(']')) {
+                            try { val = JSON.parse(cellVal); } catch(e) { val = cellVal.split(',').map(s => s.trim()).filter(Boolean); }
+                        } else {
+                            val = cellVal.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    }
+                }
+            } else {
+                if (hiddenInput) {
+                    try {
+                        val = JSON.parse(hiddenInput.value || '[]');
+                    } catch (e) {
+                        val = (hiddenInput.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                    }
+                }
+            }
+
+            if (checked) {
+                if (!val.includes(optionVal)) {
+                    val.push(optionVal);
+                }
+            } else {
+                val = val.filter(v => v !== optionVal);
+            }
+
+            if (isTable) {
+                if (this.data[tableName] && this.data[tableName][rowIdx]) {
+                    this.data[tableName][rowIdx][colName] = val;
+                }
+            } else {
+                if (hiddenInput) {
+                    hiddenInput.value = JSON.stringify(val);
+                }
+                this.data[fieldId] = val;
+            }
+            
+            this.hasUnsavedChanges = true;
+
+            // Update badges area
+            this.updateMultiselectBadges(fieldId, val);
+
+            // Trigger reactive validation/logic
+            if (!isTable && !this.passiveFields.has(fieldId)) {
+                this.runLogic();
+            }
+        },
+
+        removeMultiselectOption(fieldId, optionVal, event) {
+            if (event) event.stopPropagation();
+
+            const checkbox = document.querySelector(`.multiselect-container input[type="checkbox"][data-field-id="${fieldId}"][value="${optionVal}"]`);
+            if (checkbox) {
+                checkbox.checked = false;
+            }
+            this.toggleMultiselectOption(fieldId, optionVal, false);
+        },
+
+        updateMultiselectBadges(fieldId, val) {
+            const badgesArea = document.getElementById('ms-badges-' + fieldId);
+            if (!badgesArea) return;
+
+            const isTable = fieldId.includes('__');
+            let placeholder = 'Pilih...';
+
+            if (isTable) {
+                const parts = fieldId.split('__');
+                const tableName = parts[0];
+                const colName = parts[2];
+                const q = this.def.questions.find(x => x.name === tableName);
+                const colDef = q && q.columns && q.columns.find(col => col.name === colName);
+                if (colDef && colDef.placeholder) {
+                    placeholder = colDef.placeholder;
+                }
+            } else {
+                const q = this.def.questions.find(x => x.name === fieldId);
+                if (q && q.placeholder) {
+                    placeholder = q.placeholder;
+                }
+            }
+
+            if (!val || val.length === 0) {
+                badgesArea.innerHTML = `<span style="color:var(--color-text-secondary);font-size:0.9em;">${placeholder}</span>`;
+                return;
+            }
+
+            const badgesHtml = val.map(v => `
+                <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                    ${v}
+                    <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                </span>
+            `).join('');
+
+            badgesArea.innerHTML = badgesHtml;
+        },
+
         evalDefault(def) {
             if (!def) return def;
             if (typeof def !== 'string') return def;
@@ -1475,13 +1830,13 @@
                     '$today': dateStr,
                     '$now': `${dateStr}T${timeStr}`,
                     '$time': timeStr,
-                    '$madrasah_name': (madrasah && madrasah.name) || '',
+                    '$madrasah_name': (madrasah && (madrasah.name || madrasah.nama)) || '',
                     '$madrasah_id': (madrasah && madrasah.madrasah_id) || (user.role === 'madrasah' ? user.username : '') || '',
                     '$madrasah_nsm': (madrasah && madrasah.nsm) || (user.role === 'madrasah' ? user.username : '') || '',
-                    '$madrasah_level': (madrasah && madrasah.level) || '',
-                    '$madrasah_province': (madrasah && madrasah.province) || '',
-                    '$madrasah_district': (madrasah && madrasah.district) || '',
-                    '$madrasah_sub_district': (madrasah && madrasah.subdistrict) || '',
+                    '$madrasah_level': (madrasah && (madrasah.level || madrasah.jenjang)) || '',
+                    '$madrasah_province': (madrasah && (madrasah.province || madrasah.provinsi)) || '',
+                    '$madrasah_district': (madrasah && (madrasah.district || madrasah.kabupaten)) || '',
+                    '$madrasah_sub_district': (madrasah && (madrasah.subdistrict || madrasah.kecamatan)) || '',
                     '$madrasah_village': (madrasah && madrasah.village) || '',
                     '$madrasah_village_id': (madrasah && madrasah.village_id) || '',
                     '$madrasah_address': (madrasah && madrasah.address) || ''

@@ -91,9 +91,9 @@ function getMadrasahByNsm(nsm) {
       const i = headers.findIndex(h => h.toUpperCase().includes(name));
       return i;
     };
-    const idxNsm  = idx('NSM');
+    const idxNsm = idx('NSM');
     const idxNama = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('NAMA') || u === 'NAME'; });
-    const idxKec  = idx('KEC');
+    const idxKec = idx('KEC');
     let idxKab = headers.findIndex(h => {
       const u = h.toUpperCase();
       return u === 'KABUPATEN' || u === 'KOTA' || u === 'KABUPATEN/KOTA' || u === 'KABUPATEN_KOTA';
@@ -105,18 +105,30 @@ function getMadrasahByNsm(nsm) {
         return u.includes('KAB') || u.includes('KOTA') || u === 'DISTRICT';
       });
     }
-    const idxProv = idx('PROV');
+    // Cari kolom PROVINSI secara lebih ketat: exact match dulu, baru fallback substring
+    let idxProv = headers.findIndex(h => {
+      const u = h.toUpperCase().trim();
+      return u === 'PROVINSI' || u === 'PROVINCE' || u === 'PROPINSI' || u === 'PROV' || u === 'STATE';
+    });
+    if (idxProv === -1) {
+      idxProv = headers.findIndex(h => {
+        const u = h.toUpperCase().trim();
+        // Hindari false-positive: jangan match NPWP, APPROVAL, IMPROVEMENT, dll.
+        if (u.includes('NPWP') || u.includes('APPROVAL') || u.includes('IMPROVE') || u.includes('PROVID')) return false;
+        return u.includes('PROVINSI') || u.includes('PROVINCE') || u.includes('PROPINSI');
+      });
+    }
     const idxJenjang = headers.findIndex(h => { const u = h.toUpperCase(); return u.includes('JENJANG') || u === 'LEVEL'; });
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][idxNsm]).trim() === nsmStr) {
         return {
-          nsm:       nsmStr,
-          nama:      idxNama    !== -1 ? data[i][idxNama]    : '',
-          kecamatan: idxKec     !== -1 ? data[i][idxKec]     : '',
-          kabupaten: idxKab     !== -1 ? data[i][idxKab]     : '',
-          provinsi:  idxProv    !== -1 ? data[i][idxProv]    : '',
-          jenjang:   idxJenjang !== -1 ? data[i][idxJenjang] : '',
+          nsm: nsmStr,
+          nama: idxNama !== -1 ? data[i][idxNama] : '',
+          kecamatan: idxKec !== -1 ? data[i][idxKec] : '',
+          kabupaten: idxKab !== -1 ? data[i][idxKab] : '',
+          provinsi: idxProv !== -1 ? data[i][idxProv] : '',
+          jenjang: idxJenjang !== -1 ? data[i][idxJenjang] : '',
         };
       }
     }
@@ -157,7 +169,7 @@ function getCachedMasterPengawasData() {
 function resetMasterCache() {
   try {
     const cache = CacheService.getScriptCache();
-    
+
     // 1. Hapus cache master madrasah dan master pengawas
     const chunkCountStr = cache.get('master_madrasah_rows_chunks');
     if (chunkCountStr) {
@@ -206,7 +218,7 @@ function resetMasterCache() {
     } else {
       cache.remove('master_anbk_rows');
     }
-    
+
     // 2. Naikkan versi cache untuk membatalkan seluruh cache kabupaten lama (cache busting)
     try {
       let currentVersion = parseInt(cache.get('cache_version') || '1');
@@ -215,22 +227,22 @@ function resetMasterCache() {
     } catch (e) {
       console.warn('Gagal menaikkan versi cache:', e);
     }
-    
+
     // 3. Berikan pesan sukses
     console.log('Master Madrasah cache cleared successfully.');
-    
+
     // Jika dipanggil dari Spreadsheet UI, tampilkan alert dialog
     try {
       const ui = SpreadsheetApp.getUi();
       if (ui) {
         ui.alert('Berhasil', 'Cache data madrasah telah di-reset! Aplikasi akan memuat data terbaru dari Spreadsheet.', ui.ButtonSet.OK);
       }
-    } catch(e) {
+    } catch (e) {
       // Tidak dipanggil dari konteks container-bound Spreadsheet, abaikan
     }
-    
+
     return { success: true, message: 'Cache data madrasah berhasil di-reset.' };
-  } catch(e) {
+  } catch (e) {
     console.log('Error resetMasterCache: ' + e.toString());
     return { success: false, error: e.toString() };
   }

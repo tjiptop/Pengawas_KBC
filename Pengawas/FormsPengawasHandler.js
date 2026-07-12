@@ -496,7 +496,7 @@ function extractTableFieldsFromYAML(yaml) {
  * @param {Date} timestamp
  * @returns {Array<string>} Affected sheet names
  */
-function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData, msgId, timestamp) {
+function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData, msgId, timestamp, madrasahId = '') {
   const affectedSheets = [];
 
   tableFields.forEach(tableField => {
@@ -524,6 +524,9 @@ function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData,
     if (!tableSheet) {
       tableSheet = ss.insertSheet(tableSheetName);
       const tableHeaders = ['submission_id', 'timestamp'];
+      if (madrasahId) {
+        tableHeaders.splice(1, 0, 'madrasah_id');
+      }
       if (tableField.type === 'table_col_fix') {
         const firstColName = tableField.firstColLabel || 'row_label';
         tableHeaders.push(firstColName);
@@ -545,6 +548,7 @@ function writeTableDataToSheets(ss, targetSheetName, tableFields, processedData,
       const row = headers.map(h => {
         if (h === 'submission_id') return msgId;
         if (h === 'timestamp') return timestamp;
+        if (h === 'madrasah_id' || h === 'nsm') return madrasahId;
 
         if (tableField.type === 'table_col_fix') {
           const firstColName = tableField.firstColLabel || 'row_label';

@@ -3040,19 +3040,21 @@
 
     .kanban-modal-title-input {
         width: 100%;
-        border: none;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
         background: transparent;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: var(--color-text);
-        padding: 4px 0;
-        border-bottom: 2px solid transparent;
-        transition: border-bottom-color var(--transition-fast);
+        padding: 8px 12px;
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
         outline: none;
+        box-sizing: border-box;
     }
 
     .kanban-modal-title-input:focus {
-        border-bottom-color: var(--color-primary);
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
     }
 
     .kanban-modal-label {
@@ -3308,6 +3310,72 @@
     .kanban-cancelled-list.dragover {
         background-color: rgba(234, 67, 53, 0.05);
         border-radius: var(--radius-md);
+    }
+
+    /* Accordion styles */
+    .kanban-accordion {
+        border: 1px solid var(--color-border-light);
+        border-radius: var(--radius-md);
+        margin-bottom: var(--spacing-md);
+        overflow: hidden;
+        background: var(--color-bg-elevated);
+        transition: border-color var(--transition-fast);
+    }
+
+    .kanban-accordion-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.02);
+        cursor: pointer;
+        user-select: none;
+        transition: background var(--transition-fast);
+    }
+
+    .kanban-accordion-header:hover {
+        background: rgba(0, 0, 0, 0.04);
+    }
+
+    [data-theme="dark"] .kanban-accordion-header {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    [data-theme="dark"] .kanban-accordion-header:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .kanban-accordion-title {
+        font-size: var(--font-size-xs);
+        font-weight: 700;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .kanban-accordion-icon {
+        font-size: 0.75rem;
+        transition: transform var(--transition-fast);
+        color: var(--color-text-light);
+    }
+
+    .kanban-accordion.open .kanban-accordion-icon {
+        transform: rotate(180deg);
+    }
+
+    .kanban-accordion-content {
+        display: none;
+        padding: 14px;
+        border-top: 1px solid var(--color-border-light);
+        background: transparent;
+    }
+
+    .kanban-accordion.open .kanban-accordion-content {
+        display: block;
     }
 
 </style>

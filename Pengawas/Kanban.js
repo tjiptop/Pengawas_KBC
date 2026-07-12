@@ -64,6 +64,14 @@ function kanbanGetBoardData(nsm, sessionToken) {
         idxApproved = headers.length - 1;
       }
 
+      // Check for work_notes and add if missing
+      let idxWorkNotes = headers.indexOf('work_notes');
+      if (idxWorkNotes === -1) {
+        cardsSheet.getRange(1, headers.length + 1).setValue('work_notes');
+        headers.push('work_notes');
+        idxWorkNotes = headers.length - 1;
+      }
+
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][idxNsm]).trim() === nsmStr) {
           let attachmentsList = [];
@@ -76,6 +84,16 @@ function kanbanGetBoardData(nsm, sessionToken) {
             console.error('Gagal parse attachments card: ' + e.toString());
           }
 
+          let workNotesList = [];
+          try {
+            const notesStr = (idxWorkNotes !== -1 && idxWorkNotes < data[i].length) ? data[i][idxWorkNotes] : '';
+            if (notesStr) {
+              workNotesList = JSON.parse(notesStr);
+            }
+          } catch (e) {
+            console.error('Gagal parse work_notes card: ' + e.toString());
+          }
+
           cards.push({
             card_id: String(data[i][idxCardId]),
             nsm: String(data[i][idxNsm]),
@@ -83,6 +101,7 @@ function kanbanGetBoardData(nsm, sessionToken) {
             description: String(data[i][idxDesc]),
             status: String(data[i][idxStatus]),
             attachments: attachmentsList,
+            work_notes: workNotesList,
             created_by: String(data[i][idxCreatedBy]),
             created_at: String(data[i][idxCreatedAt]),
             updated_at: String(data[i][idxUpdatedAt]),
@@ -109,6 +128,7 @@ function kanbanGetBoardData(nsm, sessionToken) {
       const idxAuthorId = headers.indexOf('author_id');
       const idxText = headers.indexOf('comment_text');
       const idxCreatedAt = headers.indexOf('created_at');
+      const idxCardStatus = headers.indexOf('card_status');
 
       const relevantCardIds = new Set(cards.map(c => c.card_id));
 
@@ -122,7 +142,8 @@ function kanbanGetBoardData(nsm, sessionToken) {
             author_role: String(data[i][idxAuthorRole]),
             author_id: String(data[i][idxAuthorId]),
             comment_text: String(data[i][idxText]),
-            created_at: String(data[i][idxCreatedAt])
+            created_at: String(data[i][idxCreatedAt]),
+            card_status: (idxCardStatus !== -1 && idxCardStatus < data[i].length) ? String(data[i][idxCardStatus]).trim() : ''
           });
         }
       }
@@ -232,6 +253,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
       const attachments = JSON.stringify(cardData.attachments || []);
       const tag = sanitizeHtml(String(cardData.tag || '').trim());
       const work_details = sanitizeHtml(String(cardData.work_details || '').trim());
+      const work_notes = JSON.stringify(cardData.work_notes || []);
       const now = new Date().toISOString();
 
       if (!title) return apiError('Judul kartu tidak boleh kosong.', 'VALIDATION');
@@ -254,6 +276,14 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
         sheet.getRange(1, headers.length + 1).setValue('work_details');
         headers.push('work_details');
         idxWorkDetails = headers.length - 1;
+      }
+
+      // Check if work_notes column is missing, add it
+      let idxWorkNotes = headers.indexOf('work_notes');
+      if (idxWorkNotes === -1) {
+        sheet.getRange(1, headers.length + 1).setValue('work_notes');
+        headers.push('work_notes');
+        idxWorkNotes = headers.length - 1;
       }
 
       let cardId = cardData.card_id ? String(cardData.card_id).trim() : '';
@@ -281,6 +311,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
           if (h === 'attachments') return attachments;
           if (h === 'tag') return tag;
           if (h === 'work_details') return work_details;
+          if (h === 'work_notes') return work_notes;
           if (h === 'created_by') return 'Kamad';
           if (h === 'created_at') return now;
           if (h === 'updated_at') return now;
@@ -293,7 +324,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
         if (status === 'Belum Mulai') statusText = 'Dibuat';
         else if (status === 'Sedang Berjalan') statusText = 'Sedang Berjalan';
         else if (status === 'Selesai') statusText = 'Selesai';
-        else if (status === 'Dibatalkan') statusText = 'Dibatalkan/Tunda';
+        else if (status === 'Dibatalkan') statusText = 'Ditunda';
 
         if (statusText) {
           addSystemComment_(ss, cardId, statusText + ' ' + formatDateTime_());
@@ -314,6 +345,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
           else if (h === 'attachments') val = attachments;
           else if (h === 'tag') val = tag;
           else if (h === 'work_details') val = work_details;
+          else if (h === 'work_notes') val = work_notes;
           else if (h === 'updated_at') val = now;
 
           if (val !== null) {
@@ -327,7 +359,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
           if (status === 'Belum Mulai') statusText = 'Dibuat';
           else if (status === 'Sedang Berjalan') statusText = 'Sedang Berjalan';
           else if (status === 'Selesai') statusText = 'Selesai';
-          else if (status === 'Dibatalkan') statusText = 'Dibatalkan/Tunda';
+          else if (status === 'Dibatalkan') statusText = 'Ditunda';
 
           if (statusText) {
             addSystemComment_(ss, cardId, statusText + ' ' + formatDateTime_());
@@ -395,7 +427,7 @@ function kanbanMoveCard(nsm, cardId, newStatus, sessionToken) {
         if (newStatusSanitized === 'Belum Mulai') statusText = 'Dibuat';
         else if (newStatusSanitized === 'Sedang Berjalan') statusText = 'Sedang Berjalan';
         else if (newStatusSanitized === 'Selesai') statusText = 'Selesai';
-        else if (newStatusSanitized === 'Dibatalkan') statusText = 'Dibatalkan/Tunda';
+        else if (newStatusSanitized === 'Dibatalkan') statusText = 'Ditunda';
 
         if (statusText) {
           addSystemComment_(ss, cardId, statusText + ' ' + formatDateTime_());
@@ -711,6 +743,31 @@ function kanbanAddComment(nsm, cardId, commentText, authorName, authorRole, sess
       const now = new Date().toISOString();
 
       const headers = sheet.getDataRange().getValues()[0].map(h => String(h).trim());
+      
+      // Check if card_status column is missing, add it
+      let idxCardStatus = headers.indexOf('card_status');
+      if (idxCardStatus === -1) {
+        sheet.getRange(1, headers.length + 1).setValue('card_status');
+        headers.push('card_status');
+        idxCardStatus = headers.length - 1;
+      }
+
+      // Ambil status kartu saat ini untuk catatan
+      let cardStatus = 'Belum Mulai';
+      const cardsSheet = ss.getSheetByName('KanbanCards');
+      if (cardsSheet) {
+        const cardsData = cardsSheet.getDataRange().getValues();
+        const cardsHeaders = cardsData[0].map(h => String(h).trim());
+        const idxCardId = cardsHeaders.indexOf('card_id');
+        const idxStatus = cardsHeaders.indexOf('status');
+        if (idxCardId !== -1 && idxStatus !== -1) {
+          const cardRow = findRowIndex_(cardsSheet, idxCardId, cardIdStr);
+          if (cardRow !== -1) {
+            cardStatus = String(cardsData[cardRow - 1][idxStatus]).trim();
+          }
+        }
+      }
+
       const rowValues = headers.map(h => {
         if (h === 'comment_id') return commentId;
         if (h === 'card_id') return cardIdStr;
@@ -719,6 +776,7 @@ function kanbanAddComment(nsm, cardId, commentText, authorName, authorRole, sess
         if (h === 'author_id') return finalAuthorId;
         if (h === 'comment_text') return text;
         if (h === 'created_at') return now;
+        if (h === 'card_status') return cardStatus;
         return '';
       });
 
@@ -736,7 +794,8 @@ function kanbanAddComment(nsm, cardId, commentText, authorName, authorRole, sess
         author_role: finalAuthorRole,
         author_id: finalAuthorId,
         comment_text: text,
-        created_at: now
+        created_at: now,
+        card_status: cardStatus
       }, 'Komentar berhasil ditambahkan.');
     } catch (e) {
       return apiError('Gagal menambahkan komentar: ' + e.toString(), 'SYSTEM_ERROR');
@@ -912,9 +971,33 @@ function addSystemComment_(ss, cardId, text) {
     const commentsSheet = ss.getSheetByName('KanbanComments');
     if (!commentsSheet) return;
     
-    const commHeaders = commentsSheet.getDataRange().getValues()[0].map(h => String(h).trim());
+    let commHeaders = commentsSheet.getDataRange().getValues()[0].map(h => String(h).trim());
     const commentId = 'COMM-' + Date.now();
     const nowStr = new Date().toISOString();
+
+    // Check if card_status column is missing, add it
+    let idxCardStatus = commHeaders.indexOf('card_status');
+    if (idxCardStatus === -1) {
+      commentsSheet.getRange(1, commHeaders.length + 1).setValue('card_status');
+      commHeaders.push('card_status');
+      idxCardStatus = commHeaders.length - 1;
+    }
+
+    // Ambil status kartu saat ini untuk komentar sistem
+    let cardStatus = 'Belum Mulai';
+    const cardsSheet = ss.getSheetByName('KanbanCards');
+    if (cardsSheet) {
+      const cardsData = cardsSheet.getDataRange().getValues();
+      const cardsHeaders = cardsData[0].map(h => String(h).trim());
+      const idxCardId = cardsHeaders.indexOf('card_id');
+      const idxStatus = cardsHeaders.indexOf('status');
+      if (idxCardId !== -1 && idxStatus !== -1) {
+        const cardRow = findRowIndex_(cardsSheet, idxCardId, cardId);
+        if (cardRow !== -1) {
+          cardStatus = String(cardsData[cardRow - 1][idxStatus]).trim();
+        }
+      }
+    }
     
     const rowValues = commHeaders.map(h => {
       if (h === 'comment_id') return commentId;
@@ -924,6 +1007,7 @@ function addSystemComment_(ss, cardId, text) {
       if (h === 'author_id') return 'system';
       if (h === 'comment_text') return text;
       if (h === 'created_at') return nowStr;
+      if (h === 'card_status') return cardStatus;
       return '';
     });
     commentsSheet.appendRow(rowValues);

@@ -5,6 +5,32 @@
 const MAX_PESERTA_PER_PELATIHAN = 50;
 
 /**
+ * Helper to convert time cell values to a clean string format "HH:mm" on the server.
+ * Bypasses client timezone shift issues.
+ */
+function formatTimeOnServer_(val, ss) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    try {
+      var tz = ss ? ss.getSpreadsheetTimeZone() : Session.getScriptTimeZone();
+      return Utilities.formatDate(val, tz, "HH:mm");
+    } catch(e) {
+      var hours = val.getHours();
+      var minutes = val.getMinutes();
+      return (hours < 10 ? '0' : '') + hours + ':' + (minutes < 10 ? '0' : '') + minutes;
+    }
+  }
+  var str = String(val);
+  if (str.includes('T')) {
+    var parts = str.split('T');
+    if (parts[1]) {
+      return parts[1].substring(0, 5);
+    }
+  }
+  return str;
+}
+
+/**
  * Mendapatkan daftar pelatihan yang dibuat oleh pelatih tertentu
  * @param {string} nipPelatih
  * @returns {object} Response standard dengan daftar pelatihan
@@ -47,7 +73,12 @@ function apiGetPelatihanList(nipPelatih) {
           created_at: dataP[i][idxCreated],
           invite_code: (headersP.indexOf('invite_code') !== -1) ? dataP[i][headersP.indexOf('invite_code')] : '',
           invite_status: (headersP.indexOf('invite_status') !== -1) ? dataP[i][headersP.indexOf('invite_status')] : '',
-          kategori: (headersP.indexOf('kategori') !== -1) ? dataP[i][headersP.indexOf('kategori')] : 'Umum'
+          kategori: (headersP.indexOf('kategori') !== -1) ? dataP[i][headersP.indexOf('kategori')] : 'Umum',
+          moda: (headersP.indexOf('moda') !== -1) ? dataP[i][headersP.indexOf('moda')] : 'offline',
+          link: (headersP.indexOf('link') !== -1) ? dataP[i][headersP.indexOf('link')] : '',
+          jam_mulai: (headersP.indexOf('jam_mulai') !== -1) ? formatTimeOnServer_(dataP[i][headersP.indexOf('jam_mulai')], ss) : '',
+          jam_selesai: (headersP.indexOf('jam_selesai') !== -1) ? formatTimeOnServer_(dataP[i][headersP.indexOf('jam_selesai')], ss) : '',
+          link_undangan: (headersP.indexOf('link_undangan') !== -1) ? dataP[i][headersP.indexOf('link_undangan')] : ''
         });
       }
     }
@@ -137,7 +168,11 @@ function apiGetPelatihanDetail(pelatihanId) {
       if (String(dataP[i][idxId]).trim() === String(pelatihanId).trim()) {
         pelatihan = {};
         for (let j = 0; j < headersP.length; j++) {
-          pelatihan[headersP[j]] = dataP[i][j];
+          let val = dataP[i][j];
+          if ((headersP[j] === 'jam_mulai' || headersP[j] === 'jam_selesai') && val) {
+            val = formatTimeOnServer_(val, ss);
+          }
+          pelatihan[headersP[j]] = val;
         }
         rowIdx = i + 1;
         break;
@@ -145,6 +180,11 @@ function apiGetPelatihanDetail(pelatihanId) {
     }
     
     if (!pelatihan) return apiError('Pelatihan tidak ditemukan.', 'NOT_FOUND');
+
+    // Baca setting buka_berurutan (default: true)
+    const seqKey = 'buka_berurutan_' + pelatihanId;
+    const seqVal = PropertiesService.getScriptProperties().getProperty(seqKey);
+    pelatihan.buka_berurutan = seqVal === null ? true : (seqVal === '1');
 
     // Backfill invite code if missing
     if (!pelatihan.invite_code || !pelatihan.invite_status) {
@@ -386,6 +426,21 @@ function apiCreatePelatihan(payload, sessionToken) {
       if (headersP.indexOf('zona_waktu') !== -1 && payload.zona_waktu) {
         newRow[headersP.indexOf('zona_waktu')] = payload.zona_waktu;
       }
+      if (headersP.indexOf('moda') !== -1 && payload.moda) {
+        newRow[headersP.indexOf('moda')] = payload.moda;
+      }
+      if (headersP.indexOf('link') !== -1 && payload.link) {
+        newRow[headersP.indexOf('link')] = payload.link;
+      }
+      if (headersP.indexOf('jam_mulai') !== -1 && payload.jam_mulai) {
+        newRow[headersP.indexOf('jam_mulai')] = payload.jam_mulai;
+      }
+      if (headersP.indexOf('jam_selesai') !== -1 && payload.jam_selesai) {
+        newRow[headersP.indexOf('jam_selesai')] = payload.jam_selesai;
+      }
+      if (headersP.indexOf('link_undangan') !== -1 && payload.link_undangan) {
+        newRow[headersP.indexOf('link_undangan')] = payload.link_undangan;
+      }
       
       sheet.appendRow(newRow);
       return apiSuccess({ pelatihan_id: pelatihanId }, 'Jadwal pelatihan berhasil dibuat sebagai draft.');
@@ -439,13 +494,33 @@ function apiUpdatePelatihan(pelatihanId, payload, sessionToken) {
       ensurePelatihanExtColumns_(sheet);
       const updatedData = sheet.getDataRange().getValues();
       const updatedHeaders = updatedData[0];
-      const idxKategori = updatedHeaders.indexOf('kategori');
+       const idxKategori = updatedHeaders.indexOf('kategori');
       if (idxKategori !== -1 && payload.kategori !== undefined) {
         sheet.getRange(row, idxKategori + 1).setValue(payload.kategori);
       }
       const idxZonaWaktu = updatedHeaders.indexOf('zona_waktu');
       if (idxZonaWaktu !== -1 && payload.zona_waktu !== undefined) {
         sheet.getRange(row, idxZonaWaktu + 1).setValue(payload.zona_waktu);
+      }
+      const idxModa = updatedHeaders.indexOf('moda');
+      if (idxModa !== -1 && payload.moda !== undefined) {
+        sheet.getRange(row, idxModa + 1).setValue(payload.moda);
+      }
+      const idxLink = updatedHeaders.indexOf('link');
+      if (idxLink !== -1 && payload.link !== undefined) {
+        sheet.getRange(row, idxLink + 1).setValue(payload.link);
+      }
+      const idxJamMulai = updatedHeaders.indexOf('jam_mulai');
+      if (idxJamMulai !== -1 && payload.jam_mulai !== undefined) {
+        sheet.getRange(row, idxJamMulai + 1).setValue(payload.jam_mulai);
+      }
+      const idxJamSelesai = updatedHeaders.indexOf('jam_selesai');
+      if (idxJamSelesai !== -1 && payload.jam_selesai !== undefined) {
+        sheet.getRange(row, idxJamSelesai + 1).setValue(payload.jam_selesai);
+      }
+      const idxLinkUndangan = updatedHeaders.indexOf('link_undangan');
+      if (idxLinkUndangan !== -1 && payload.link_undangan !== undefined) {
+        sheet.getRange(row, idxLinkUndangan + 1).setValue(payload.link_undangan);
       }
       
       sheet.getRange(row, idxUpdated + 1).setValue(new Date().toISOString());
@@ -951,6 +1026,12 @@ function apiGetPelatihanPesertaList(nipPeserta) {
     const idxTglSelesai = headersP.indexOf('tanggal_selesai');
     const idxStatus = headersP.indexOf('status');
     
+    const idxModa = headersP.indexOf('moda');
+    const idxLink = headersP.indexOf('link');
+    const idxJamMulai = headersP.indexOf('jam_mulai');
+    const idxJamSelesai = headersP.indexOf('jam_selesai');
+    const idxLinkUndangan = headersP.indexOf('link_undangan');
+    
     let list = [];
     for (let i = 1; i < dataP.length; i++) {
       let pId = String(dataP[i][idxId]).trim();
@@ -963,13 +1044,18 @@ function apiGetPelatihanPesertaList(nipPeserta) {
           provinsi: dataP[i][idxProv],
           tanggal_mulai: dataP[i][idxTglMulai],
           tanggal_selesai: dataP[i][idxTglSelesai],
-          status: dataP[i][idxStatus]
+          status: dataP[i][idxStatus],
+          moda: idxModa !== -1 ? dataP[i][idxModa] : 'offline',
+          link: idxLink !== -1 ? dataP[i][idxLink] : '',
+          jam_mulai: idxJamMulai !== -1 ? formatTimeOnServer_(dataP[i][idxJamMulai], ss) : '',
+          jam_selesai: idxJamSelesai !== -1 ? formatTimeOnServer_(dataP[i][idxJamSelesai], ss) : '',
+          link_undangan: idxLinkUndangan !== -1 ? dataP[i][idxLinkUndangan] : ''
         });
       }
     }
     
-    // Sort by start date
-    list.sort((a, b) => new Date(b.tanggal_mulai) - new Date(a.tanggal_mulai));
+    // Sort by start date (closest start date first)
+    list.sort((a, b) => new Date(a.tanggal_mulai) - new Date(b.tanggal_mulai));
     return apiSuccess(list);
   } catch (e) {
     return apiError('Gagal mengambil daftar pelatihan peserta: ' + e.toString(), 'SYSTEM_ERROR');
@@ -1079,6 +1165,23 @@ function apiGetDashboardPelatihan(pelatihanId, nipPeserta) {
         hadir_count: hadirCount,
         total_days: allDays.length
       };
+    }
+
+    // 5. Check if certificate has been generated
+    detail.sertifikat_generated = false;
+    const sheetLog = ss.getSheetByName('SertifikatLog');
+    if (sheetLog && sheetLog.getLastRow() > 1) {
+      const dataLog = sheetLog.getDataRange().getValues();
+      const idxLPid = dataLog[0].indexOf('pelatihan_id');
+      const idxLNip = dataLog[0].indexOf('nip_peserta');
+      const nipStr = String(nipPeserta).trim();
+      for (let i = 1; i < dataLog.length; i++) {
+        if (String(dataLog[i][idxLPid]).trim() === String(pelatihanId).trim() &&
+            String(dataLog[i][idxLNip]).trim() === nipStr) {
+          detail.sertifikat_generated = true;
+          break;
+        }
+      }
     }
     
     return apiSuccess(detail);
@@ -2183,4 +2286,42 @@ function getAbsenConfig_(pelatihanId, tanggal) {
   }
 
   return null;
+}
+
+/**
+ * API: Set pengaturan buka berurutan untuk pelatihan
+ * @param {string} pelatihanId
+ * @param {boolean} isBerurutan
+ * @param {string} sessionToken
+ */
+function apiSetBukaBerurutan(pelatihanId, isBerurutan, sessionToken) {
+  try {
+    if (!pelatihanId) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+    if (!checkPelatihanOwnership_(pelatihanId, sessionToken)) {
+      return apiError('Anda tidak memiliki akses untuk mengubah setting pelatihan ini.', 'FORBIDDEN');
+    }
+    const val = isBerurutan ? '1' : '0';
+    const key = 'buka_berurutan_' + pelatihanId;
+    PropertiesService.getScriptProperties().setProperty(key, val);
+    return apiSuccess({ is_berurutan: isBerurutan }, 'Pengaturan urutan berhasil disimpan.');
+  } catch (e) {
+    return apiError('Gagal menyimpan pengaturan urutan: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * API: Get pengaturan buka berurutan untuk pelatihan
+ * @param {string} pelatihanId
+ * @returns {object} { is_berurutan: boolean }
+ */
+function apiGetBukaBerurutan(pelatihanId) {
+  try {
+    if (!pelatihanId) return apiError('Parameter tidak lengkap.', 'VALIDATION');
+    const key = 'buka_berurutan_' + pelatihanId;
+    const val = PropertiesService.getScriptProperties().getProperty(key);
+    const isBerurutan = val === null ? true : (val === '1');
+    return apiSuccess({ is_berurutan: isBerurutan });
+  } catch (e) {
+    return apiError('Gagal membaca pengaturan urutan: ' + e.toString(), 'SYSTEM_ERROR');
+  }
 }

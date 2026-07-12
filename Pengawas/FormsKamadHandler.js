@@ -272,6 +272,7 @@ function kamadSubmitForm(payload) {
 
       const ss = getAppDb_();
       const formDb = getFormDb_();
+      const tableFields = extractTableFieldsFromYAML(yaml);
       let sheet = formDb.getSheetByName(targetSheet);
       if (!sheet) sheet = formDb.insertSheet(targetSheet);
       const timestamp = new Date().toISOString();
@@ -334,6 +335,16 @@ function kamadSubmitForm(payload) {
             // Archive detail rows
             rowsToArchive.forEach(r => {
               archiveRowToLog(formDb, targetSheet, hdrs, r.values);
+              
+              const timestampIdx = hdrs.indexOf('timestamp');
+              const nsmIdx = hdrs.indexOf('nsm');
+              if (timestampIdx !== -1 && nsmIdx !== -1) {
+                const oldTimestamp = r.values[timestampIdx];
+                const oldNsm = r.values[nsmIdx];
+                if (oldTimestamp && oldNsm) {
+                  deleteSubTableData(formDb, targetSheet, tableFields, oldNsm, oldTimestamp);
+                }
+              }
             });
 
             // Delete detail rows from active sheet in descending order of row index
@@ -379,6 +390,10 @@ function kamadSubmitForm(payload) {
 
       // Selalu tambahkan submission baru ke sheet yang aktif
       sheet.appendRow(row);
+
+      // Tulis data sub-tabel terpisah
+      const submissionId = 'KMD_' + Utilities.getUuid().replace(/-/g, '').substring(0, 16);
+      writeTableDataToSheets(formDb, targetSheet, tableFields, data, submissionId, timestamp, nsm);
 
       const log = getKamadSheet(ss, 'KamadSubmissions');
       log.appendRow([timestamp, nsm, formId, targetSheet, 'final']);
@@ -932,4 +947,36 @@ function apiSubmitSurvey(payload) {
   } catch (e) {
     return { success: false, message: e.toString() };
   }
+}
+
+/**
+ * HELPER: Hapus data sub-tabel yang bersesuaian dengan nsm dan timestamp yang di-archive/delete
+ */
+function deleteSubTableData(ss, targetSheetName, tableFields, nsm, timestamp) {
+  tableFields.forEach(tableField => {
+    const tableSheetName = `${targetSheetName}|${tableField.name}`;
+    const tableSheet = ss.getSheetByName(tableSheetName);
+    if (!tableSheet || tableSheet.getLastRow() <= 1) return;
+
+    const lastRow = tableSheet.getLastRow();
+    const lastCol = tableSheet.getLastColumn();
+    const dataRange = tableSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    const headers = tableSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+
+    const madrasahIdIdx = headers.indexOf('madrasah_id') !== -1 ? headers.indexOf('madrasah_id') : headers.indexOf('nsm');
+    const timestampIdx = headers.indexOf('timestamp');
+
+    if (madrasahIdIdx === -1 || timestampIdx === -1) return;
+
+    // Delete matching rows in descending order
+    for (let i = dataRange.length - 1; i >= 0; i--) {
+      const rowVal = dataRange[i];
+      const rNsm = String(rowVal[madrasahIdIdx]).trim();
+      const rTimestamp = String(rowVal[timestampIdx]).trim();
+
+      if (rNsm === String(nsm).trim() && rTimestamp === String(timestamp).trim()) {
+        tableSheet.deleteRow(i + 2);
+      }
+    }
+  });
 }

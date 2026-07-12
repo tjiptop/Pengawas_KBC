@@ -107,31 +107,93 @@ const KanbanView = {
         const cardTags = card.tag ? card.tag.split(',').map(s => s.trim()).filter(Boolean) : [];
         const tagIconsHtml = KanbanView.renderTagIconsHtml(cardTags, '0.82rem', '2px');
 
-        let badgesHtml = '';
-        card.attachments.forEach(att => {
-          let icon = '📎';
-          let title = att.name || 'Lampiran';
-          let badgeClass = 'badge-link';
-          
-          if (att.type === 'image') {
-            icon = '🖼️';
-            badgeClass = 'badge-image';
-          } else if (att.type === 'pdf') {
-            icon = '📄';
-            badgeClass = 'badge-pdf';
-          } else if (att.type === 'link') {
-            icon = '🔗';
-            badgeClass = 'badge-link';
-          }
-
-          if (att.url) {
-            badgesHtml += `
-              <a href="${att.url}" target="_blank" class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
-                ${icon}
+        // 1. Links row (open directly in new tab)
+        const links = (card.attachments || []).filter(att => att.type === 'link');
+        let linksHtml = '';
+        if (links.length > 0) {
+          linksHtml = `<div class="kanban-card-links" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">`;
+          links.forEach(att => {
+            const title = att.name || 'Tautan';
+            linksHtml += `
+              <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
+                🔗
               </a>
             `;
+          });
+          linksHtml += `</div>`;
+        }
+
+        // 2. Stage-bound items (Files & Notes)
+        const stageItemsByStatus = { 'Belum Mulai': [], 'Sedang Berjalan': [], 'Selesai': [], 'Dibatalkan': [] };
+        (card.attachments || []).forEach(att => {
+          if (att.type !== 'link') {
+            const status = att.card_status || 'Belum Mulai';
+            if (stageItemsByStatus[status] !== undefined) {
+              stageItemsByStatus[status].push({ type: 'file', data: att });
+            }
           }
         });
+        (card.work_notes || []).forEach(note => {
+          const status = note.card_status || 'Belum Mulai';
+          if (stageItemsByStatus[status] !== undefined) {
+            stageItemsByStatus[status].push({ type: 'note', data: note });
+          }
+        });
+
+        let stageRowsHtml = '';
+        const stagesList = ['Belum Mulai', 'Sedang Berjalan', 'Selesai', 'Dibatalkan'];
+        stagesList.forEach(stg => {
+          const items = stageItemsByStatus[stg];
+          if (items && items.length > 0) {
+            let iconsHtml = '';
+            items.forEach(item => {
+              if (item.type === 'file') {
+                const att = item.data;
+                let icon = '📎';
+                let title = (att.name || 'Lampiran').replace(/"/g, '&quot;');
+                let badgeClass = 'badge-link';
+                if (att.type === 'image') { icon = '🖼️'; badgeClass = 'badge-image'; }
+                else if (att.type === 'pdf') { icon = '📄'; badgeClass = 'badge-pdf'; }
+
+                const attIndex = card.attachments.indexOf(att);
+                iconsHtml += `
+                  <span class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation(); KanbanManager.previewAttachmentByIndex('${card.card_id}', ${attIndex})" title="${title}" style="display:inline-flex; align-items:center; cursor:pointer; margin-right:2px;">
+                    ${icon}
+                  </span>
+                `;
+              } else if (item.type === 'note') {
+                const note = item.data;
+                iconsHtml += `
+                  <span class="kanban-badge-item badge-note" onclick="event.stopPropagation(); KanbanManager.previewDetailedNoteById('${card.card_id}', '${note.note_id}')" title="Catatan Rincian" style="display:inline-flex; align-items:center; cursor:pointer; background:#fff3cd; border:1px solid #ffeeba; color:#856404; font-size:0.75rem; padding:1px 4px; border-radius:3px; margin-right:2px;">
+                    📝
+                  </span>
+                `;
+              }
+            });
+
+            if (iconsHtml) {
+              if (stageRowsHtml || linksHtml) {
+                stageRowsHtml += `<hr style="margin: 4px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`;
+              }
+              stageRowsHtml += `
+                <div style="display:flex; align-items:center; gap:6px; font-size:0.68rem; flex-wrap:wrap;">
+                  <span style="font-weight:700; color:var(--color-text-secondary); opacity:0.85;">${stg}:</span>
+                  <div style="display:flex; align-items:center; gap:2px;">${iconsHtml}</div>
+                </div>
+              `;
+            }
+          }
+        });
+
+        let groupsContainerHtml = '';
+        if (linksHtml || stageRowsHtml) {
+          groupsContainerHtml = `
+            <div class="kanban-groups-container" style="background:rgba(0,0,0,0.02); padding:6px 8px; border-radius:6px; margin-top:8px; border:1px solid rgba(0,0,0,0.04); text-align:left;">
+              ${linksHtml}
+              ${stageRowsHtml}
+            </div>
+          `;
+        }
 
         return `
           <div class="kanban-card" 
@@ -151,23 +213,25 @@ const KanbanView = {
             ` : ''}
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
               <h4 class="kanban-card-title-text" style="flex:1; margin:0;">${card.title}</h4>
-              ${cardTags.length > 0 ? `<div style="display:flex; gap:2px; align-items:center;">${tagIconsHtml}</div>` : ''}
+              <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; margin-top:2px;">
+                <!-- Tombol + untuk Quick Add (Catatan / Lampiran) -->
+                <span class="kanban-badge-item quick-add-btn" onclick="event.stopPropagation(); KanbanManager.openQuickAddModal('${card.card_id}')" style="cursor:pointer; background:#e6f4ea; color:#137333; font-weight:bold; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; border:1px solid rgba(19,115,51,0.2);" title="Tambah Catatan atau Lampiran">
+                  ＋
+                </span>
+                <!-- Komentar badge dengan pulsing red dot jika unread -->
+                <span class="kanban-badge-item kanban-comments-count" onclick="event.stopPropagation(); KanbanManager.openQuickNotesModal('${card.card_id}')" style="cursor:pointer; font-size:0.75rem; padding:2px 6px;" title="Klik untuk lihat diskusi">
+                  💬 ${cardComments.length}
+                  ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+                </span>
+              </div>
             </div>
             ${card.description ? `<p class="kanban-card-desc-text">${card.description}</p>` : ''}
             
-            <div class="kanban-badges-row">
-              <div style="flex:1;"></div>
-              
-              <!-- Komentar badge dengan pulsing red dot jika unread -->
-              <span class="kanban-badge-item kanban-comments-count">
-                💬 ${cardComments.length}
-                ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
-              </span>
-            </div>
+            ${groupsContainerHtml}
             
-            <div class="kanban-card-meta">
-              <div style="display:flex; gap:4px; align-items:center;">${badgesHtml}</div>
-              <span>${Utils.formatTimeAgo(card.updated_at)}</span>
+            <div class="kanban-card-meta" style="margin-top: 8px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.65rem; color:var(--color-text-secondary);">${Utils.formatTimeAgo(card.updated_at)}</span>
+              ${cardTags.length > 0 ? `<div style="display:flex; gap:2px; align-items:center; margin-left:auto;">${tagIconsHtml}</div>` : ''}
             </div>
           </div>
         `;
@@ -198,7 +262,7 @@ const KanbanView = {
     }).join('');
 
     // Generate Dibatalkan bottom section
-    const cancelledCol = { id: 'Dibatalkan', title: 'Dibatalkan/Tunda', colorClass: 'indicator-dibatalkan' };
+    const cancelledCol = { id: 'Dibatalkan', title: 'Ditunda', colorClass: 'indicator-dibatalkan' };
     const cancelledCards = cardsByStatus['Dibatalkan'] || [];
     
     const cancelledCardsHtml = cancelledCards.map(card => {
@@ -217,31 +281,93 @@ const KanbanView = {
       const cardTags = card.tag ? card.tag.split(',').map(s => s.trim()).filter(Boolean) : [];
       const tagIconsHtml = KanbanView.renderTagIconsHtml(cardTags, '0.7rem', '1px');
 
-      let badgesHtml = '';
-      card.attachments.forEach(att => {
-        let icon = '📎';
-        let title = att.name || 'Lampiran';
-        let badgeClass = 'badge-link';
-        
-        if (att.type === 'image') {
-          icon = '🖼️';
-          badgeClass = 'badge-image';
-        } else if (att.type === 'pdf') {
-          icon = '📄';
-          badgeClass = 'badge-pdf';
-        } else if (att.type === 'link') {
-          icon = '🔗';
-          badgeClass = 'badge-link';
-        }
-
-        if (att.url) {
-          badgesHtml += `
-            <a href="${att.url}" target="_blank" class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
-              ${icon}
+      // 1. Links row for cancelled
+      const links = (card.attachments || []).filter(att => att.type === 'link');
+      let linksHtml = '';
+      if (links.length > 0) {
+        linksHtml = `<div class="kanban-card-links" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">`;
+        links.forEach(att => {
+          const title = att.name || 'Tautan';
+          linksHtml += `
+            <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
+              🔗
             </a>
           `;
+        });
+        linksHtml += `</div>`;
+      }
+
+      // 2. Stage items for cancelled
+      const stageItemsByStatus = { 'Belum Mulai': [], 'Sedang Berjalan': [], 'Selesai': [], 'Dibatalkan': [] };
+      (card.attachments || []).forEach(att => {
+        if (att.type !== 'link') {
+          const status = att.card_status || 'Belum Mulai';
+          if (stageItemsByStatus[status] !== undefined) {
+            stageItemsByStatus[status].push({ type: 'file', data: att });
+          }
         }
       });
+      (card.work_notes || []).forEach(note => {
+        const status = note.card_status || 'Belum Mulai';
+        if (stageItemsByStatus[status] !== undefined) {
+          stageItemsByStatus[status].push({ type: 'note', data: note });
+        }
+      });
+
+      let stageRowsHtml = '';
+      const stagesList = ['Belum Mulai', 'Sedang Berjalan', 'Selesai', 'Dibatalkan'];
+      stagesList.forEach(stg => {
+        const items = stageItemsByStatus[stg];
+        if (items && items.length > 0) {
+          let iconsHtml = '';
+          items.forEach(item => {
+            if (item.type === 'file') {
+              const att = item.data;
+              let icon = '📎';
+              let title = (att.name || 'Lampiran').replace(/"/g, '&quot;');
+              let badgeClass = 'badge-link';
+              if (att.type === 'image') { icon = '🖼️'; badgeClass = 'badge-image'; }
+              else if (att.type === 'pdf') { icon = '📄'; badgeClass = 'badge-pdf'; }
+
+              const attIndex = card.attachments.indexOf(att);
+              iconsHtml += `
+                <span class="kanban-badge-item ${badgeClass}" onclick="event.stopPropagation(); KanbanManager.previewAttachmentByIndex('${card.card_id}', ${attIndex})" title="${title}" style="display:inline-flex; align-items:center; cursor:pointer; margin-right:2px;">
+                  ${icon}
+                </span>
+              `;
+            } else if (item.type === 'note') {
+              const note = item.data;
+              iconsHtml += `
+                <span class="kanban-badge-item badge-note" onclick="event.stopPropagation(); KanbanManager.previewDetailedNoteById('${card.card_id}', '${note.note_id}')" title="Catatan Rincian" style="display:inline-flex; align-items:center; cursor:pointer; background:#fff3cd; border:1px solid #ffeeba; color:#856404; font-size:0.7rem; padding:1px 3px; border-radius:3px; margin-right:2px;">
+                  📝
+                </span>
+              `;
+            }
+          });
+
+          if (iconsHtml) {
+            if (stageRowsHtml || linksHtml) {
+              stageRowsHtml += `<hr style="margin: 3px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`;
+            }
+            stageRowsHtml += `
+              <div style="display:flex; align-items:center; gap:6px; font-size:0.62rem; flex-wrap:wrap;">
+                <span style="font-weight:700; color:var(--color-text-secondary); opacity:0.85;">${stg}:</span>
+                <div style="display:flex; align-items:center; gap:2px;">${iconsHtml}</div>
+              </div>
+            `;
+          }
+        }
+      });
+
+      let groupsContainerHtml = '';
+      if (linksHtml || stageRowsHtml) {
+        groupsContainerHtml = `
+          <div class="kanban-groups-container" style="background:rgba(0,0,0,0.02); padding:4px 6px; border-radius:6px; margin-top:6px; border:1px solid rgba(0,0,0,0.04); width:100%; text-align:left;">
+            ${linksHtml}
+            ${stageRowsHtml}
+          </div>
+        `;
+      }
 
       return `
         <div class="kanban-card" 
@@ -262,20 +388,23 @@ const KanbanView = {
           ` : ''}
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
             <h4 class="kanban-card-title-text" style="font-size:0.75rem; text-decoration: line-through; opacity: 0.65; flex:1; margin:0;">${card.title}</h4>
-            <div style="display:flex; gap:2px; align-items:center;">${tagIconsHtml}</div>
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              <!-- Tombol + untuk Quick Add (Catatan / Lampiran) -->
+              <span class="kanban-badge-item quick-add-btn" onclick="event.stopPropagation(); KanbanManager.openQuickAddModal('${card.card_id}')" style="cursor:pointer; background:#e6f4ea; color:#137333; font-weight:bold; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; border:1px solid rgba(19,115,51,0.2);" title="Tambah Catatan atau Lampiran">
+                ＋
+              </span>
+              <span class="kanban-badge-item kanban-comments-count" onclick="event.stopPropagation(); KanbanManager.openQuickNotesModal('${card.card_id}')" style="font-size: 0.62rem; padding: 1px 4px; cursor:pointer;" title="Klik untuk lihat diskusi">
+                💬 ${cardComments.length}
+                ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+              </span>
+            </div>
           </div>
           
-          <div class="kanban-badges-row" style="margin-top: 4px;">
-            <div style="flex:1;"></div>
-            <span class="kanban-badge-item kanban-comments-count" style="font-size: 0.62rem; padding: 1px 4px;">
-              💬 ${cardComments.length}
-              ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
-            </span>
-          </div>
+          ${groupsContainerHtml}
           
-          <div class="kanban-card-meta" style="margin-top: 2px;">
-            <div style="display:flex; gap:4px; align-items:center;">${badgesHtml}</div>
-            <span style="font-size:0.58rem;">${Utils.formatTimeAgo(card.updated_at)}</span>
+          <div class="kanban-card-meta" style="margin-top: 6px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.58rem; color:var(--color-text-secondary);">${Utils.formatTimeAgo(card.updated_at)}</span>
+            ${cardTags.length > 0 ? `<div style="display:flex; gap:2px; align-items:center; margin-left:auto;">${tagIconsHtml}</div>` : ''}
           </div>
         </div>
       `;
@@ -286,7 +415,7 @@ const KanbanView = {
         <div class="kanban-cancelled-header">
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="kanban-indicator ${cancelledCol.colorClass}"></span>
-            <span style="font-weight:700;font-size:0.75rem;color:var(--color-text);text-transform:uppercase;letter-spacing:0.5px;">${cancelledCol.title}</span>
+            <span style="font-weight:700;font-size:0.75rem;color:var(--color-text);text-transform:none;letter-spacing:0.5px;">${cancelledCol.title}</span>
             <span class="kanban-column-counter" style="font-size:0.65rem;padding:1px 6px;">${cancelledCards.length}</span>
           </div>
         </div>
@@ -297,7 +426,7 @@ const KanbanView = {
              ondrop="KanbanManager.onDrop(event, 'Dibatalkan')">
           ${cancelledCardsHtml || `
             <div style="width:100%;text-align:center;padding:10px;color:var(--color-text-light);font-size:0.7rem;border:1px dashed rgba(0,0,0,0.05);border-radius:var(--radius-md);background:rgba(0,0,0,0.01);">
-              Belum ada kartu dibatalkan/ditunda (Geser kartu ke area ini untuk membatalkan/menunda)
+              Belum ada kartu ditunda (Geser kartu ke area ini untuk menunda)
             </div>
           `}
         </div>
@@ -366,6 +495,106 @@ const KanbanView = {
           <div id="kanban-modal-content"></div>
         </div>
       </div>
+
+      <!-- Modal Preview Lampiran -->
+      <div id="kanban-preview-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000; backdrop-filter:blur(4px);" onclick="KanbanManager.closePreviewModal()">
+        <div class="modal-content" style="max-width:850px; width:92%; padding:20px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:8px;">
+            <h4 id="preview-modal-title" style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;">Preview Lampiran</h4>
+            <button onclick="KanbanManager.closePreviewModal()" style="border:none; background:transparent; font-size:1.5rem; cursor:pointer; line-height:1; color:var(--color-text-light, #888);">&times;</button>
+          </div>
+          <div id="preview-modal-body" style="display:flex; justify-content:center; align-items:center; max-height:70vh; min-height:200px; overflow:auto; background:#f9f9f9; border-radius:6px; border:1px solid #eee;">
+            <!-- content -->
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px; border-top:1px solid var(--color-border-light, #eee); padding-top:12px;">
+            <a id="preview-modal-open-btn" href="#" target="_blank" class="btn" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem; background:var(--color-primary, #0d6efd); color:#fff; text-decoration:none; display:flex; align-items:center; gap:4px;">
+              <span>🌐</span> Buka Asli
+            </a>
+            <button class="btn btn-secondary" onclick="KanbanManager.closePreviewModal()" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem;">Tutup</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Quick Notes -->
+      <div id="kanban-quick-notes-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000; backdrop-filter:blur(4px);" onclick="KanbanManager.closeQuickNotesModal()">
+        <div class="modal-content" style="max-width:650px; width:92%; padding:24px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:10px;">
+            <h4 id="quick-notes-title" style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333);">Catatan & Umpan Balik</h4>
+            <button onclick="KanbanManager.closeQuickNotesModal()" style="border:none; background:transparent; font-size:1.5rem; cursor:pointer; line-height:1; color:var(--color-text-light, #888);">&times;</button>
+          </div>
+          <div id="quick-notes-body" style="height: 300px; overflow-y: auto; padding: 8px; background: rgba(0,0,0,0.01); border-radius: 8px; margin-bottom: 16px; border: 1px solid #eee;">
+            <!-- Comments log list -->
+          </div>
+          
+          <div class="comment-input-area" style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="quick-note-input" class="comment-text-input" placeholder="Tulis catatan atau masukan..." style="flex:1; padding:8px 12px; border:1px solid var(--color-border, #ccc); border-radius:6px; outline:none;" onkeypress="if(event.key === 'Enter') KanbanManager.submitQuickNote()">
+            <button class="btn" onclick="KanbanManager.submitQuickNote()" style="border-radius:50%; width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--color-primary); color:white; border:none; margin:0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+          
+          <div style="display:flex; justify-content:flex-end; border-top:1px solid var(--color-border-light, #eee); padding-top:12px; margin-top:16px;">
+            <button class="btn btn-secondary" onclick="KanbanManager.closeQuickNotesModal()" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem;">Tutup</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Quick Add (Catatan / Lampiran) -->
+      <div id="kanban-quick-add-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000; backdrop-filter:blur(4px);" onclick="KanbanManager.closeQuickAddModal()">
+        <div class="modal-content" style="max-width:500px; width:92%; padding:24px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:10px;">
+            <h4 style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333);">Tambah Catatan / Lampiran</h4>
+            <button onclick="KanbanManager.closeQuickAddModal()" style="border:none; background:transparent; font-size:1.5rem; cursor:pointer; line-height:1; color:var(--color-text-light, #888);">&times;</button>
+          </div>
+          
+          <div style="margin-bottom:14px; font-size:0.78rem; color:var(--color-text-secondary, #666); background:#f8f9fa; padding:8px 12px; border-radius:6px; border-left:4px solid var(--color-primary, #0d6efd);">
+            <div><strong>Tugas:</strong> <span id="quick-add-card-title"></span></div>
+            <div style="margin-top:2px;"><strong>Tahapan Saat Ini:</strong> <span id="quick-add-card-status" style="font-weight:700; color:var(--color-primary);"></span></div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <!-- Accordion Catatan -->
+            <div id="qa-accordion-notes" class="kanban-accordion open">
+              <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('notes', 'quickAdd')">
+                <h4 class="kanban-accordion-title">📝 Catatan</h4>
+                <span class="kanban-accordion-icon">▼</span>
+              </div>
+              <div id="qa-accordion-notes-content" class="kanban-accordion-content" style="display: block;">
+                <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">TAMBAH CATATAN DETAIL (TIDAK TAMPIL DI KARTU)</label>
+                <textarea id="quick-add-note-text" style="width:100%; height:80px; border:1px solid var(--color-border, #ccc); border-radius:6px; padding:8px; font-size:0.8rem; outline:none; resize:vertical; background:transparent;" placeholder="Tulis rincian catatan kemajuan pekerjaan di sini..."></textarea>
+                <button class="btn" onclick="KanbanManager.submitQuickAddNote()" style="width:auto; margin-top:6px; font-size:0.75rem; padding:4px 12px; background:var(--color-primary); color:white; border:none; cursor:pointer; border-radius:4px;">Kirim Catatan</button>
+              </div>
+            </div>
+
+            <!-- Accordion Unggahan -->
+            <div id="qa-accordion-attachments" class="kanban-accordion open">
+              <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('attachments', 'quickAdd')">
+                <h4 class="kanban-accordion-title">📎 Unggahan</h4>
+                <span class="kanban-accordion-icon">▼</span>
+              </div>
+              <div id="qa-accordion-attachments-content" class="kanban-accordion-content" style="display: block;">
+                <div>
+                  <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">UNGGAH BERKAS LAMPIRAN (PREVIEW POPUP)</label>
+                  <input type="file" id="quick-add-file-uploader" style="font-size:0.75rem; width:100%;" accept="image/*,application/pdf" onchange="KanbanManager.handleQuickAddFileUpload(event)">
+                </div>
+                
+                <div style="border-top:1px dashed #eee; padding-top:14px; margin-top:14px;">
+                  <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">ATAU TAMBAH TAUTAN LINK</label>
+                  <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="quick-add-link-name" placeholder="Nama Link" style="width:35%; min-width:100px; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent;" />
+                    <input type="text" id="quick-add-link-url" placeholder="https://..." style="flex:1; min-width:120px; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent;" />
+                    <input type="button" value="Tambah" onclick="KanbanManager.submitQuickAddLink()" class="btn" style="width:auto; padding:6px 12px; font-size:0.72rem; margin:0; cursor:pointer; border-radius:4px; flex-shrink:0;" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display:flex; justify-content:flex-end; border-top:1px solid var(--color-border-light, #eee); padding-top:12px; margin-top:20px;">
+            <button class="btn btn-secondary" onclick="KanbanManager.closeQuickAddModal()" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem;">Tutup</button>
+          </div>
+        </div>
+      </div>
     `;
   },
   /**
@@ -376,6 +605,12 @@ const KanbanView = {
     const isDeleteRequested = !!card.delete_requested;
     const isApproved = !!card.approved_by_supervisor;
     const editable = !isSupervisor && !isDeleteRequested && !isApproved;
+
+    const notesOpen = (KanbanManager.state.accordions && KanbanManager.state.accordions.notes) ? 'open' : '';
+    const notesStyle = (KanbanManager.state.accordions && KanbanManager.state.accordions.notes) ? 'display: block;' : 'display: none;';
+    
+    const attachmentsOpen = (KanbanManager.state.accordions && KanbanManager.state.accordions.attachments) ? 'open' : '';
+    const attachmentsStyle = (KanbanManager.state.accordions && KanbanManager.state.accordions.attachments) ? 'display: block;' : 'display: none;';
 
     let alertBannerHtml = '';
     if (isApproved) {
@@ -405,13 +640,18 @@ const KanbanView = {
     
     // Status Pilling
     const statuses = [
-      { id: 'Belum Mulai', label: 'Todo', pillClass: 'todo' },
-      { id: 'Sedang Berjalan', label: 'Proses', pillClass: 'proses' },
+      { id: 'Belum Mulai', label: 'Belum', pillClass: 'todo' },
+      { id: 'Sedang Berjalan', label: 'Sedang', pillClass: 'proses' },
       { id: 'Selesai', label: 'Selesai', pillClass: 'selesai' },
-      { id: 'Dibatalkan', label: 'Dibatalkan/Tunda', pillClass: 'dibatalkan' }
+      { id: 'Dibatalkan', label: 'Ditunda', pillClass: 'dibatalkan' }
     ];
 
-    const statusPillsHtml = statuses.map(st => {
+    const isNewCard = !card.card_id;
+    const allowedStatuses = isNewCard 
+      ? statuses.filter(st => st.id === 'Belum Mulai') 
+      : statuses;
+
+    const statusPillsHtml = allowedStatuses.map(st => {
       const active = card.status === st.id ? 'active' : '';
       if (editable) {
         return `<button class="status-pill-btn ${st.pillClass} ${active}" onclick="KanbanManager.setModalStatus('${st.id}')">${st.label}</button>`;
@@ -480,21 +720,57 @@ const KanbanView = {
       `;
     }).join('');
 
-    // Attachments lists
-    const attachmentsHtml = card.attachments.map((att, index) => {
+    // Render list of detailed notes (work_notes)
+    const workNotes = card.work_notes || [];
+    workNotes.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    
+    let workNotesHtml = '';
+    if (workNotes.length > 0) {
+      workNotesHtml = workNotes.map((note, idx) => {
+        return `
+          <div style="display:flex; flex-direction:column; gap:4px; padding:10px; border-bottom:1px solid var(--color-border-light, #eee); background:#fffdf6; border-radius:6px; border-left:3px solid #ffc107; margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.65rem; color:#666; font-weight:600;">
+                Catatan #${idx+1} ${note.card_status ? '| Tahap: ' + note.card_status : ''}
+              </span>
+              ${editable ? `
+                <button onclick="KanbanManager.removeDetailedNote(${idx})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus Catatan">🗑️</button>
+              ` : ''}
+            </div>
+            <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap;">${note.text}</div>
+            <span style="font-size:0.62rem; color:#888; text-align:right;">${Utils.formatTimeAgo(note.created_at)}</span>
+          </div>
+        `;
+      }).join('');
+    } else {
+      workNotesHtml = `<div style="text-align:center; padding:14px; font-size:0.75rem; color:var(--color-text-light); border:1px dashed var(--color-border); border-radius:var(--radius-sm);">Belum ada catatan detail per tahapan</div>`;
+    }
+
+    // Attachments lists (links open directly in new tab, files open in popup)
+    const attachmentsHtml = (card.attachments || []).map((att, index) => {
       let icon = '📎';
       if (att.type === 'image') icon = '🖼️';
       if (att.type === 'pdf') icon = '📄';
       if (att.type === 'link') icon = '🔗';
 
+      const openAction = att.type === 'link' 
+        ? `href="${att.url}" target="_blank" onclick="event.stopPropagation();"` 
+        : `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${card.card_id}', ${index})"`;
       return `
-        <div class="attachment-item-edit">
-          <div style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
-            <span>${icon}</span>
-            <a href="${att.url}" target="_blank" style="color:var(--color-primary);text-decoration:none;font-size:0.8rem;font-weight:600;">${att.name}</a>
+        <div class="attachment-item-edit" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+          <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+              <span>${icon}</span>
+              <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+            </div>
+            ${editable ? `
+              <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+            ` : ''}
           </div>
-          ${editable ? `
-            <button onclick="KanbanManager.removeAttachment(${index})" style="border:none;background:transparent;color:var(--color-danger);cursor:pointer;font-size:0.8rem;" title="Hapus">🗑️</button>
+          ${att.card_status ? `
+            <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+              <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600;">📍 Diunggah saat: ${att.card_status}</span>
+            </div>
           ` : ''}
         </div>
       `;
@@ -526,6 +802,7 @@ const KanbanView = {
           <div class="comment-meta">
             <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
             <span>${comm.author_name}</span>
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
           </div>
           <div style="word-break:break-word;">${comm.comment_text}</div>
           <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
@@ -598,33 +875,48 @@ const KanbanView = {
             `}
           </div>
 
-          <div>
-            <label class="kanban-modal-label">Catatan Detail / Rincian Pekerjaan (Tidak tampil di kartu)</label>
-            ${editable ? `
-              <textarea id="modal-card-work-details" style="width:100%;height:140px;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 12px;outline:none;font-size:0.82rem;background:transparent;color:var(--color-text);resize:vertical;" placeholder="Tulis rincian penjelasan detail, catatan kemajuan, atau deskripsi panjang pekerjaan di sini...">${card.work_details || ''}</textarea>
-            ` : `
-              <div style="border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:10px 12px;font-size:0.82rem;line-height:1.5;background:rgba(0,0,0,0.01);min-height:80px;white-space:pre-wrap;color:var(--color-text);">${card.work_details || 'Tidak ada catatan detail.'}</div>
-            `}
+          <!-- Accordion Catatan Rincian -->
+          <div id="accordion-notes" class="kanban-accordion ${notesOpen}">
+            <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('notes')">
+              <h4 class="kanban-accordion-title">📝 Catatan Rincian per Tahapan (<span id="accordion-notes-count">${workNotes.length}</span>)</h4>
+              <span class="kanban-accordion-icon">▼</span>
+            </div>
+            <div id="accordion-notes-content" class="kanban-accordion-content" style="${notesStyle}">
+              ${editable ? `
+                <div style="display:flex; flex-direction:column; gap:6px; border-bottom:1px dashed #eee; padding-bottom:10px; margin-bottom:12px;">
+                  <textarea id="modal-new-work-note-text" style="width:100%; height:60px; border:1px solid var(--color-border); border-radius:4px; padding:6px; font-size:0.78rem; outline:none; background:transparent; resize:vertical; color:var(--color-text);" placeholder="Tambah catatan detail baru untuk tahap saat ini..."></textarea>
+                  <button class="btn" onclick="KanbanManager.addDetailedNoteFromModal()" style="width:auto; align-self:flex-end; padding:4px 12px; font-size:0.72rem; margin:0; border:none; border-radius:4px; cursor:pointer;">Tambah Catatan</button>
+                </div>
+              ` : ''}
+              <div id="modal-work-notes-list" style="max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+                ${workNotesHtml}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label class="kanban-modal-label">Lampiran Dokumen (${card.attachments.length})</label>
-            <div class="attachment-list-edit" id="modal-attachments-list">
-              ${attachmentsHtml || `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`}
+          <!-- Accordion Lampiran Dokumen -->
+          <div id="accordion-attachments" class="kanban-accordion ${attachmentsOpen}">
+            <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('attachments')">
+              <h4 class="kanban-accordion-title">📎 Lampiran Dokumen (<span id="accordion-attachments-count">${(card.attachments || []).length}</span>)</h4>
+              <span class="kanban-accordion-icon">▼</span>
             </div>
-            
-            ${editable ? `
-              <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:12px;background:rgba(0,0,0,0.01);">
-                <span style="font-size:0.72rem;font-weight:700;color:var(--color-text-secondary);">UNGGAH FOTO ATAU PDF:</span>
-                <input type="file" id="kanban-file-uploader" style="font-size:0.75rem;" accept="image/*,application/pdf" onchange="KanbanManager.handleFileUpload(event)">
-                
-                <div style="display:flex;align-items:center;gap:6px;margin-top:6px;border-top:1px solid var(--color-border-light);padding-top:10px;">
-                  <input type="text" id="kanban-link-name" placeholder="Nama Link" style="width:40%;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;">
-                  <input type="text" id="kanban-link-url" placeholder="https:&#47;&#47;example.com" style="flex:1;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;">
-                  <button class="btn" onclick="KanbanManager.addLinkAttachment()" style="width: auto; padding: 4px 12px; font-size: 0.72rem; margin: 0;">Tambah Link</button>
+            <div id="accordion-attachments-content" class="kanban-accordion-content" style="${attachmentsStyle}">
+              ${editable ? `
+                <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:12px;background:rgba(0,0,0,0.01);margin-bottom:12px;">
+                  <span style="font-size:0.72rem;font-weight:700;color:var(--color-text-secondary);">UNGGAH FOTO ATAU PDF:</span>
+                  <input type="file" id="kanban-file-uploader" style="font-size:0.75rem;" accept="image/*,application/pdf" onchange="KanbanManager.handleFileUpload(event)">
+                  
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:6px;border-top:1px solid var(--color-border-light);padding-top:10px;">
+                    <input type="text" id="kanban-link-name" placeholder="Nama Link" style="width:40%;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;" />
+                    <input type="text" id="kanban-link-url" placeholder="https://example.com" style="flex:1;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;" />
+                    <input type="button" value="Tambah" onclick="KanbanManager.addLinkAttachment()" class="btn" style="width:auto; padding:4px 12px; font-size:0.72rem; margin:0; cursor:pointer;" />
+                  </div>
                 </div>
+              ` : ''}
+              <div class="attachment-list-edit" id="modal-attachments-list">
+                ${attachmentsHtml || `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`}
               </div>
-            ` : ''}
+            </div>
           </div>
 
           ${editable ? `
@@ -766,7 +1058,11 @@ const KanbanManager = {
     cards: [],
     comments: [],
     tags: [],
-    currentCard: null // Holds copy of card being edited
+    currentCard: null, // Holds copy of card being edited
+    accordions: {
+      notes: false,
+      attachments: false
+    }
   },
 
   /**
@@ -976,6 +1272,42 @@ const KanbanManager = {
     this.render();
   },
 
+  toggleAccordion(type, modalType = 'main') {
+    if (modalType === 'quickAdd') {
+      if (!this.state.quickAddAccordions) {
+        this.state.quickAddAccordions = { notes: true, attachments: true };
+      }
+      this.state.quickAddAccordions[type] = !this.state.quickAddAccordions[type];
+      const el = document.getElementById(`qa-accordion-${type}`);
+      const content = document.getElementById(`qa-accordion-${type}-content`);
+      if (el && content) {
+        if (this.state.quickAddAccordions[type]) {
+          el.classList.add('open');
+          content.style.display = 'block';
+        } else {
+          el.classList.remove('open');
+          content.style.display = 'none';
+        }
+      }
+    } else {
+      if (!this.state.accordions) {
+        this.state.accordions = { notes: false, attachments: false };
+      }
+      this.state.accordions[type] = !this.state.accordions[type];
+      const el = document.getElementById(`accordion-${type}`);
+      const content = document.getElementById(`accordion-${type}-content`);
+      if (el && content) {
+        if (this.state.accordions[type]) {
+          el.classList.add('open');
+          content.style.display = 'block';
+        } else {
+          el.classList.remove('open');
+          content.style.display = 'none';
+        }
+      }
+    }
+  },
+
   /**
    * Set Status locally in modal
    */
@@ -1001,10 +1333,13 @@ const KanbanManager = {
       
       const stMap = { 
         'todo': 'Belum Mulai', 
+        'belum': 'Belum Mulai',
         'proses': 'Sedang Berjalan', 
+        'sedang': 'Sedang Berjalan',
         'selesai': 'Selesai', 
         'dibatalkan': 'Dibatalkan', 
-        'dibatalkan/tunda': 'Dibatalkan' 
+        'dibatalkan/tunda': 'Dibatalkan',
+        'ditunda': 'Dibatalkan' 
       };
       if (stMap[text] === status) {
         pill.classList.add('active');
@@ -1115,6 +1450,14 @@ const KanbanManager = {
     if (!list) return;
 
     const editable = !App.state.isSupervisorViewAs;
+    if (!this.state.currentCard.attachments) {
+      this.state.currentCard.attachments = [];
+    }
+
+    const countSpan = document.getElementById('accordion-attachments-count');
+    if (countSpan) {
+      countSpan.textContent = this.state.currentCard.attachments.length;
+    }
     
     if (this.state.currentCard.attachments.length === 0) {
       list.innerHTML = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`;
@@ -1127,14 +1470,25 @@ const KanbanManager = {
       if (att.type === 'pdf') icon = '📄';
       if (att.type === 'link') icon = '🔗';
 
+      const cardId = this.state.currentCard.card_id;
+      const openAction = att.type === 'link' 
+        ? `href="${att.url}" target="_blank" onclick="event.stopPropagation();"` 
+        : `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${cardId}', ${index})"`;
       return `
-        <div class="attachment-item-edit">
-          <div style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
-            <span>${icon}</span>
-            <a href="${att.url}" target="_blank" style="color:var(--color-primary);text-decoration:none;font-size:0.8rem;font-weight:600;">${att.name}</a>
+        <div class="attachment-item-edit" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+          <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+              <span>${icon}</span>
+              <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+            </div>
+            ${editable ? `
+              <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+            ` : ''}
           </div>
-          ${editable ? `
-            <button onclick="KanbanManager.removeAttachment(${index})" style="border:none;background:transparent;color:var(--color-danger);cursor:pointer;font-size:0.8rem;" title="Hapus">🗑️</button>
+          ${att.card_status ? `
+            <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+              <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600;">📍 Diunggah saat: ${att.card_status}</span>
+            </div>
           ` : ''}
         </div>
       `;
@@ -1151,8 +1505,7 @@ const KanbanManager = {
     const title = titleEl ? titleEl.value.trim() : this.state.currentCard.title;
     const descEl = document.getElementById('modal-card-desc');
     const description = descEl ? descEl.value.trim() : this.state.currentCard.description;
-    const workDetailsEl = document.getElementById('modal-card-work-details');
-    const work_details = workDetailsEl ? workDetailsEl.value.trim() : (this.state.currentCard.work_details || '');
+    const work_details = this.state.currentCard.work_details || '';
 
     if (!title) {
       App.alert('Judul kartu tidak boleh kosong.', 'Peringatan');
@@ -1446,6 +1799,7 @@ const KanbanManager = {
           <div class="comment-meta">
             <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
             <span>${comm.author_name}</span>
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
           </div>
           <div style="word-break:break-word;">${comm.comment_text}</div>
           <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
@@ -1544,6 +1898,491 @@ const KanbanManager = {
         this.refreshBoard();
       })
       .kanbanMoveCard(nsm, card.card_id, targetStatus);
+  },
+
+  /**
+   * Preview attachment by card ID and attachment index (safe, avoids string escaping issues)
+   */
+  previewAttachmentByIndex(cardId, attIndex) {
+    // Look in board cards first, then fall back to currently open modal card
+    let card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card && this.state.currentCard && this.state.currentCard.card_id === cardId) {
+      card = this.state.currentCard;
+    }
+    if (!card || !card.attachments) return;
+    const att = card.attachments[attIndex];
+    if (!att) return;
+    this.previewAttachment(att.url, att.name, att.type);
+  },
+
+  previewAttachment(url, name, type) {
+    const previewUrl = this.getPreviewUrl(url);
+    let modal = document.getElementById('kanban-preview-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('preview-modal-title');
+    const bodyEl = document.getElementById('preview-modal-body');
+    const openBtn = document.getElementById('preview-modal-open-btn');
+
+    if (titleEl) titleEl.textContent = name;
+    if (openBtn) {
+      openBtn.style.display = 'inline-flex';
+      openBtn.href = url;
+    }
+
+    let contentHtml = '';
+    if (type === 'image') {
+      contentHtml = `<img src="${previewUrl}" style="max-width:100%; max-height:65vh; object-fit:contain; border-radius:4px;" />`;
+    } else if (type === 'pdf') {
+      contentHtml = `<iframe src="${previewUrl}" style="width:100%; height:65vh; min-height:400px; border:none; border-radius:4px;"></iframe>`;
+    } else {
+      contentHtml = `
+        <div style="text-align:center; padding:30px; width:100%;">
+          <span style="font-size:3rem; display:block; margin-bottom:10px;">🔗</span>
+          <p style="font-size:0.85rem; color:var(--color-text-secondary, #666); margin-bottom:15px;">Tautan luar tidak dapat ditampilkan langsung: <strong>${name}</strong></p>
+          <a href="${url}" target="_blank" class="btn" style="display:inline-block; width:auto; padding:8px 20px; font-size:0.8rem; background:var(--color-primary, #0d6efd); color:#fff; text-decoration:none; border-radius:4px;">Buka Tautan External 🚀</a>
+        </div>
+      `;
+    }
+
+    if (bodyEl) bodyEl.innerHTML = contentHtml;
+    modal.style.display = 'flex';
+  },
+
+  closePreviewModal() {
+    const modal = document.getElementById('kanban-preview-modal');
+    if (modal) {
+      modal.style.display = 'none';
+      const bodyEl = document.getElementById('preview-modal-body');
+      if (bodyEl) bodyEl.innerHTML = '';
+    }
+  },
+
+  getPreviewUrl(url) {
+    if (url.includes('drive.google.com') && url.includes('/view')) {
+      return url.replace('/view', '/preview');
+    }
+    return url;
+  },
+
+  previewDetailedNoteById(cardId, noteId) {
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card || !card.work_notes) return;
+    const note = card.work_notes.find(n => n.note_id === noteId);
+    if (!note) return;
+    this.previewDetailedNote(note.text, note.card_status);
+  },
+
+  previewDetailedNote(noteText, stage) {
+    let modal = document.getElementById('kanban-preview-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('preview-modal-title');
+    const bodyEl = document.getElementById('preview-modal-body');
+    const openBtn = document.getElementById('preview-modal-open-btn');
+
+    if (titleEl) titleEl.textContent = 'Catatan Detail (Tahap: ' + stage + ')';
+    if (openBtn) openBtn.style.display = 'none';
+
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="padding: 20px; font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; color: var(--color-text, #333); width: 100%; text-align: left;">
+          ${noteText}
+        </div>
+      `;
+    }
+    modal.style.display = 'flex';
+  },
+
+  addDetailedNoteFromModal() {
+    if (!this.state.currentCard) return;
+
+    const input = document.getElementById('modal-new-work-note-text');
+    const text = input ? input.value.trim() : '';
+    if (!text) {
+      App.alert('Isi catatan tidak boleh kosong.', 'Peringatan');
+      return;
+    }
+
+    const newNote = {
+      note_id: 'NOTE-' + Date.now(),
+      text: text,
+      created_at: new Date().toISOString(),
+      card_status: this.state.currentCard.status
+    };
+
+    if (!this.state.currentCard.work_notes) {
+      this.state.currentCard.work_notes = [];
+    }
+    this.state.currentCard.work_notes.push(newNote);
+
+    if (input) input.value = '';
+    this.updateWorkNotesView();
+  },
+
+  removeDetailedNote(index) {
+    if (!this.state.currentCard || !this.state.currentCard.work_notes) return;
+    this.state.currentCard.work_notes.splice(index, 1);
+    this.updateWorkNotesView();
+  },
+
+  updateWorkNotesView() {
+    const list = document.getElementById('modal-work-notes-list');
+    if (!list || !this.state.currentCard) return;
+
+    const workNotes = this.state.currentCard.work_notes || [];
+    workNotes.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    const editable = !App.state.isSupervisorViewAs;
+
+    const countSpan = document.getElementById('accordion-notes-count');
+    if (countSpan) {
+      countSpan.textContent = workNotes.length;
+    }
+
+    if (workNotes.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding:14px; font-size:0.75rem; color:var(--color-text-light); border:1px dashed var(--color-border); border-radius:var(--radius-sm);">Belum ada catatan detail per tahapan</div>`;
+      return;
+    }
+
+    list.innerHTML = workNotes.map((note, idx) => {
+      return `
+        <div style="display:flex; flex-direction:column; gap:4px; padding:10px; border-bottom:1px solid var(--color-border-light, #eee); background:#fffdf6; border-radius:6px; border-left:3px solid #ffc107; margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.65rem; color:#666; font-weight:600;">
+              Catatan #${idx+1} ${note.card_status ? '| Tahap: ' + note.card_status : ''}
+            </span>
+            ${editable ? `
+              <button onclick="KanbanManager.removeDetailedNote(${idx})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus Catatan">🗑️</button>
+            ` : ''}
+          </div>
+          <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap;">${note.text}</div>
+          <span style="font-size:0.62rem; color:#888; text-align:right;">${Utils.formatTimeAgo(note.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+  },
+
+  openQuickNotesModal(cardId) {
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    localStorage.setItem(`kanban_card_last_seen_${cardId}`, new Date().toISOString());
+
+    const modal = document.getElementById('kanban-quick-notes-modal');
+    if (!modal) return;
+
+    this.state.quickNotesCardId = cardId;
+
+    const titleEl = document.getElementById('quick-notes-title');
+    if (titleEl) titleEl.innerHTML = 'Ruang Diskusi: <span style="font-weight:500;">' + card.title + '</span>';
+
+    this.updateQuickNotesView();
+    modal.style.display = 'flex';
+    
+    const log = document.getElementById('quick-notes-body');
+    if (log) {
+      setTimeout(() => { log.scrollTop = log.scrollHeight; }, 50);
+    }
+  },
+
+  closeQuickNotesModal() {
+    const modal = document.getElementById('kanban-quick-notes-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    this.state.quickNotesCardId = null;
+    this.render();
+  },
+
+  updateQuickNotesView() {
+    const log = document.getElementById('quick-notes-body');
+    if (!log || !this.state.quickNotesCardId) return;
+
+    const cardId = this.state.quickNotesCardId;
+    const cardComments = this.state.comments.filter(comm => comm.card_id === cardId);
+    cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (cardComments.length === 0) {
+      log.innerHTML = `
+        <div style="text-align:center; padding:40px 10px; color:var(--color-text-light); font-size:0.75rem;">
+          💬 Belum ada diskusi.<br>Tulis komentar pertama Anda di bawah ini!
+        </div>`;
+      return;
+    }
+
+    log.innerHTML = cardComments.map(comm => {
+      const isKamad = comm.author_role === 'Kamad';
+      const bubbleClass = isKamad ? 'kamad' : 'pengawas';
+      const roleBadge = isKamad ? 'role-kamad' : 'role-pengawas';
+
+      return `
+        <div class="comment-item ${bubbleClass}">
+          <div class="comment-meta">
+            <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
+            <span>${comm.author_name}</span>
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.62rem; padding:1px 5px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
+          </div>
+          <div style="word-break:break-word; font-size:0.8rem; margin-top:4px;">${comm.comment_text}</div>
+          <span class="comment-time" style="font-size:0.62rem; margin-top:2px;">${Utils.formatTimeAgo(comm.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+  },
+
+  submitQuickNote() {
+    const cardId = this.state.quickNotesCardId;
+    if (!cardId) return;
+
+    const input = document.getElementById('quick-note-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const nsm = App.state.kamad?.nsm;
+    const isSupervisor = !!App.state.isSupervisorViewAs;
+    const authorName = isSupervisor ? App.state.user?.Nama : App.state.kamad?.madrasah_name;
+    const authorRole = isSupervisor ? 'Pengawas' : 'Kamad';
+
+    input.value = '';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          this.state.comments.push(res.data);
+          this.updateQuickNotesView();
+          
+          const log = document.getElementById('quick-notes-body');
+          if (log) {
+            setTimeout(() => { log.scrollTop = log.scrollHeight; }, 30);
+          }
+        } else {
+          App.alert('Gagal mengirim catatan: ' + res.error, 'Gagal');
+        }
+      })
+      .withFailureHandler(err => {
+        App.alert('Koneksi terputus: ' + (err.message || err), 'Error');
+      })
+      .kanbanAddComment(nsm, cardId, text, authorName, authorRole);
+  },
+
+  openQuickAddModal(cardId) {
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    this.state.quickAddCardId = cardId;
+
+    const modal = document.getElementById('kanban-quick-add-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('quick-add-card-title');
+    const statusEl = document.getElementById('quick-add-card-status');
+    const noteTextEl = document.getElementById('quick-add-note-text');
+    const fileUploaderEl = document.getElementById('quick-add-file-uploader');
+    const linkNameEl = document.getElementById('quick-add-link-name');
+    const linkUrlEl = document.getElementById('quick-add-link-url');
+
+    if (titleEl) titleEl.textContent = card.title;
+    if (statusEl) statusEl.textContent = card.status;
+    if (noteTextEl) noteTextEl.value = '';
+    if (fileUploaderEl) fileUploaderEl.value = '';
+    if (linkNameEl) linkNameEl.value = '';
+    if (linkUrlEl) linkUrlEl.value = '';
+
+    modal.style.display = 'flex';
+    this.state.quickAddAccordions = { notes: true, attachments: true };
+    const accNotes = document.getElementById('qa-accordion-notes');
+    const contentNotes = document.getElementById('qa-accordion-notes-content');
+    const accAtts = document.getElementById('qa-accordion-attachments');
+    const contentAtts = document.getElementById('qa-accordion-attachments-content');
+    if (accNotes) accNotes.classList.add('open');
+    if (contentNotes) contentNotes.style.display = 'block';
+    if (accAtts) accAtts.classList.add('open');
+    if (contentAtts) contentAtts.style.display = 'block';
+  },
+
+  closeQuickAddModal() {
+    const modal = document.getElementById('kanban-quick-add-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    this.state.quickAddCardId = null;
+    this.render();
+  },
+
+  submitQuickAddNote() {
+    const cardId = this.state.quickAddCardId;
+    if (!cardId) return;
+
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    const textEl = document.getElementById('quick-add-note-text');
+    const text = textEl ? textEl.value.trim() : '';
+    if (!text) {
+      App.alert('Catatan tidak boleh kosong.', 'Peringatan');
+      return;
+    }
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    const newNote = {
+      note_id: 'NOTE-' + Date.now(),
+      text: text,
+      created_at: new Date().toISOString(),
+      card_status: card.status
+    };
+
+    if (!card.work_notes) {
+      card.work_notes = [];
+    }
+    card.work_notes.push(newNote);
+
+    App.loading(true, 'Menyimpan catatan detail...');
+
+    google.script.run
+      .withSuccessHandler(saveRes => {
+        App.loading(false);
+        if (saveRes.success) {
+          if (textEl) textEl.value = '';
+          App.alert('Catatan detail berhasil ditambahkan!', 'Sukses');
+          this.closeQuickAddModal();
+        } else {
+          App.alert('Gagal menyimpan catatan detail: ' + saveRes.error, 'Gagal');
+          card.work_notes.pop();
+        }
+      })
+      .withFailureHandler(saveErr => {
+        App.loading(false);
+        App.alert('Koneksi terputus saat menyimpan catatan detail: ' + (saveErr.message || saveErr), 'Error');
+        card.work_notes.pop();
+      })
+      .kanbanSaveCard(nsm, card);
+  },
+
+  handleQuickAddFileUpload(e) {
+    const cardId = this.state.quickAddCardId;
+    if (!cardId) return;
+
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      App.alert('Ukuran berkas tidak boleh melebihi 10MB.', 'Peringatan');
+      e.target.value = '';
+      return;
+    }
+
+    App.loading(true, 'Mengunggah berkas ke Drive...');
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64Data = evt.target.result;
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            const attType = file.type.startsWith('image/') ? 'image' : 'pdf';
+            const newAttachment = {
+              type: attType,
+              name: file.name,
+              url: res.data.url,
+              card_status: card.status
+            };
+
+            card.attachments.push(newAttachment);
+
+            google.script.run
+              .withSuccessHandler(saveRes => {
+                App.loading(false);
+                if (saveRes.success) {
+                  App.alert('Berkas berhasil diunggah dan disimpan ke kartu!', 'Sukses');
+                  this.closeQuickAddModal();
+                } else {
+                  App.alert('Gagal memperbarui data kartu: ' + saveRes.error, 'Gagal');
+                  card.attachments.pop();
+                }
+              })
+              .withFailureHandler(saveErr => {
+                App.loading(false);
+                App.alert('Koneksi terputus saat menyimpan kartu: ' + (saveErr.message || saveErr), 'Error');
+                card.attachments.pop();
+              })
+              .kanbanSaveCard(nsm, card);
+          } else {
+            App.loading(false);
+            App.alert('Gagal mengunggah berkas: ' + res.error, 'Gagal');
+          }
+        })
+        .withFailureHandler(err => {
+          App.loading(false);
+          App.alert('Terjadi kesalahan koneksi: ' + (err.message || err), 'Error');
+        })
+        .kanbanUploadAttachment(nsm, base64Data, file.name);
+    };
+    reader.readAsDataURL(file);
+  },
+
+  submitQuickAddLink() {
+    const cardId = this.state.quickAddCardId;
+    if (!cardId) return;
+
+    const card = this.state.cards.find(c => c.card_id === cardId);
+    if (!card) return;
+
+    const nameEl = document.getElementById('quick-add-link-name');
+    const urlEl = document.getElementById('quick-add-link-url');
+    
+    const name = nameEl ? nameEl.value.trim() : '';
+    let url = urlEl ? urlEl.value.trim() : '';
+
+    if (!name || !url) {
+      App.alert('Nama link dan URL harus diisi.', 'Validation');
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    const nsm = App.state.kamad?.nsm;
+    if (!nsm) return;
+
+    const newAttachment = {
+      type: 'link',
+      name: name,
+      url: url,
+      card_status: card.status
+    };
+
+    card.attachments.push(newAttachment);
+
+    App.loading(true, 'Menyimpan link...');
+
+    google.script.run
+      .withSuccessHandler(saveRes => {
+        App.loading(false);
+        if (saveRes.success) {
+          if (nameEl) nameEl.value = '';
+          if (urlEl) urlEl.value = '';
+          App.alert('Tautan berhasil disimpan ke kartu!', 'Sukses');
+          this.closeQuickAddModal();
+        } else {
+          App.alert('Gagal memperbarui data kartu: ' + saveRes.error, 'Gagal');
+          card.attachments.pop();
+        }
+      })
+      .withFailureHandler(saveErr => {
+        App.loading(false);
+        App.alert('Koneksi terputus saat menyimpan kartu: ' + (saveErr.message || saveErr), 'Error');
+        card.attachments.pop();
+      })
+      .kanbanSaveCard(nsm, card);
   }
 };
 

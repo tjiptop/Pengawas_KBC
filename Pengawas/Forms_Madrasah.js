@@ -132,7 +132,7 @@ questions:
           - P
       - name: mapel
         label: "Mata Pelajaran"
-        type: select
+        type: multiselect
         options:
           - Guru Kelas
           - PAI (Quran Hadis, Akidah Akhlak, Fiqih, SKI)
@@ -158,9 +158,387 @@ questions:
         width: "80px"
 `,
 
+    'form_pendampingan_perencanaan': `    # FORM 1.0. PENDAMPINGAN MADRASAH KBC PILOTING
+title: 1.1. Perencanaan 
+group: 1. Langkah Kerja Pendampingan KBC Piloting
+icon: "🎯"
+description: "Mencatat hasil observasi awal kondisi madrasah, menyusun jadwal (timeline) pendampingan, dan melakukan refleksi diri sebagai acuan untuk merumuskan rencana aksi implementasi KBC"
+submission_limit: 0
+target_sheet: 1_1_Perencanaan
+allowed_roles:
+subordinate_visibility: view
+questions:  
+  - type: header
+    text: "PERENCANAAN PENDAMPINGAN"
+    level: 1
+    align: center
+    margin: small
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: text
+    name: nama_madrasah
+    label: "Nama Madrasah"
+    default: $madrasah_name
+    readonly: true
+  - type: text
+    name: nama_kab_prov
+    label: "Kab."
+    default: "$madrasah_district"
+    readonly: true
+  - type: text
+    name: nama_pengawas
+    label: "Nama Pengawas"
+    default: "$user_fullname"
+    readonly: true
+  - type: date
+    name: perencanaan_date
+    label: "Tanggal Perencanaan"
+    default: "$today"
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "A. PETUNJUK PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Instrumen ini digunakan untuk merumuskan rencana aksi implementasi KBC."
+    align: left
+    margin: none
+  - type: header
+    text: "Aspek Perencanaan Pendampingan"
+    level: 3
+    align: left
+    margin: small
+  - type: note
+    label: 
+      - "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC yang sudah muncul di madrasah."
+      - "2.Menyiapkan materi penguatan nilai KBC (lihat materi PPT di link materi pendampingan) dan jika diperlukan memberi pelatihan penguatan nilai KBC."
+      - "3.Menyusun rencana pendampingan KBC (menyusun timeline pendampingan)"
+      - "4.Melakukan refleksi pendampingan dan menyusun rencana aksi pendampingan di platform MAGIS. Refleksi pengawas meliputi:"
+      - "  - Refleksi Pendampingan"
+      - "  - Refleksi Kompetensi diri"
+    align: left
+    margin: none
+    indent: 1
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "B. INSTRUMEN PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Dimensi dan Butir Perencanaan Pendampingan"
+    align: left
+    margin: none
+  - type: header
+    text: "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada kegiatan observasi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan Observasi"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "2. Menyiapkan materi penguatan nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada penyiapan materi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan penyiapan"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "UPLOAD DOKUMEN TAMBAHAN"
+    level: 2
+    align: left
+    margin: small
+  - type: multi_file
+    name: documents
+    label: "Upload"
+    max_files: 5
+    max_size: 10  # 10 MB limit per file
+    accept: "all"
+`
+    ,
+    'form_refleksi_dan_penyusunan_rencana': `    # FORM 1.0. PENDAMPINGAN MADRASAH KBC PILOTING
+title: 1.2. Refleksi dan Penyusunan Rencana Aksi 
+group: 1. Langkah Kerja Pendampingan KBC Piloting
+icon: "🎯"
+description: "Mencatat hasil observasi awal kondisi madrasah, menyusun jadwal (timeline) pendampingan, dan melakukan refleksi diri sebagai acuan untuk merumuskan rencana aksi implementasi KBC"
+submission_limit: 0
+target_sheet: 1_2_Refleksi_dan_Penyusunan_Rencana
+allowed_roles:
+subordinate_visibility: view
+questions:  
+  - type: header
+    text: "REFLEKSI DAN PENYUSUNAN RENCANA AKSI"
+    level: 1
+    align: center
+    margin: small
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: text
+    name: nama_madrasah
+    label: "Nama Madrasah"
+    default: $madrasah_name
+    readonly: true
+  - type: text
+    name: nama_kab_prov
+    label: "Kab."
+    default: "$madrasah_district"
+    readonly: true
+  - type: text
+    name: nama_pengawas
+    label: "Nama Pengawas"
+    default: "$user_fullname"
+    readonly: true
+  - type: date
+    name: perencanaan_date
+    label: "Tanggal Perencanaan"
+    default: "$today"
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "A. PETUNJUK PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Instrumen ini digunakan untuk merumuskan rencana aksi implementasi KBC."
+    align: left
+    margin: none
+  - type: header
+    text: "Aspek Perencanaan Pendampingan"
+    level: 3
+    align: left
+    margin: small
+  - type: note
+    label: 
+      - "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC yang sudah muncul di madrasah."
+    align: left
+    margin: none
+    indent: 1
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "B. INSTRUMEN PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Dimensi dan Butir Perencanaan Pendampingan"
+    align: left
+    margin: none
+  - type: header
+    text: "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada kegiatan observasi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan Observasi"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "2. Menyiapkan materi penguatan nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada penyiapan materi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan penyiapan"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "UPLOAD DOKUMEN TAMBAHAN"
+    level: 2
+    align: left
+    margin: small
+  - type: multi_file
+    name: documents
+    label: "Upload"
+    max_files: 5
+    max_size: 10  # 10 MB limit per file
+    accept: "all"
+`,
+    'form_implementasi_dan_pemantauan': `    # FORM 1.0. PENDAMPINGAN MADRASAH KBC PILOTING
+title: 1.3. Implementasi dan Pemantauan
+group: 1. Langkah Kerja Pendampingan KBC Piloting
+icon: "🎯"
+description: "Mencatat hasil observasi awal kondisi madrasah, menyusun jadwal (timeline) pendampingan, dan melakukan refleksi diri sebagai acuan untuk merumuskan rencana aksi implementasi KBC"
+submission_limit: 0
+target_sheet: 1_3_Implementasi_dan_Pemantauan
+allowed_roles:
+subordinate_visibility: view
+questions:  
+  - type: header
+    text: "PENDAMPINGAN IMPLEMENTASI KBC"
+    level: 1
+    align: center
+    margin: small
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: text
+    name: nama_madrasah
+    label: "Nama Madrasah"
+    default: $madrasah_name
+    readonly: true
+  - type: text
+    name: nama_kab_prov
+    label: "Kab."
+    default: "$madrasah_district"
+    readonly: true
+  - type: text
+    name: nama_pengawas
+    label: "Nama Pengawas"
+    default: "$user_fullname"
+    readonly: true
+  - type: date
+    name: perencanaan_date
+    label: "Tanggal Perencanaan"
+    default: "$today"
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "A. PETUNJUK PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Instrumen ini digunakan untuk merumuskan rencana aksi implementasi KBC."
+    align: left
+    margin: none
+  - type: header
+    text: "Aspek Perencanaan Pendampingan"
+    level: 3
+    align: left
+    margin: small
+  - type: note
+    label: 
+      - "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC yang sudah muncul di madrasah."
+    align: left
+    margin: none
+    indent: 1
+  - type: spacer
+    height: "30px"
+    line: false
+  - type: header
+    text: "B. INSTRUMEN PERENCANAAN PENDAMPINGAN"
+    level: 2
+    align: left
+    margin: small
+  - type: note
+    label: "Dimensi dan Butir Perencanaan Pendampingan"
+    align: left
+    margin: none
+  - type: header
+    text: "1.Mencermati/mengobservasi bukti-bukti penanaman nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada kegiatan observasi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan Observasi"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "2. Menyiapkan materi penguatan nilai KBC"
+    level: 2
+    align: left
+    margin: small
+  - type: segmented_control
+    name: refleksi
+    label: "Ada penyiapan materi"
+    options:
+      - 0. Belum Dilakukan
+      - 1. Sudah Dilakukan 
+  - type: textarea
+    name: refleksi_catatan
+    label: "Catatan penyiapan"
+    label_size: medium
+    placeholder: "Tuliskan disini..."
+    rows: 4
+  - type: spacer
+    height: "50px"
+    line: true
+  - type: header
+    text: "UPLOAD DOKUMEN TAMBAHAN"
+    level: 2
+    align: left
+    margin: small
+  - type: multi_file
+    name: documents
+    label: "Upload"
+    max_files: 5
+    max_size: 10  # 10 MB limit per file
+    accept: "all"
+`,
     'form_observasi': `    # FORM 1.0. OBSERVASI FINAL
-title: 1.0. Observasi Akhir Penilaian
-group: 1. Observasi
+title: X1.0. Observasi Akhir Penilaian
+group: X1. Observasi
 icon: "🔍"
 description: "Observasi Akhir Penilaian Program KBC Inovasi"
 submission_limit: 0
@@ -376,8 +754,8 @@ questions:
 `,
 
     'instrumen_angket_guru': `    ### 2.1. ANGKET GURU ###
-title: 2.1. Instrumen Angket Guru
-group: 2. Angket
+title: X2.1. Instrumen Angket Guru
+group: X2. Angket
 icon: "📝"
 description: "Instrumen Angket Guru Program KBC Inovasi"
 submission_limit: 4
@@ -609,8 +987,8 @@ questions:
 `,
 
     'instrumen_angket_kamad': `### 2.1. ANGKET KAMAD ###
-title: 2.2. Instrumen Angket Kepala Madrasah
-group: 2. Angket
+title: X2.2. Instrumen Angket Kepala Madrasah
+group: X2. Angket
 icon: "📝"
 description: "Instrumen Angket Kepala Madrasah Program KBC Inovasi"
 target_sheet: 2_2_Angket_Kamad
@@ -826,8 +1204,8 @@ questions:
 `,
 
     'instrumen_angket_ortu': `### 2.1. ANGKET ORTU ###
-title: 2.3. Instrumen Angket Orang Tua
-group: 2. Angket
+title: X2.3. Instrumen Angket Orang Tua
+group: X2. Angket
 icon: "👨‍👩‍👧‍👦"
 description: "Instrumen Angket Orang Tua Program KBC Inovasi"
 submission_limit: 4

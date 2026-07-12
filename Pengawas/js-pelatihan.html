@@ -155,6 +155,17 @@ const PelatihanViews = {
                         </div>
                     </div>
 
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="plt-jam-mulai">Jam Mulai</label>
+                            <input type="time" id="plt-jam-mulai" class="form-control" required style="padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;width:100%;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="plt-jam-selesai">Jam Selesai</label>
+                            <input type="time" id="plt-jam-selesai" class="form-control" required style="padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;width:100%;">
+                        </div>
+                    </div>
+
                     <div class="form-group" style="margin-bottom:14px;border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
                         <label class="form-label" for="plt-kategori">Kategori Pelatihan</label>
                         <select id="plt-kategori" class="form-control" required style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">
@@ -165,7 +176,26 @@ const PelatihanViews = {
                         </small>
                     </div>
 
+                    <div class="form-group" style="margin-bottom:14px;border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
+                        <label class="form-label" for="plt-moda">Moda Pelatihan</label>
+                        <select id="plt-moda" class="form-control" required onchange="PelatihanManager.toggleLinkInput(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">
+                            <option value="offline">Offline</option>
+                            <option value="online">Online</option>
+                            <option value="hybrid">Hybrid</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="plt-link-container" style="display:none;margin-bottom:14px;">
+                        <label class="form-label" for="plt-link">Link Pertemuan (Zoom/Meet/dll)</label>
+                        <input type="url" id="plt-link" class="form-control" placeholder="Contoh: zoom.us/j/123456789 atau link Google Meet" style="padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;width:100%;">
+                    </div>
+
                     <div class="form-group" style="margin-bottom:14px;">
+                        <label class="form-label" for="plt-link-undangan">Link Undangan & Dokumen Juknis</label>
+                        <input type="url" id="plt-link-undangan" class="form-control" placeholder="Contoh: drive.google.com/file/d/... atau link dokumen lain" style="padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;width:100%;">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:14px;border-top:1px solid var(--color-border-light);margin-top:20px;padding-top:16px;">
                         <label class="form-label" for="plt-zona-waktu">Zona Waktu Kegiatan</label>
                         <select id="plt-zona-waktu" class="form-control" required style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:10px;font-size:0.85rem;background:var(--color-bg);color:var(--color-text);box-sizing:border-box;">
                             <option value="Asia/Jakarta">WIB (GMT+7) - Asia/Jakarta</option>
@@ -334,6 +364,13 @@ const PelatihanViews = {
                         <button class="btn btn-primary" id="btn-selesaikan" onclick="PelatihanManager.selesaikan('${pelatihanId}')" style="display:none; background:var(--color-danger); border-color:var(--color-danger); width:100%; padding:10px; font-weight:700; font-size:0.88rem; margin:0;">
                             ⏹ Selesaikan Pelatihan
                         </button>
+                    </div>
+                    <!-- Setting Buka Berurutan -->
+                    <div style="margin-top:14px; border-top:1px solid var(--color-border-light); padding-top:12px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.82rem; cursor:pointer; font-weight:600; color:var(--color-text);">
+                            <input type="checkbox" id="chk-buka-berurutan" onchange="PelatihanManager.ubahBukaBerurutan('${pelatihanId}', this)" style="width:16px; height:16px;">
+                            Buka berurutan (Kuesioner → Pre-Test → Materi → Post-Test → Feedback)
+                        </label>
                     </div>
                 </div>
 
@@ -513,6 +550,23 @@ const PelatihanManager = {
     autoTutupState: {},
     attendanceModalInterval: null,
 
+    toggleLinkInput(val) {
+        const linkContainer = document.getElementById('plt-link-container');
+        const linkInput = document.getElementById('plt-link');
+        if (linkContainer) {
+            if (val === 'online' || val === 'hybrid') {
+                linkContainer.style.display = 'block';
+                if (linkInput) linkInput.required = true;
+            } else {
+                linkContainer.style.display = 'none';
+                if (linkInput) {
+                    linkInput.required = false;
+                    linkInput.value = '';
+                }
+            }
+        }
+    },
+
     getGenderShort(g) {
         if (!g) return '-';
         const val = String(g).trim().toLowerCase();
@@ -660,6 +714,7 @@ const PelatihanManager = {
             }) + ' - ' + new Date(item.tanggal_selesai).toLocaleDateString('id-ID', {
                 day: '2-digit', month: 'short', year: 'numeric'
             })) : 'Tanggal belum ditentukan';
+            const timeStr = (item.jam_mulai && item.jam_selesai) ? ` (${App.formatTime(item.jam_mulai)} - ${App.formatTime(item.jam_selesai)})` : '';
             
             const statusClass = 'status-' + item.status;
             
@@ -673,6 +728,14 @@ const PelatihanManager = {
                 <button onclick="event.stopPropagation(); App.router('pelatihan-buat', { id: '${item.pelatihan_id}' })" class="btn" style="background:none;border:none;color:var(--color-primary);font-size:0.85em;padding:4px 8px;cursor:pointer;margin-right:8px;">✏️ Edit</button>
             ` : '';
             
+            const linkHtml = (item.link && (item.moda === 'online' || item.moda === 'hybrid')) ? `
+                <a href="${item.link}" target="_blank" onclick="event.stopPropagation();" class="btn btn-secondary" style="padding:4px 8px; font-size:0.75em; border-radius:6px; border:1px solid var(--color-border); color:var(--color-text); background:var(--color-bg-elevated); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin:0; width:auto;">🔗 Link</a>
+            ` : '';
+
+            const undanganHtml = item.link_undangan ? `
+                <a href="${item.link_undangan}" target="_blank" onclick="event.stopPropagation();" class="btn btn-secondary" style="padding:4px 8px; font-size:0.75em; border-radius:6px; border:1px solid var(--color-border); color:var(--color-text); background:var(--color-bg-elevated); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin:0; width:auto;">📄 Undangan</a>
+            ` : '';
+
             return `
                 <div class="pelatihan-card" onclick="App.router('pelatihan-detail', { id: '${item.pelatihan_id}' })">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px;">
@@ -683,10 +746,15 @@ const PelatihanManager = {
                         </div>
                     </div>
                     <h3 style="font-size:0.95rem;font-weight:700;color:var(--color-text);margin:0 0 4px 0;">${item.judul}</h3>
-                    <div style="font-size:0.76rem;color:var(--color-text-light);margin-bottom:10px;">🏷️ <b>${item.kategori || 'Umum'}</b> · 📍 ${item.provinsi} · 📅 ${dateStr}</div>
-                    <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--color-text-light);border-top:1px dashed var(--color-border-light);padding-top:8px;">
-                        <span>👥 <b>${item.peserta_count}</b> Peserta</span>
-                        <span>📚 <b>${item.materi_count}</b> Materi</span>
+                    <div style="font-size:0.76rem;color:var(--color-text-light);margin-bottom:10px;">🏷️ <b>${item.kategori || 'Umum'}</b> · 📍 ${item.provinsi} · 📅 ${dateStr}${timeStr} · 💻 <b>${(item.moda || 'offline').toUpperCase()}</b></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--color-border-light);padding-top:8px;margin-top:8px;">
+                        <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--color-text-light);">
+                            <span>👥 <b>${item.peserta_count}</b> Peserta</span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            ${undanganHtml}
+                            ${linkHtml}
+                        </div>
                     </div>
                 </div>
             `;
@@ -711,6 +779,27 @@ const PelatihanManager = {
                 App.alert(err.message, 'System Error');
             }).apiDeletePelatihan(pelatihanId);
         });
+    },
+
+    ubahBukaBerurutan(pelatihanId, checkbox) {
+        const isBerurutan = checkbox.checked;
+        App.loading(true, 'Menyimpan pengaturan urutan...');
+        google.script.run.withSuccessHandler(res => {
+            App.loading(false);
+            if (res.success) {
+                App.toast('Pengaturan urutan pelatihan berhasil diperbarui', 'success');
+                if (this.detailData && this.detailData.pelatihan) {
+                    this.detailData.pelatihan.buka_berurutan = isBerurutan;
+                }
+            } else {
+                App.alert(res.error, 'Gagal');
+                checkbox.checked = !isBerurutan;
+            }
+        }).withFailureHandler(err => {
+            App.loading(false);
+            App.alert(err.message, 'System Error');
+            checkbox.checked = !isBerurutan;
+        }).apiSetBukaBerurutan(pelatihanId, isBerurutan);
     },
 
     // ---- CREATE/EDIT FORM ----
@@ -746,6 +835,39 @@ const PelatihanManager = {
                             if (tzEl) {
                                 tzEl.value = detail.pelatihan.zona_waktu || 'Asia/Jakarta';
                             }
+                            const modaEl = document.getElementById('plt-moda');
+                            if (modaEl) {
+                                modaEl.value = detail.pelatihan.moda || 'offline';
+                                PelatihanManager.toggleLinkInput(modaEl.value);
+                            }
+                            const linkEl = document.getElementById('plt-link');
+                            if (linkEl) {
+                                linkEl.value = detail.pelatihan.link || '';
+                            }
+                            const jamMulaiEl = document.getElementById('plt-jam-mulai');
+                            if (jamMulaiEl) {
+                                let val = detail.pelatihan.jam_mulai || '';
+                                if (val && val.includes('T')) {
+                                    val = val.split('T')[1].substring(0, 5);
+                                } else if (val && val.length > 5) {
+                                    val = val.substring(0, 5);
+                                }
+                                jamMulaiEl.value = val;
+                            }
+                            const jamSelesaiEl = document.getElementById('plt-jam-selesai');
+                            if (jamSelesaiEl) {
+                                let val = detail.pelatihan.jam_selesai || '';
+                                if (val && val.includes('T')) {
+                                    val = val.split('T')[1].substring(0, 5);
+                                } else if (val && val.length > 5) {
+                                    val = val.substring(0, 5);
+                                }
+                                jamSelesaiEl.value = val;
+                            }
+                            const linkUndanganEl = document.getElementById('plt-link-undangan');
+                            if (linkUndanganEl) {
+                                linkUndanganEl.value = detail.pelatihan.link_undangan || '';
+                            }
                         } else {
                             App.alert(detailRes.error, 'Gagal');
                             App.router('pelatihan');
@@ -774,6 +896,11 @@ const PelatihanManager = {
         const tglSelesai = document.getElementById('plt-tgl-selesai').value;
         const kategori = document.getElementById('plt-kategori').value;
         const zonaWaktu = document.getElementById('plt-zona-waktu').value;
+        const moda = document.getElementById('plt-moda').value;
+        const link = document.getElementById('plt-link').value;
+        const jamMulai = document.getElementById('plt-jam-mulai').value;
+        const jamSelesai = document.getElementById('plt-jam-selesai').value;
+        const linkUndangan = document.getElementById('plt-link-undangan').value;
         
         if (!kategori) {
             return App.alert('Harap pilih kategori pelatihan.', 'Validasi');
@@ -787,7 +914,12 @@ const PelatihanManager = {
             tanggal_mulai: tglMulai,
             tanggal_selesai: tglSelesai,
             kategori: kategori,
-            zona_waktu: zonaWaktu
+            zona_waktu: zonaWaktu,
+            moda: moda,
+            link: link,
+            jam_mulai: jamMulai,
+            jam_selesai: jamSelesai,
+            link_undangan: linkUndangan
         };
         
         App.loading(true, 'Menyimpan jadwal pelatihan...');
@@ -1236,6 +1368,12 @@ const PelatihanManager = {
         } else if (state === 'aktif') {
             if (btnSelesaikan) btnSelesaikan.style.display = 'block';
             if (statusControlSec) statusControlSec.style.display = 'block';
+        }
+
+        // Sync Buka Berurutan checkbox
+        const chkBukaBerurutan = document.getElementById('chk-buka-berurutan');
+        if (chkBukaBerurutan) {
+            chkBukaBerurutan.checked = detail.pelatihan.buka_berurutan !== false;
         }
         
         // Hide Tambah button if not draft
