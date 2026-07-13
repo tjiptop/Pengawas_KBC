@@ -328,6 +328,9 @@ function apiGetProfilPelatihanList(nip) {
     const sheet = ss.getSheetByName('ProfilPelatihan');
     if (!sheet || sheet.getLastRow() < 2) return apiSuccess([]);
     
+    // Pastikan kolom baru ter-migrasi jika belum ada
+    ensureProfilPelatihanColumns_(sheet);
+    
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const idxId = headers.indexOf('id');
@@ -338,6 +341,9 @@ function apiGetProfilPelatihanList(nip) {
     const idxTglSelesai = headers.indexOf('Tanggal Selesai');
     const idxPeran = headers.indexOf('Peran');
     const idxSumber = headers.indexOf('Sumber');
+    const idxMateri = headers.indexOf('Materi Pelatihan');
+    const idxJumlahPeserta = headers.indexOf('Jumlah Peserta');
+    const idxCatatan = headers.indexOf('Catatan');
     
     const list = [];
     for (let i = 1; i < data.length; i++) {
@@ -358,7 +364,10 @@ function apiGetProfilPelatihanList(nip) {
           tanggal_mulai: tglMulai || '',
           tanggal_selesai: tglSelesai || '',
           peran: data[i][idxPeran] || '',
-          sumber: data[i][idxSumber] || 'manual'
+          sumber: data[i][idxSumber] || 'manual',
+          materi: idxMateri !== -1 ? (data[i][idxMateri] || '') : '',
+          jumlah_peserta: idxJumlahPeserta !== -1 ? (data[i][idxJumlahPeserta] || '') : '',
+          catatan: idxCatatan !== -1 ? (data[i][idxCatatan] || '') : ''
         });
       }
     }
@@ -378,30 +387,40 @@ function apiGetProfilPelatihanList(nip) {
 function apiAddProfilPelatihan(payload) {
   return executeWithLock_(() => {
     try {
-      const { nip, judul_pelatihan, penyelenggara, tanggal_mulai, tanggal_selesai, peran } = payload;
+      const { nip, judul_pelatihan, penyelenggara, tanggal_mulai, tanggal_selesai, peran, materi, jumlah_peserta, catatan } = payload;
       if (!nip || !judul_pelatihan || !penyelenggara || !tanggal_mulai || !tanggal_selesai || !peran) {
         return apiError('Data tidak lengkap.', 'VALIDATION');
       }
       
       const ss = getAppDb_();
       const sheet = setupSheet(ss, 'ProfilPelatihan', [
-        'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Sumber', 'created_at'
+        'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Materi Pelatihan', 'Jumlah Peserta', 'Catatan', 'Sumber', 'created_at'
       ]);
       
+      ensureProfilPelatihanColumns_(sheet);
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0].map(h => String(h).toLowerCase().trim());
       const id = Utilities.getUuid();
       const nowStr = new Date().toISOString();
       
-      sheet.appendRow([
-        id,
-        String(nip).trim(),
-        judul_pelatihan,
-        penyelenggara,
-        tanggal_mulai,
-        tanggal_selesai,
-        peran,
-        'manual',
-        nowStr
-      ]);
+      const rowValues = headers.map(h => {
+        if (h === 'id') return id;
+        if (h === 'nip') return String(nip).trim();
+        if (h === 'judul pelatihan') return judul_pelatihan;
+        if (h === 'penyelenggara') return penyelenggara;
+        if (h === 'tanggal mulai') return tanggal_mulai;
+        if (h === 'tanggal selesai') return tanggal_selesai;
+        if (h === 'peran') return peran;
+        if (h === 'materi pelatihan') return peran === 'Pelatih' ? (materi || '') : '';
+        if (h === 'jumlah peserta') return peran === 'Pelatih' ? (parseInt(jumlah_peserta, 10) || 0) : 0;
+        if (h === 'catatan') return peran === 'Pelatih' ? (catatan || '') : '';
+        if (h === 'sumber') return 'manual';
+        if (h === 'created_at') return nowStr;
+        return '';
+      });
+      
+      sheet.appendRow(rowValues);
       
       return apiSuccess({ id }, 'Pelatihan berhasil disimpan.');
     } catch (e) {
@@ -700,4 +719,34 @@ function apiDeleteMasterTrainer(id, nip) {
       return apiError('Gagal menghapus master trainer: ' + e.toString(), 'SYSTEM_ERROR');
     }
   });
+}
+
+/**
+ * Memastikan kolom Materi Pelatihan, Jumlah Peserta, dan Catatan ada pada sheet ProfilPelatihan
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ */
+function ensureProfilPelatihanColumns_(sheet) {
+  try {
+    const data = sheet.getDataRange().getValues();
+    if (data.length === 0) return;
+    const headers = data[0].map(h => String(h).toLowerCase().trim());
+    const columnsToAdd = [
+      { name: 'Materi Pelatihan', key: 'materi pelatihan' },
+      { name: 'Jumlah Peserta', key: 'jumlah peserta' },
+      { name: 'Catatan', key: 'catatan' }
+    ];
+    let updated = false;
+    columnsToAdd.forEach(col => {
+      if (headers.indexOf(col.key) === -1) {
+        sheet.getRange(1, headers.length + 1).setValue(col.name);
+        headers.push(col.key);
+        updated = true;
+      }
+    });
+    if (updated) {
+      logEvent_('INFO', 'ensureProfilPelatihanColumns_', 'Kolom baru Materi Pelatihan, Jumlah Peserta, Catatan berhasil ditambahkan ke ProfilPelatihan.');
+    }
+  } catch (e) {
+    logEvent_('ERROR', 'ensureProfilPelatihanColumns_', 'Gagal memigrasi kolom ProfilPelatihan: ' + e.toString());
+  }
 }

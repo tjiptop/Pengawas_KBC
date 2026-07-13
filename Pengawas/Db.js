@@ -56,14 +56,44 @@ function getKamadSheet(ss, sheetName) {
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     if (sheetName === 'KamadUsers') {
-      sheet.appendRow(['nsm', 'password', 'status', 'created_at', 'updated_at']);
+      sheet.appendRow(['nsm', 'password', 'status', 'email', 'nama', 'no_hp', 'created_at', 'updated_at']);
     } else if (sheetName === 'KamadTokens') {
       sheet.appendRow(['token', 'nsm', 'created_at', 'expires_at', 'used']);
     } else if (sheetName === 'KamadSubmissions') {
       sheet.appendRow(['timestamp', 'nsm', 'form_id', 'target_sheet', 'status']);
     }
+  } else {
+    if (sheetName === 'KamadUsers') {
+      ensureKamadUsersColumns_(sheet);
+    }
   }
   return sheet;
+}
+
+/**
+ * Memastikan kolom email, nama, dan no_hp ada pada sheet KamadUsers
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ */
+function ensureKamadUsersColumns_(sheet) {
+  try {
+    const data = sheet.getDataRange().getValues();
+    if (data.length === 0) return;
+    const headers = data[0].map(h => String(h).toLowerCase().trim());
+    const columnsToAdd = ['email', 'nama', 'no_hp'];
+    let updated = false;
+    columnsToAdd.forEach(col => {
+      if (headers.indexOf(col) === -1) {
+        sheet.getRange(1, headers.length + 1).setValue(col);
+        headers.push(col);
+        updated = true;
+      }
+    });
+    if (updated) {
+      logEvent_('INFO', 'ensureKamadUsersColumns_', 'Kolom baru email, nama, no_hp berhasil ditambahkan ke KamadUsers.');
+    }
+  } catch (e) {
+    logEvent_('ERROR', 'ensureKamadUsersColumns_', 'Gagal memigrasi kolom KamadUsers: ' + e.toString());
+  }
 }
 
 /**

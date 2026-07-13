@@ -72,6 +72,14 @@ function kanbanGetBoardData(nsm, sessionToken) {
         idxWorkNotes = headers.length - 1;
       }
 
+      // Check for tgl_selesai and add if missing
+      let idxDueDate = headers.indexOf('tgl_selesai');
+      if (idxDueDate === -1) {
+        cardsSheet.getRange(1, headers.length + 1).setValue('tgl_selesai');
+        headers.push('tgl_selesai');
+        idxDueDate = headers.length - 1;
+      }
+
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][idxNsm]).trim() === nsmStr) {
           let attachmentsList = [];
@@ -108,7 +116,19 @@ function kanbanGetBoardData(nsm, sessionToken) {
             delete_requested: (idxDeleteReq !== -1 && idxDeleteReq < data[i].length) ? (String(data[i][idxDeleteReq]).trim().toUpperCase() === 'TRUE') : false,
             tag: (idxTag !== -1 && idxTag < data[i].length) ? String(data[i][idxTag]).trim() : '',
             work_details: (idxWorkDetails !== -1 && idxWorkDetails < data[i].length) ? String(data[i][idxWorkDetails]).trim() : '',
-            approved_by_supervisor: (idxApproved !== -1 && idxApproved < data[i].length) ? (String(data[i][idxApproved]).trim().toUpperCase() === 'TRUE') : false
+            approved_by_supervisor: (idxApproved !== -1 && idxApproved < data[i].length) ? (String(data[i][idxApproved]).trim().toUpperCase() === 'TRUE') : false,
+            tgl_selesai: (() => {
+              if (idxDueDate === -1 || idxDueDate >= data[i].length) return '';
+              const val = data[i][idxDueDate];
+              if (val instanceof Date) {
+                return Utilities.formatDate(val, 'GMT+7', 'yyyy-MM-dd');
+              }
+              const str = String(val || '').trim();
+              if (str.indexOf('T') !== -1) {
+                return str.substring(0, 10);
+              }
+              return str;
+            })()
           });
         }
       }
@@ -254,6 +274,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
       const tag = sanitizeHtml(String(cardData.tag || '').trim());
       const work_details = sanitizeHtml(String(cardData.work_details || '').trim());
       const work_notes = JSON.stringify(cardData.work_notes || []);
+      const tgl_selesai = sanitizeHtml(String(cardData.tgl_selesai || '').trim());
       const now = new Date().toISOString();
 
       if (!title) return apiError('Judul kartu tidak boleh kosong.', 'VALIDATION');
@@ -286,6 +307,14 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
         idxWorkNotes = headers.length - 1;
       }
 
+      // Check if tgl_selesai column is missing, add it
+      let idxDueDate = headers.indexOf('tgl_selesai');
+      if (idxDueDate === -1) {
+        sheet.getRange(1, headers.length + 1).setValue('tgl_selesai');
+        headers.push('tgl_selesai');
+        idxDueDate = headers.length - 1;
+      }
+
       let cardId = cardData.card_id ? String(cardData.card_id).trim() : '';
 
       if (cardId) {
@@ -312,6 +341,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
           if (h === 'tag') return tag;
           if (h === 'work_details') return work_details;
           if (h === 'work_notes') return work_notes;
+          if (h === 'tgl_selesai') return tgl_selesai;
           if (h === 'created_by') return 'Kamad';
           if (h === 'created_at') return now;
           if (h === 'updated_at') return now;
@@ -346,6 +376,7 @@ function kanbanSaveCard(nsm, cardData, sessionToken) {
           else if (h === 'tag') val = tag;
           else if (h === 'work_details') val = work_details;
           else if (h === 'work_notes') val = work_notes;
+          else if (h === 'tgl_selesai') val = tgl_selesai;
           else if (h === 'updated_at') val = now;
 
           if (val !== null) {
@@ -712,31 +743,43 @@ function kanbanAddComment(nsm, cardId, commentText, authorName, authorRole, sess
       const sheet = ss.getSheetByName('KanbanComments');
       if (!sheet) return apiError('Tabel KanbanComments belum diinisialisasi.', 'NOT_FOUND');
 
-      let finalAuthorName = authorName ? sanitizeHtml(String(authorName).trim()) : 'User';
-      let finalAuthorRole = authorRole === 'Pengawas' ? 'Pengawas' : 'Kamad';
+      let finalAuthorRole = authorRole;
+      let finalAuthorName = authorName ? sanitizeHtml(String(authorName).trim()) : (authorRole === 'System' ? '' : 'User');
       let finalAuthorId = nsm;
 
-      // VALIDASI SESI: Jika sessionToken valid untuk Pengawas, timpa nama & peran dengan kredensial terverifikasi backend
-      const supervisorNip = validateSession_(sessionToken);
-      if (supervisorNip) {
-        finalAuthorRole = 'Pengawas';
-        finalAuthorId = supervisorNip;
-        
-        // Ambil nama pengawas dari Profil
-        const profilSheet = ss.getSheetByName('Profil');
-        if (profilSheet) {
-          const profData = profilSheet.getDataRange().getValues();
-          const profHeaders = profData[0].map(h => String(h).trim());
-          const idxNip = profHeaders.indexOf('NIP');
-          const idxNama = profHeaders.indexOf('Nama');
-          const profRow = findRowIndex_(profilSheet, idxNip, supervisorNip);
-          if (profRow !== -1) {
-            finalAuthorName = String(profData[profRow - 1][idxNama]).trim();
+      if (authorRole === 'System') {
+        finalAuthorRole = 'System';
+        finalAuthorName = '';
+      } else {
+        // VALIDASI SESI: Jika sessionToken valid untuk Pengawas, timpa nama & peran dengan kredensial terverifikasi backend
+        const supervisorNip = validateSession_(sessionToken);
+        if (supervisorNip) {
+          finalAuthorRole = 'Pengawas';
+          finalAuthorId = supervisorNip;
+          
+          // Ambil nama pengawas dari Profil
+          const profilSheet = ss.getSheetByName('Profil');
+          if (profilSheet) {
+            const profData = profilSheet.getDataRange().getValues();
+            const profHeaders = profData[0].map(h => String(h).trim());
+            const idxNip = profHeaders.indexOf('NIP');
+            const idxNama = profHeaders.indexOf('Nama');
+            const profRow = findRowIndex_(profilSheet, idxNip, supervisorNip);
+            if (profRow !== -1) {
+              finalAuthorName = String(profData[profRow - 1][idxNama]).trim();
+            }
+          }
+        } else {
+          // Jika tidak ada validasi sesi pengawas, gunakan role yang dikirimkan client (tapi batasi hanya Pengawas, Kamad, atau System)
+          if (authorRole === 'Pengawas') {
+            finalAuthorRole = 'Pengawas';
+          } else if (authorRole === 'System') {
+            finalAuthorRole = 'System';
+            finalAuthorName = '';
+          } else {
+            finalAuthorRole = 'Kamad';
           }
         }
-      } else {
-        // Jika bukan pengawas, pastikan perannya adalah Kamad
-        finalAuthorRole = 'Kamad';
       }
 
       const commentId = 'COMM-' + Date.now();

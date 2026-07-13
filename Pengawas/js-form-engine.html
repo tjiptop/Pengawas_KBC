@@ -64,6 +64,18 @@
             return Array.from(extensions).join(',');
         },
 
+        extractEmoji(str) {
+            if (!str) return { emoji: '', rest: '' };
+            const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+            const match = String(str).match(emojiRegex);
+            if (match) {
+                const emoji = match[0];
+                const rest = String(str).replace(emoji, '').trim();
+                return { emoji, rest };
+            }
+            return { emoji: '', rest: String(str) };
+        },
+
         data: {},
         def: null,
         onSubmit: null,
@@ -267,6 +279,100 @@
                         </label>
                     `;
                 }).join('');
+
+                inp = `
+                    <div class="multiselect-container" style="position:relative;${widthStyle}">
+                        <div id="ms-display-${q.name}" onclick="FormEngine.toggleMultiselectDropdown('${q.name}', event)" style="display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:6px 12px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-elevated);cursor:pointer;user-select:none;">
+                            <div id="ms-badges-${q.name}" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-grow:1;margin-right:10px;">
+                                ${badgeArea}
+                            </div>
+                            <span class="ms-arrow" style="font-size:0.8em;color:var(--color-text-secondary);transition:transform 0.2s;">▼</span>
+                        </div>
+                        <div id="ms-dropdown-${q.name}" class="ms-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:var(--color-bg-elevated);border:1px solid var(--color-border);border-radius:4px;max-height:220px;overflow-y:auto;box-shadow:0 4px 6px rgba(0,0,0,0.1);margin-top:2px;">
+                            ${optionsHtml}
+                        </div>
+                        <input type="hidden" name="${q.name}" id="f-${q.name}" value="${Security.sanitizeHtml(JSON.stringify(currentVal))}" ${req}>
+                    </div>
+                `;
+
+            } else if (q.type == 'multiselect2') {
+                let currentVal = val;
+                if (!Array.isArray(currentVal)) {
+                    if (typeof currentVal === 'string' && currentVal.length > 0) {
+                        if (currentVal.startsWith('[') && currentVal.endsWith(']')) {
+                            try {
+                                currentVal = JSON.parse(currentVal);
+                            } catch(e) {
+                                currentVal = currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                            }
+                        } else {
+                            currentVal = currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    } else {
+                        currentVal = [];
+                    }
+                }
+
+                const options = q.options || [];
+                const placeholder = q.placeholder || 'Pilih...';
+
+                // Group options by parent
+                const grouped = {};
+                options.forEach(opt => {
+                    const parts = opt.split('|');
+                    const parent = parts[0] ? parts[0].trim() : 'Lainnya';
+                    const sub = parts[1] ? parts[1].trim() : '';
+                    if (!grouped[parent]) {
+                        grouped[parent] = [];
+                    }
+                    grouped[parent].push({ original: opt, sub: sub });
+                });
+
+                // Build badges
+                const badges = currentVal.map(v => {
+                    const parts = v.split('|');
+                    const parentRaw = parts[0] ? parts[0].trim() : 'Lainnya';
+                    const subRaw = parts[1] ? parts[1].trim() : '';
+
+                    let { emoji: subEmoji, rest: subText } = this.extractEmoji(subRaw);
+                    let { emoji: parentEmoji, rest: parentText } = this.extractEmoji(parentRaw);
+                    
+                    const emoji = subEmoji || parentEmoji || '';
+                    const displayLabel = emoji ? `${emoji} ${parentText}: ${subText}` : `${parentText}: ${subText}`;
+
+                    return `
+                        <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                            ${displayLabel}
+                            <span onclick="FormEngine.removeMultiselectOption('${q.name}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                        </span>
+                    `;
+                }).join('');
+
+                const badgeArea = badges || `<span style="color:var(--color-text-secondary);font-size:0.9em;">${placeholder}</span>`;
+
+                // Build dropdown options list with groupings
+                let optionsHtml = '';
+                Object.keys(grouped).forEach(parent => {
+                    const parentEmojiData = this.extractEmoji(parent);
+                    const parentNameOnly = parentEmojiData.rest;
+                    const parentEmoji = parentEmojiData.emoji || '📁';
+                    
+                    optionsHtml += `
+                        <div class="ms2-group-header" style="padding:6px 12px 2px 12px; font-weight:bold; font-size:0.85em; color:var(--color-primary); display:flex; align-items:center; gap:6px;">
+                            <span>${parentEmoji}</span><span>${parentNameOnly}</span>
+                        </div>
+                    `;
+
+                    grouped[parent].forEach(item => {
+                        const isChecked = currentVal.includes(item.original) ? 'checked' : '';
+                        optionsHtml += `
+                            <label style="display:flex;align-items:center;gap:10px;padding:6px 12px 6px 28px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" data-field-id="${q.name}" value="${item.original}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${q.name}', '${item.original.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
+                                <span style="font-size:0.9em;color:var(--color-text);">${item.sub}</span>
+                            </label>
+                        `;
+                    });
+                });
 
                 inp = `
                     <div class="multiselect-container" style="position:relative;${widthStyle}">
@@ -1048,7 +1154,7 @@
                 if (c.type === 'select') {
                     const opts = (c.options || []).map(o => `<option value="${o}" ${o == cellVal ? 'selected' : ''}>${o}</option>`).join('');
                     inputHtml = `<select class="form-control tbl-inp" data-table="${tableName}" data-row="${rowIdx}" data-col="${c.name}"><option value="">Select...</option>${opts}</select>`;
-                } else if (c.type === 'multiselect') {
+                } else if (c.type === 'multiselect' || c.type === 'multiselect2') {
                     let cellValList = [];
                     if (Array.isArray(cellVal)) {
                         cellValList = cellVal;
@@ -1072,25 +1178,75 @@
                     const fieldId = `${tableName}__${rowIdx}__${c.name}`;
 
                     // Build badges
-                    const badges = cellValList.map(v => `
-                        <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
-                            ${v}
-                            <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
-                        </span>
-                    `).join('');
+                    const badges = cellValList.map(v => {
+                        let displayLabel = v;
+                        if (c.type === 'multiselect2' && String(v).includes('|')) {
+                            const parts = String(v).split('|');
+                            const parentRaw = parts[0] ? parts[0].trim() : 'Lainnya';
+                            const subRaw = parts[1] ? parts[1].trim() : '';
+
+                            let { emoji: subEmoji, rest: subText } = this.extractEmoji(subRaw);
+                            let { emoji: parentEmoji, rest: parentText } = this.extractEmoji(parentRaw);
+                            
+                            const emoji = subEmoji || parentEmoji || '';
+                            displayLabel = emoji ? `${emoji} ${parentText}: ${subText}` : `${parentText}: ${subText}`;
+                        }
+                        return `
+                            <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                                ${displayLabel}
+                                <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                            </span>
+                        `;
+                    }).join('');
 
                     const badgeArea = badges || `<span style="color:var(--color-text-secondary);font-size:0.9em;">${placeholder}</span>`;
 
                     // Build dropdown options list
-                    const optionsHtml = options.map(o => {
-                        const isChecked = cellValList.includes(o) ? 'checked' : '';
-                        return `
-                            <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
-                                <input type="checkbox" data-field-id="${fieldId}" value="${o}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${fieldId}', '${o.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
-                                <span style="font-size:0.9em;color:var(--color-text);">${o}</span>
-                            </label>
-                        `;
-                    }).join('');
+                    let optionsHtml = '';
+                    if (c.type === 'multiselect2') {
+                        const grouped = {};
+                        options.forEach(opt => {
+                            const parts = opt.split('|');
+                            const parent = parts[0] ? parts[0].trim() : 'Lainnya';
+                            const sub = parts[1] ? parts[1].trim() : '';
+                            if (!grouped[parent]) {
+                                grouped[parent] = [];
+                            }
+                            grouped[parent].push({ original: opt, sub: sub });
+                        });
+
+                        Object.keys(grouped).forEach(parent => {
+                            const parentEmojiData = this.extractEmoji(parent);
+                            const parentNameOnly = parentEmojiData.rest;
+                            const parentEmoji = parentEmojiData.emoji || '📁';
+                            
+                            optionsHtml += `
+                                <div class="ms2-group-header" style="padding:6px 12px 2px 12px; font-weight:bold; font-size:0.85em; color:var(--color-primary); display:flex; align-items:center; gap:6px;">
+                                    <span>${parentEmoji}</span><span>${parentNameOnly}</span>
+                                </div>
+                            `;
+
+                            grouped[parent].forEach(item => {
+                                const isChecked = cellValList.includes(item.original) ? 'checked' : '';
+                                optionsHtml += `
+                                    <label style="display:flex;align-items:center;gap:10px;padding:6px 12px 6px 28px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
+                                        <input type="checkbox" data-field-id="${fieldId}" value="${item.original}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${fieldId}', '${item.original.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
+                                        <span style="font-size:0.9em;color:var(--color-text);">${item.sub}</span>
+                                    </label>
+                                `;
+                            });
+                        });
+                    } else {
+                        optionsHtml = options.map(o => {
+                            const isChecked = cellValList.includes(o) ? 'checked' : '';
+                            return `
+                                <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0;cursor:pointer;transition:background 0.2s;user-select:none;" onmouseover="this.style.background='var(--color-bg-hover)'" onmouseout="this.style.background='transparent'">
+                                    <input type="checkbox" data-field-id="${fieldId}" value="${o}" ${isChecked} onchange="FormEngine.toggleMultiselectOption('${fieldId}', '${o.replace(/'/g, "\\'")}', this.checked)" style="width:16px;height:16px;margin:0;cursor:pointer;">
+                                    <span style="font-size:0.9em;color:var(--color-text);">${o}</span>
+                                </label>
+                            `;
+                        }).join('');
+                    }
 
                     inputHtml = `
                         <div class="multiselect-container" style="position:relative;min-width:150px;">
@@ -1781,12 +1937,43 @@
                 return;
             }
 
-            const badgesHtml = val.map(v => `
-                <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
-                    ${v}
-                    <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
-                </span>
-            `).join('');
+            let isMultiselect2 = false;
+            if (isTable) {
+                const parts = fieldId.split('__');
+                const tableName = parts[0];
+                const colName = parts[2];
+                const q = this.def.questions.find(x => x.name === tableName);
+                const colDef = q && q.columns && q.columns.find(col => col.name === colName);
+                if (colDef && colDef.type === 'multiselect2') {
+                    isMultiselect2 = true;
+                }
+            } else {
+                const q = this.def.questions.find(x => x.name === fieldId);
+                if (q && q.type === 'multiselect2') {
+                    isMultiselect2 = true;
+                }
+            }
+
+            const badgesHtml = val.map(v => {
+                let displayLabel = v;
+                if (isMultiselect2 && String(v).includes('|')) {
+                    const parts = String(v).split('|');
+                    const parentRaw = parts[0] ? parts[0].trim() : 'Lainnya';
+                    const subRaw = parts[1] ? parts[1].trim() : '';
+
+                    let { emoji: subEmoji, rest: subText } = this.extractEmoji(subRaw);
+                    let { emoji: parentEmoji, rest: parentText } = this.extractEmoji(parentRaw);
+                    
+                    const emoji = subEmoji || parentEmoji || '';
+                    displayLabel = emoji ? `${emoji} ${parentText}: ${subText}` : `${parentText}: ${subText}`;
+                }
+                return `
+                    <span class="ms-badge" style="display:inline-flex;align-items:center;background:var(--color-primary);color:#ffffff;padding:4px 10px;border-radius:12px;font-size:0.85em;font-weight:600;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                        ${displayLabel}
+                        <span onclick="FormEngine.removeMultiselectOption('${fieldId}', '${v.replace(/'/g, "\\'")}', event)" style="cursor:pointer;font-weight:bold;color:rgba(255,255,255,0.75);margin-left:2px;font-size:1.1em;line-height:1;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.75)'">&times;</span>
+                    </span>
+                `;
+            }).join('');
 
             badgesArea.innerHTML = badgesHtml;
         },

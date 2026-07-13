@@ -23,6 +23,9 @@ function kamadLogin(nsm, password) {
     const iNsm  = headers.indexOf('nsm');
     const iPwd  = headers.indexOf('password');
     const iStat = headers.indexOf('status');
+    const iEmail = headers.indexOf('email');
+    const iNama = headers.indexOf('nama');
+    const iNoHp = headers.indexOf('no_hp');
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][iNsm]).trim() === nsmStr) {
@@ -40,8 +43,19 @@ function kamadLogin(nsm, password) {
             sheet.getRange(i + 1, iPwd + 1).setValue(newSaltedHash);
             logEvent_('INFO', 'kamadLogin', 'Auto-upgrade password ke format high-security salted hash sukses untuk Kamad NSM: ' + nsmStr);
           }
+          const email = iEmail !== -1 ? String(data[i][iEmail] || '') : '';
+          const namaKamad = iNama !== -1 ? String(data[i][iNama] || '') : '';
+          const noHp = iNoHp !== -1 ? String(data[i][iNoHp] || '') : '';
+
           const madrasahInfo = getMadrasahByNsm(nsmStr);
-          return apiSuccess({ nsm: nsmStr, madrasah_name: madrasahInfo?.nama || nsmStr, madrasahInfo }, 'Login berhasil.');
+          return apiSuccess({
+            nsm: nsmStr,
+            madrasah_name: madrasahInfo?.nama || nsmStr,
+            madrasahInfo,
+            email: email,
+            nama: namaKamad,
+            no_hp: noHp
+          }, 'Login berhasil.');
         }
         return apiError('Password salah.', 'WRONG_PASSWORD');
       }
@@ -59,7 +73,7 @@ function kamadLogin(nsm, password) {
  * @param {string} token
  * @returns {object} Response standard
  */
-function kamadSetPassword(nsm, newPassword, token) {
+function kamadSetPassword(nsm, newPassword, token, profileData) {
   try {
     if (!nsm || !newPassword || !token) return apiError('Data tidak lengkap.', 'VALIDATION');
     if (String(newPassword).length < 6) return apiError('Password minimal 6 karakter.', 'VALIDATION');
@@ -89,18 +103,41 @@ function kamadSetPassword(nsm, newPassword, token) {
     const uH = uData[0].map(h => String(h).toLowerCase().trim());
     const uiN = uH.indexOf('nsm'); const uiP = uH.indexOf('password');
     const uiS = uH.indexOf('status'); const uiU = uH.indexOf('updated_at');
+    const uiE = uH.indexOf('email'); const uiNm = uH.indexOf('nama');
+    const uiNh = uH.indexOf('no_hp');
     const now = new Date().toISOString();
     const hashed = hashPassword(newPassword);
+    
     let found = false;
     for (let i = 1; i < uData.length; i++) {
       if (String(uData[i][uiN]).trim() === nsmStr) {
         uSheet.getRange(i + 1, uiP + 1).setValue(hashed);
         uSheet.getRange(i + 1, uiS + 1).setValue('aktif');
         if (uiU !== -1) uSheet.getRange(i + 1, uiU + 1).setValue(now);
+        if (profileData) {
+          if (uiE !== -1 && profileData.email) uSheet.getRange(i + 1, uiE + 1).setValue(profileData.email);
+          if (uiNm !== -1 && profileData.nama) uSheet.getRange(i + 1, uiNm + 1).setValue(profileData.nama);
+          if (uiNh !== -1 && profileData.no_hp) uSheet.getRange(i + 1, uiNh + 1).setValue(profileData.no_hp);
+        }
         found = true; break;
       }
     }
-    if (!found) uSheet.appendRow([nsmStr, hashed, 'aktif', now, now]);
+    if (!found) {
+      const rowValues = uH.map(h => {
+        if (h === 'nsm') return nsmStr;
+        if (h === 'password') return hashed;
+        if (h === 'status') return 'aktif';
+        if (h === 'created_at') return now;
+        if (h === 'updated_at') return now;
+        if (profileData) {
+          if (h === 'email') return profileData.email || '';
+          if (h === 'nama') return profileData.nama || '';
+          if (h === 'no_hp') return profileData.no_hp || '';
+        }
+        return '';
+      });
+      uSheet.appendRow(rowValues);
+    }
 
     // Tandai token terpakai
     tokenSheet.getRange(tokenRow + 1, tiU + 1).setValue('true');
@@ -239,5 +276,203 @@ function generateKamadSetupLink(nsm, requesterNip) {
     }, 'Link berhasil dibuat.');
   } catch (e) {
     return apiError('Kesalahan sistem saat membuat link setup Kamad: ' + e.toString());
+  }
+}
+
+/**
+ * Request password reset token and send reset link email to Kamad
+ * @param {string|number} nsm
+ * @param {string} email
+ * @returns {object} Response standard
+ */
+function kamadRequestPasswordReset(nsm, email) {
+  try {
+    if (!nsm || !email) return apiError('NSM dan Email wajib diisi.', 'VALIDATION');
+    const nsmStr = String(nsm).trim();
+    const emailStr = String(email).trim().toLowerCase();
+
+    const ss = getAppDb_();
+    const uSheet = getKamadSheet(ss, 'KamadUsers');
+    const uData = uSheet.getDataRange().getValues();
+    const uH = uData[0].map(h => String(h).toLowerCase().trim());
+    const uiN = uH.indexOf('nsm');
+    const uiE = uH.indexOf('email');
+
+    if (uiN === -1 || uiE === -1) {
+      return apiError('Konfigurasi database Kamad tidak valid.', 'SYSTEM_ERROR');
+    }
+
+    let foundRow = -1;
+    for (let i = 1; i < uData.length; i++) {
+      if (String(uData[i][uiN]).trim() === nsmStr) {
+        foundRow = i;
+        break;
+      }
+    }
+
+    if (foundRow === -1) {
+      return apiError('NSM tidak terdaftar. Hubungi pengawas Anda.', 'NOT_FOUND');
+    }
+
+    const registeredEmail = String(uData[foundRow][uiE] || '').trim().toLowerCase();
+    if (!registeredEmail || registeredEmail !== emailStr) {
+      return apiError('Email tidak cocok dengan yang terdaftar untuk NSM ini.', 'VALIDATION');
+    }
+
+    // Generate token
+    const token = 'RST-' + Utilities.getUuid();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours expiration
+
+    const tokenSheet = getKamadSheet(ss, 'KamadTokens');
+
+    // Hapus token lama untuk NSM yang sama
+    if (tokenSheet.getLastRow() > 1) {
+      const tData = tokenSheet.getDataRange().getValues();
+      const tH = tData[0].map(h => String(h).toLowerCase().trim());
+      const nsmIdx = tH.indexOf('nsm');
+      if (nsmIdx !== -1) {
+        const newRows = [tData[0]];
+        for (let i = 1; i < tData.length; i++) {
+          if (String(tData[i][nsmIdx]).trim() !== nsmStr) {
+            newRows.push(tData[i]);
+          }
+        }
+        tokenSheet.clearContents();
+        tokenSheet.getRange(1, 1, newRows.length, tData[0].length).setValues(newRows);
+      }
+    }
+
+    // Tulis token baru
+    tokenSheet.appendRow([token, nsmStr, now.toISOString(), expiresAt.toISOString(), 'false']);
+
+    // Kirim email
+    const base = PropertiesService.getScriptProperties().getProperty('PENGAWAS_DEPLOYMENT_URL') || ScriptApp.getService().getUrl();
+    const resetUrl = `${base}?kamad_setup_token=${token}`;
+    const madrasah = getMadrasahByNsm(nsmStr);
+    const madrasahName = madrasah?.nama || nsmStr;
+
+    const subject = 'Reset Password Kamad - ' + madrasahName;
+    const body = `Assalamualaikum Wr. Wb.
+
+Yth. Kepala Madrasah ${madrasahName},
+
+Anda menerima email ini karena ada permintaan untuk merestart/mengatur ulang password Portal Kamad Anda.
+Silakan klik tautan di bawah ini untuk membuat password baru:
+
+🔗 ${resetUrl}
+
+Tautan di atas berlaku selama 2 jam sejak email ini dikirimkan.
+Jika Anda tidak meminta pengaturan ulang ini, silakan abaikan email ini.
+
+Jazakumullahu khairan.
+Tim Aplikasi Pengawas KBC`;
+
+    MailApp.sendEmail(emailStr, subject, body);
+
+    return apiSuccess(null, 'Tautan reset password berhasil dikirim ke email Anda.');
+  } catch (e) {
+    return apiError('Gagal memproses reset password: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * Simpan/update profil Kamad ke sheet KamadUsers
+ * @param {string|number} nsm
+ * @param {string} email
+ * @param {string} nama
+ * @param {string} no_hp
+ * @returns {object} Response standard
+ */
+function kamadSaveProfile(nsm, email, nama, no_hp) {
+  try {
+    if (!nsm || !email || !nama || !no_hp) return apiError('Data profil tidak lengkap.', 'VALIDATION');
+    const nsmStr = String(nsm).trim();
+
+    const ss = getAppDb_();
+    const uSheet = getKamadSheet(ss, 'KamadUsers');
+    const uData = uSheet.getDataRange().getValues();
+    const uH = uData[0].map(h => String(h).toLowerCase().trim());
+    const uiN = uH.indexOf('nsm');
+    const uiE = uH.indexOf('email');
+    const uiNm = uH.indexOf('nama');
+    const uiNh = uH.indexOf('no_hp');
+    const uiU = uH.indexOf('updated_at');
+
+    if (uiN === -1 || uiE === -1 || uiNm === -1 || uiNh === -1) {
+      return apiError('Konfigurasi database Kamad tidak valid.', 'SYSTEM_ERROR');
+    }
+
+    let foundRow = -1;
+    for (let i = 1; i < uData.length; i++) {
+      if (String(uData[i][uiN]).trim() === nsmStr) {
+        foundRow = i;
+        break;
+      }
+    }
+
+    if (foundRow === -1) return apiError('NSM tidak ditemukan.', 'NOT_FOUND');
+
+    uSheet.getRange(foundRow + 1, uiE + 1).setValue(String(email).trim());
+    uSheet.getRange(foundRow + 1, uiNm + 1).setValue(String(nama).trim());
+    uSheet.getRange(foundRow + 1, uiNh + 1).setValue(String(no_hp).trim());
+    if (uiU !== -1) uSheet.getRange(foundRow + 1, uiU + 1).setValue(new Date().toISOString());
+
+    return apiSuccess({
+      email: String(email).trim(),
+      nama: String(nama).trim(),
+      no_hp: String(no_hp).trim()
+    }, 'Profil berhasil diperbarui.');
+  } catch (e) {
+    return apiError('Gagal memperbarui profil: ' + e.toString(), 'SYSTEM_ERROR');
+  }
+}
+
+/**
+ * Ubah password Kamad dari menu profil
+ * @param {string|number} nsm
+ * @param {string} oldPassword
+ * @param {string} newPassword
+ * @returns {object} Response standard
+ */
+function kamadChangePassword(nsm, oldPassword, newPassword) {
+  try {
+    if (!nsm || !oldPassword || !newPassword) return apiError('Semua field password wajib diisi.', 'VALIDATION');
+    if (String(newPassword).length < 6) return apiError('Password baru minimal 6 karakter.', 'VALIDATION');
+    const nsmStr = String(nsm).trim();
+
+    const ss = getAppDb_();
+    const uSheet = getKamadSheet(ss, 'KamadUsers');
+    const uData = uSheet.getDataRange().getValues();
+    const uH = uData[0].map(h => String(h).toLowerCase().trim());
+    const uiN = uH.indexOf('nsm');
+    const uiP = uH.indexOf('password');
+    const uiU = uH.indexOf('updated_at');
+
+    if (uiN === -1 || uiP === -1) {
+      return apiError('Konfigurasi database Kamad tidak valid.', 'SYSTEM_ERROR');
+    }
+
+    let foundRow = -1;
+    for (let i = 1; i < uData.length; i++) {
+      if (String(uData[i][uiN]).trim() === nsmStr) {
+        foundRow = i;
+        break;
+      }
+    }
+
+    if (foundRow === -1) return apiError('NSM tidak ditemukan.', 'NOT_FOUND');
+
+    const storedHash = String(uData[foundRow][uiP] || '');
+    const match = verifyPassword(oldPassword, storedHash);
+    if (!match) return apiError('Password saat ini salah.', 'VALIDATION');
+
+    const newHashed = hashPassword(newPassword);
+    uSheet.getRange(foundRow + 1, uiP + 1).setValue(newHashed);
+    if (uiU !== -1) uSheet.getRange(foundRow + 1, uiU + 1).setValue(new Date().toISOString());
+
+    return apiSuccess(null, 'Password berhasil diperbarui.');
+  } catch (e) {
+    return apiError('Gagal mengubah password: ' + e.toString(), 'SYSTEM_ERROR');
   }
 }

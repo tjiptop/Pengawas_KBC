@@ -100,7 +100,7 @@ function SetupAwal() {
   
   // Setup sub-profile sheets
   setupSheet(ss, 'ProfilPelatihan', [
-    'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Sumber', 'created_at'
+    'id', 'NIP', 'Judul Pelatihan', 'Penyelenggara', 'Tanggal Mulai', 'Tanggal Selesai', 'Peran', 'Materi Pelatihan', 'Jumlah Peserta', 'Catatan', 'Sumber', 'created_at'
   ]);
   setupSheet(ss, 'ProfilPenghargaan', [
     'id', 'NIP', 'Nama Penghargaan', 'Pemberi', 'Tahun', 'Deskripsi', 'Sumber', 'created_at'
@@ -189,8 +189,8 @@ function SetupAwal() {
 
 
   // 8. Inisialisasi Sheet Kanban
-  setupSheet(ss, 'KanbanCards', ['card_id', 'nsm', 'title', 'description', 'status', 'attachments', 'created_by', 'created_at', 'updated_at', 'delete_requested', 'tag', 'work_details']);
-  setupSheet(ss, 'KanbanComments', ['comment_id', 'card_id', 'author_name', 'author_role', 'author_id', 'comment_text', 'created_at']);
+  setupSheet(ss, 'KanbanCards', ['card_id', 'nsm', 'title', 'description', 'status', 'attachments', 'created_by', 'created_at', 'updated_at', 'delete_requested', 'tag', 'work_details', 'approved_by_supervisor', 'work_notes', 'tgl_selesai']);
+  setupSheet(ss, 'KanbanComments', ['comment_id', 'card_id', 'author_name', 'author_role', 'author_id', 'comment_text', 'created_at', 'card_status']);
   
   const tagSheet = setupSheet(ss, 'KanbanTags', ['category', 'subcategory', 'icon']);
   if (tagSheet.getLastRow() <= 1) {

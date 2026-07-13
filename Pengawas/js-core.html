@@ -292,6 +292,11 @@ const App = {
     } else if (view === 'kamad-data-madrasah') {
       el.innerHTML = KamadDataViews.Main();
       KamadDataManager.init();
+    } else if (view === 'kamad-forgot-password') {
+      el.innerHTML = KamadAuth.views.forgotPassword();
+    } else if (view === 'kamad-profile') {
+      el.innerHTML = KamadProfileViews.Main();
+      KamadProfileManager.init();
     }
   },
 

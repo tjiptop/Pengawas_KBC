@@ -31,6 +31,13 @@ const KanbanView = {
     </div>`;
   },
 
+  getStageColorClass(stage) {
+    if (stage === 'Belum Mulai') return 'indicator-todo';
+    if (stage === 'Sedang Berjalan') return 'indicator-proses';
+    if (stage === 'Selesai') return 'indicator-selesai';
+    return 'indicator-dibatalkan';
+  },
+
   /**
    * Render tag icons html based on configured tag definitions
    */
@@ -51,16 +58,28 @@ const KanbanView = {
       }
     });
 
-    return cardTags.map(t => {
+    const groups = {};
+    cardTags.forEach(t => {
       const parts = t.split('|');
-      const cat = parts[0] || '';
+      const cat = parts[0] || 'Lainnya';
       const sub = parts[1] || t;
       
       const key = `${cat}|${sub}`.toLowerCase();
       const icon = tagIconMap[key] || catFallbackIcons[cat] || '🏷️';
+      const iconHtml = `<span style="cursor:default; font-size:${fontSize}; padding: ${padding}; display:inline-flex; align-items:center;" title="${cat}: ${sub}">${icon}</span>`;
       
-      return `<span style="cursor:help; font-size:${fontSize}; padding: ${padding}; display:inline-flex; align-items:center;" title="${cat}: ${sub}">${icon}</span>`;
-    }).join('');
+      if (!groups[cat]) {
+        groups[cat] = [];
+      }
+      groups[cat].push(iconHtml);
+    });
+
+    const categoryStrings = [];
+    for (const cat in groups) {
+      categoryStrings.push(groups[cat].join(''));
+    }
+
+    return categoryStrings.join('<span style="color:#ccc; margin: 0 4px; font-size:0.75rem; user-select:none;">|</span>');
   },
 
   /**
@@ -91,7 +110,7 @@ const KanbanView = {
       
       const cardsHtml = colCards.map(card => {
         // Calculate unread comments count for this card
-        const cardComments = comments.filter(comm => comm.card_id === card.card_id);
+        const cardComments = comments.filter(comm => comm.card_id === card.card_id && comm.author_role !== 'System');
         const meId = String(isSupervisor ? App.state.user?.NIP : App.state.kamad?.nsm).trim();
         let unreadComments = 0;
         
@@ -114,9 +133,13 @@ const KanbanView = {
           linksHtml = `<div class="kanban-card-links" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">`;
           links.forEach(att => {
             const title = att.name || 'Tautan';
+            let displayTitle = title;
+            if (displayTitle.length > 35) {
+              displayTitle = displayTitle.substring(0, 35) + '...';
+            }
             linksHtml += `
-              <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
-                🔗
+              <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:0.75rem; color:var(--color-text); max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+                🔗 <span style="margin-left:4px;">${displayTitle}</span>
               </a>
             `;
           });
@@ -172,12 +195,15 @@ const KanbanView = {
             });
 
             if (iconsHtml) {
-              if (stageRowsHtml || linksHtml) {
+              if (stageRowsHtml) {
                 stageRowsHtml += `<hr style="margin: 4px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`;
               }
               stageRowsHtml += `
                 <div style="display:flex; align-items:center; gap:6px; font-size:0.68rem; flex-wrap:wrap;">
-                  <span style="font-weight:700; color:var(--color-text-secondary); opacity:0.85;">${stg}:</span>
+                  <span style="display:inline-flex; align-items:center; gap:4px; font-weight:700; color:var(--color-text-secondary); opacity:0.85;">
+                    <span class="kanban-indicator ${KanbanView.getStageColorClass(stg)}" style="width:7px; height:7px; display:inline-block; flex-shrink:0;"></span>
+                    ${stg}:
+                  </span>
                   <div style="display:flex; align-items:center; gap:2px;">${iconsHtml}</div>
                 </div>
               `;
@@ -187,10 +213,14 @@ const KanbanView = {
 
         let groupsContainerHtml = '';
         if (linksHtml || stageRowsHtml) {
+          const dividerHtml = (stageRowsHtml && linksHtml)
+            ? `<hr style="margin: 4px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`
+            : '';
           groupsContainerHtml = `
             <div class="kanban-groups-container" style="background:rgba(0,0,0,0.02); padding:6px 8px; border-radius:6px; margin-top:8px; border:1px solid rgba(0,0,0,0.04); text-align:left;">
-              ${linksHtml}
               ${stageRowsHtml}
+              ${dividerHtml}
+              ${linksHtml}
             </div>
           `;
         }
@@ -212,16 +242,33 @@ const KanbanView = {
               </div>
             ` : ''}
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-              <h4 class="kanban-card-title-text" style="flex:1; margin:0;">${card.title}</h4>
+              <div style="flex:1; display:flex; flex-direction:column; gap:2px; text-align:left; overflow:hidden;">
+                <h4 class="kanban-card-title-text" style="margin:0; width:100%;">${card.title}</h4>
+                ${card.tgl_selesai ? `
+                  <span style="font-size:0.62rem; color:#d93025; font-weight:600; display:inline-flex; align-items:center; gap:3px; margin-top:2px;">
+                    📅 Target: ${(() => {
+                      const parts = card.tgl_selesai.split('-');
+                      if (parts.length === 3) {
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                        const day = parts[2];
+                        const month = months[parseInt(parts[1], 10) - 1] || '';
+                        const year = parts[0];
+                        return `${year} ${month} ${day}`;
+                      }
+                      return card.tgl_selesai;
+                    })()}
+                  </span>
+                ` : ''}
+              </div>
               <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; margin-top:2px;">
                 <!-- Tombol + untuk Quick Add (Catatan / Lampiran) -->
                 <span class="kanban-badge-item quick-add-btn" onclick="event.stopPropagation(); KanbanManager.openQuickAddModal('${card.card_id}')" style="cursor:pointer; background:#e6f4ea; color:#137333; font-weight:bold; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; border:1px solid rgba(19,115,51,0.2);" title="Tambah Catatan atau Lampiran">
                   ＋
                 </span>
                 <!-- Komentar badge dengan pulsing red dot jika unread -->
-                <span class="kanban-badge-item kanban-comments-count" onclick="event.stopPropagation(); KanbanManager.openQuickNotesModal('${card.card_id}')" style="cursor:pointer; font-size:0.75rem; padding:2px 6px;" title="Klik untuk lihat diskusi">
+                <span style="font-size:0.88rem; font-weight:700; padding:2px 6px; display:inline-flex; align-items:center; gap:4px; position:relative; background:transparent; border:none;" title="${cardComments.length} diskusi">
                   💬 ${cardComments.length}
-                  ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+                  ${unreadComments > 0 ? `<span class="kanban-unread-dot" style="top: 0px; right: 0px;"></span>` : ''}
                 </span>
               </div>
             </div>
@@ -266,7 +313,7 @@ const KanbanView = {
     const cancelledCards = cardsByStatus['Dibatalkan'] || [];
     
     const cancelledCardsHtml = cancelledCards.map(card => {
-      const cardComments = comments.filter(comm => comm.card_id === card.card_id);
+      const cardComments = comments.filter(comm => comm.card_id === card.card_id && comm.author_role !== 'System');
       const meId = String(isSupervisor ? App.state.user?.NIP : App.state.kamad?.nsm).trim();
       let unreadComments = 0;
       cardComments.forEach(comm => {
@@ -288,9 +335,13 @@ const KanbanView = {
         linksHtml = `<div class="kanban-card-links" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">`;
         links.forEach(att => {
           const title = att.name || 'Tautan';
+          let displayTitle = title;
+          if (displayTitle.length > 35) {
+            displayTitle = displayTitle.substring(0, 35) + '...';
+          }
           linksHtml += `
-            <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;">
-              🔗
+            <a href="${att.url}" target="_blank" class="kanban-badge-item badge-link" onclick="event.stopPropagation();" title="${title}" style="text-decoration:none; display:inline-flex; align-items:center; cursor:pointer; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; font-size:0.75rem; color:var(--color-text); max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+              🔗 <span style="margin-left:4px;">${displayTitle}</span>
             </a>
           `;
         });
@@ -346,12 +397,15 @@ const KanbanView = {
           });
 
           if (iconsHtml) {
-            if (stageRowsHtml || linksHtml) {
+            if (stageRowsHtml) {
               stageRowsHtml += `<hr style="margin: 3px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`;
             }
             stageRowsHtml += `
               <div style="display:flex; align-items:center; gap:6px; font-size:0.62rem; flex-wrap:wrap;">
-                <span style="font-weight:700; color:var(--color-text-secondary); opacity:0.85;">${stg}:</span>
+                <span style="display:inline-flex; align-items:center; gap:4px; font-weight:700; color:var(--color-text-secondary); opacity:0.85;">
+                  <span class="kanban-indicator ${KanbanView.getStageColorClass(stg)}" style="width:7px; height:7px; display:inline-block; flex-shrink:0;"></span>
+                  ${stg}:
+                </span>
                 <div style="display:flex; align-items:center; gap:2px;">${iconsHtml}</div>
               </div>
             `;
@@ -361,10 +415,14 @@ const KanbanView = {
 
       let groupsContainerHtml = '';
       if (linksHtml || stageRowsHtml) {
+        const dividerHtml = (stageRowsHtml && linksHtml)
+          ? `<hr style="margin: 3px 0; border: none; border-top: 1px dashed rgba(0,0,0,0.08); width: 100%;">`
+          : '';
         groupsContainerHtml = `
           <div class="kanban-groups-container" style="background:rgba(0,0,0,0.02); padding:4px 6px; border-radius:6px; margin-top:6px; border:1px solid rgba(0,0,0,0.04); width:100%; text-align:left;">
-            ${linksHtml}
             ${stageRowsHtml}
+            ${dividerHtml}
+            ${linksHtml}
           </div>
         `;
       }
@@ -387,15 +445,32 @@ const KanbanView = {
             </div>
           ` : ''}
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-            <h4 class="kanban-card-title-text" style="font-size:0.75rem; text-decoration: line-through; opacity: 0.65; flex:1; margin:0;">${card.title}</h4>
+            <div style="flex:1; display:flex; flex-direction:column; gap:2px; text-align:left; overflow:hidden;">
+              <h4 class="kanban-card-title-text" style="font-size:0.75rem; text-decoration: line-through; opacity: 0.65; margin:0; width:100%;">${card.title}</h4>
+              ${card.tgl_selesai ? `
+                <span style="font-size:0.58rem; color:#d93025; font-weight:600; display:inline-flex; align-items:center; gap:2px; margin-top:1px;">
+                  📅 Target: ${(() => {
+                    const parts = card.tgl_selesai.split('-');
+                    if (parts.length === 3) {
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                      const day = parts[2];
+                      const month = months[parseInt(parts[1], 10) - 1] || '';
+                      const year = parts[0];
+                      return `${year} ${month} ${day}`;
+                    }
+                    return card.tgl_selesai;
+                  })()}
+                </span>
+              ` : ''}
+            </div>
             <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
               <!-- Tombol + untuk Quick Add (Catatan / Lampiran) -->
               <span class="kanban-badge-item quick-add-btn" onclick="event.stopPropagation(); KanbanManager.openQuickAddModal('${card.card_id}')" style="cursor:pointer; background:#e6f4ea; color:#137333; font-weight:bold; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; border:1px solid rgba(19,115,51,0.2);" title="Tambah Catatan atau Lampiran">
                 ＋
               </span>
-              <span class="kanban-badge-item kanban-comments-count" onclick="event.stopPropagation(); KanbanManager.openQuickNotesModal('${card.card_id}')" style="font-size: 0.62rem; padding: 1px 4px; cursor:pointer;" title="Klik untuk lihat diskusi">
+              <span style="font-size: 0.72rem; font-weight:700; padding: 1px 4px; display:inline-flex; align-items:center; gap:4px; position:relative; background:transparent; border:none;" title="${cardComments.length} diskusi">
                 💬 ${cardComments.length}
-                ${unreadComments > 0 ? `<span class="kanban-unread-dot"></span>` : ''}
+                ${unreadComments > 0 ? `<span class="kanban-unread-dot" style="top: -2px; right: -2px;"></span>` : ''}
               </span>
             </div>
           </div>
@@ -501,22 +576,22 @@ const KanbanView = {
         <div class="modal-content" style="max-width:850px; width:92%; padding:20px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:8px;">
             <h4 id="preview-modal-title" style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;">Preview Lampiran</h4>
-            <button onclick="KanbanManager.closePreviewModal()" style="border:none; background:transparent; font-size:1.5rem; cursor:pointer; line-height:1; color:var(--color-text-light, #888);">&times;</button>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <a id="preview-modal-open-btn" href="#" target="_blank" style="text-decoration:none; color:var(--color-text-secondary); font-size:1.1rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; padding:4px; transition: opacity 0.2s;" title="Layar penuh baru" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">↗️</a>
+              <button onclick="KanbanManager.closePreviewModal()" style="border:none; background:transparent; font-size:1.5rem; cursor:pointer; line-height:1; color:var(--color-text-light, #888); padding:0; display:inline-flex; align-items:center; justify-content:center;">&times;</button>
+            </div>
           </div>
           <div id="preview-modal-body" style="display:flex; justify-content:center; align-items:center; max-height:70vh; min-height:200px; overflow:auto; background:#f9f9f9; border-radius:6px; border:1px solid #eee;">
             <!-- content -->
           </div>
           <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px; border-top:1px solid var(--color-border-light, #eee); padding-top:12px;">
-            <a id="preview-modal-open-btn" href="#" target="_blank" class="btn" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem; background:var(--color-primary, #0d6efd); color:#fff; text-decoration:none; display:flex; align-items:center; gap:4px;">
-              <span>🌐</span> Buka Asli
-            </a>
             <button class="btn btn-secondary" onclick="KanbanManager.closePreviewModal()" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem;">Tutup</button>
           </div>
         </div>
       </div>
 
       <!-- Modal Quick Notes -->
-      <div id="kanban-quick-notes-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000; backdrop-filter:blur(4px);" onclick="KanbanManager.closeQuickNotesModal()">
+      <div id="kanban-quick-notes-modal" class="modal-overlay" style="display:none; overflow-y:auto; align-items:flex-start; padding: 20px 10px; z-index:10000;" onclick="KanbanManager.closeQuickNotesModal()">
         <div class="modal-content" style="max-width:650px; width:92%; padding:24px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:10px;">
             <h4 id="quick-notes-title" style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333);">Catatan & Umpan Balik</h4>
@@ -540,7 +615,7 @@ const KanbanView = {
       </div>
 
       <!-- Modal Quick Add (Catatan / Lampiran) -->
-      <div id="kanban-quick-add-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:10000; backdrop-filter:blur(4px);" onclick="KanbanManager.closeQuickAddModal()">
+      <div id="kanban-quick-add-modal" class="modal-overlay" style="display:none; overflow-y:auto; align-items:flex-start; padding: 20px 10px; z-index:10000;" onclick="KanbanManager.closeQuickAddModal()">
         <div class="modal-content" style="max-width:500px; width:92%; padding:24px; border-radius:12px; position:relative; background:var(--color-bg-elevated, #fff); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--color-border-light, #eee); padding-bottom:10px;">
             <h4 style="margin:0; font-size:0.95rem; font-weight:700; color:var(--color-text, #333);">Tambah Catatan / Lampiran</h4>
@@ -556,20 +631,20 @@ const KanbanView = {
             <!-- Accordion Catatan -->
             <div id="qa-accordion-notes" class="kanban-accordion open">
               <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('notes', 'quickAdd')">
-                <h4 class="kanban-accordion-title">📝 Catatan</h4>
+                <h4 class="kanban-accordion-title">📝 Catatan per Tahap</h4>
                 <span class="kanban-accordion-icon">▼</span>
               </div>
               <div id="qa-accordion-notes-content" class="kanban-accordion-content" style="display: block;">
                 <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">TAMBAH CATATAN DETAIL (TIDAK TAMPIL DI KARTU)</label>
                 <textarea id="quick-add-note-text" style="width:100%; height:80px; border:1px solid var(--color-border, #ccc); border-radius:6px; padding:8px; font-size:0.8rem; outline:none; resize:vertical; background:transparent;" placeholder="Tulis rincian catatan kemajuan pekerjaan di sini..."></textarea>
-                <button class="btn" onclick="KanbanManager.submitQuickAddNote()" style="width:auto; margin-top:6px; font-size:0.75rem; padding:4px 12px; background:var(--color-primary); color:white; border:none; cursor:pointer; border-radius:4px;">Kirim Catatan</button>
+                <button class="btn" onclick="KanbanManager.submitQuickAddNote()" style="width:auto; margin-top:6px; padding:6px 14px; font-size:0.75rem; border:none; border-radius:4px; cursor:pointer;">Kirim Catatan</button>
               </div>
             </div>
 
             <!-- Accordion Unggahan -->
             <div id="qa-accordion-attachments" class="kanban-accordion open">
               <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('attachments', 'quickAdd')">
-                <h4 class="kanban-accordion-title">📎 Unggahan</h4>
+                <h4 class="kanban-accordion-title">📎 Dokumen / Foto</h4>
                 <span class="kanban-accordion-icon">▼</span>
               </div>
               <div id="qa-accordion-attachments-content" class="kanban-accordion-content" style="display: block;">
@@ -577,13 +652,28 @@ const KanbanView = {
                   <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">UNGGAH BERKAS LAMPIRAN (PREVIEW POPUP)</label>
                   <input type="file" id="quick-add-file-uploader" style="font-size:0.75rem; width:100%;" accept="image/*,application/pdf" onchange="KanbanManager.handleQuickAddFileUpload(event)">
                 </div>
-                
-                <div style="border-top:1px dashed #eee; padding-top:14px; margin-top:14px;">
-                  <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">ATAU TAMBAH TAUTAN LINK</label>
-                  <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <input type="text" id="quick-add-link-name" placeholder="Nama Link" style="width:35%; min-width:100px; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent;" />
-                    <input type="text" id="quick-add-link-url" placeholder="https://..." style="flex:1; min-width:120px; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent;" />
-                    <input type="button" value="Tambah" onclick="KanbanManager.submitQuickAddLink()" class="btn" style="width:auto; padding:6px 12px; font-size:0.72rem; margin:0; cursor:pointer; border-radius:4px; flex-shrink:0;" />
+              </div>
+            </div>
+
+            <!-- Accordion Tautan Link -->
+            <div id="qa-accordion-links" class="kanban-accordion open">
+              <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('links', 'quickAdd')">
+                <h4 class="kanban-accordion-title">🔗 Tautan Link</h4>
+                <span class="kanban-accordion-icon">▼</span>
+              </div>
+              <div id="qa-accordion-links-content" class="kanban-accordion-content" style="display: block;">
+                <div>
+                  <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">TAMBAH TAUTAN LINK</label>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--color-text-secondary); display:block; margin-bottom:2px;">Deskripsi:</label>
+                      <input type="text" id="quick-add-link-name" style="width:100%; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent; color:var(--color-text);" />
+                    </div>
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--color-text-secondary); display:block; margin-bottom:2px;">Alamat URL:</label>
+                      <input type="text" id="quick-add-link-url" style="width:100%; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent; color:var(--color-text);" />
+                    </div>
+                    <button class="btn" onclick="KanbanManager.submitQuickAddLink()" style="width:auto; align-self:flex-start; padding:6px 14px; font-size:0.75rem; margin-top:4px; border:none; border-radius:4px; cursor:pointer;">Tambah Tautan</button>
                   </div>
                 </div>
               </div>
@@ -611,6 +701,9 @@ const KanbanView = {
     
     const attachmentsOpen = (KanbanManager.state.accordions && KanbanManager.state.accordions.attachments) ? 'open' : '';
     const attachmentsStyle = (KanbanManager.state.accordions && KanbanManager.state.accordions.attachments) ? 'display: block;' : 'display: none;';
+
+    const linksOpen = (KanbanManager.state.accordions && KanbanManager.state.accordions.links) ? 'open' : '';
+    const linksStyle = (KanbanManager.state.accordions && KanbanManager.state.accordions.links) ? 'display: block;' : 'display: none;';
 
     let alertBannerHtml = '';
     if (isApproved) {
@@ -686,22 +779,37 @@ const KanbanView = {
       const optionsHtml = groupedTags[cat].map(item => {
         const isChecked = selectedTags.includes(item.key) ? 'checked' : '';
         return `
-          <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; cursor:pointer; padding:4px 8px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
-            <input type="checkbox" class="modal-card-tag-checkbox" value="${item.key}" ${isChecked} style="cursor:pointer; width:14px; height:14px; margin:0;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; cursor:pointer; padding:6px 8px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" class="modal-card-tag-checkbox" value="${item.key}" ${isChecked} onchange="KanbanManager.onTagSelectionChange()" style="cursor:pointer; width:14px; height:14px; margin:0;">
             <span style="color:var(--color-text);">${item.icon ? item.icon + ' ' : ''}${item.sub}</span>
           </label>
         `;
       }).join('');
       
       return `
-        <div style="margin-bottom: 12px; border-bottom: 1px dashed var(--color-border-light); padding-bottom: 8px;">
-          <div style="font-size:0.72rem; font-weight:700; color:var(--color-primary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
+        <div style="border-bottom: 1px dashed var(--color-border-light); padding-bottom: 6px; margin-bottom: 6px;">
+          <div style="font-size:0.65rem; font-weight:700; color:var(--color-primary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; padding-left:4px;">
             📁 ${cat}
           </div>
-          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; padding-left: 4px;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
             ${optionsHtml}
           </div>
         </div>
+      `;
+    }).join('');
+
+    // Pre-render the selected chips inside trigger
+    const selectedBadgesHtml = selectedTags.map(t => {
+      const parts = t.split('|');
+      const cat = parts[0] || '';
+      const sub = parts[1] || t;
+      const key = `${cat}|${sub}`.toLowerCase();
+      const icon = tagIconMap[key] || '🏷️';
+      const display = `${cat}: ${sub}`;
+      return `
+        <span class="multiselect-badge" style="background:rgba(13, 110, 253, 0.08); color:#0d6efd; border:1px solid rgba(13, 110, 253, 0.15); padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; user-select:none;" onclick="event.stopPropagation(); KanbanManager.deselectTag('${t}')">
+          ${icon} ${display} <span style="cursor:pointer; font-weight:bold; font-size:0.8rem; margin-left:2px; color:rgba(13, 110, 253, 0.6);" onmouseover="this.style.color='#0d6efd'" onmouseout="this.style.color='rgba(13, 110, 253, 0.6)'">&times;</span>
+        </span>
       `;
     }).join('');
 
@@ -728,16 +836,25 @@ const KanbanView = {
     if (workNotes.length > 0) {
       workNotesHtml = workNotes.map((note, idx) => {
         return `
-          <div style="display:flex; flex-direction:column; gap:4px; padding:10px; border-bottom:1px solid var(--color-border-light, #eee); background:#fffdf6; border-radius:6px; border-left:3px solid #ffc107; margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:0.65rem; color:#666; font-weight:600;">
-                Catatan #${idx+1} ${note.card_status ? '| Tahap: ' + note.card_status : ''}
-              </span>
+          <div class="note-item-edit">
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                <span>📝</span>
+                <span style="color:var(--color-primary); font-size:0.8rem; font-weight:600;">Catatan #${idx+1}</span>
+              </div>
               ${editable ? `
                 <button onclick="KanbanManager.removeDetailedNote(${idx})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus Catatan">🗑️</button>
               ` : ''}
             </div>
-            <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap;">${note.text}</div>
+            ${note.card_status ? `
+              <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; margin-top:-2px; margin-bottom:4px; padding-left:22px;">
+                <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                  <span class="kanban-indicator ${KanbanView.getStageColorClass(note.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                  ${note.card_status}
+                </span>
+              </div>
+            ` : ''}
+            <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap; padding-left:22px;">${note.text}</div>
             <span style="font-size:0.62rem; color:#888; text-align:right;">${Utils.formatTimeAgo(note.created_at)}</span>
           </div>
         `;
@@ -746,35 +863,78 @@ const KanbanView = {
       workNotesHtml = `<div style="text-align:center; padding:14px; font-size:0.75rem; color:var(--color-text-light); border:1px dashed var(--color-border); border-radius:var(--radius-sm);">Belum ada catatan detail per tahapan</div>`;
     }
 
-    // Attachments lists (links open directly in new tab, files open in popup)
-    const attachmentsHtml = (card.attachments || []).map((att, index) => {
-      let icon = '📎';
-      if (att.type === 'image') icon = '🖼️';
-      if (att.type === 'pdf') icon = '📄';
-      if (att.type === 'link') icon = '🔗';
+    // Filter attachments by category
+    const allAttachments = card.attachments || [];
+    const files = allAttachments.filter(att => att.type !== 'link');
+    const links = allAttachments.filter(att => att.type === 'link');
 
-      const openAction = att.type === 'link' 
-        ? `href="${att.url}" target="_blank" onclick="event.stopPropagation();"` 
-        : `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${card.card_id}', ${index})"`;
-      return `
-        <div class="attachment-item-edit" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
-          <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-              <span>${icon}</span>
-              <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+    // Render files HTML
+    let filesHtml = '';
+    if (files.length > 0) {
+      filesHtml = files.map(att => {
+        const index = allAttachments.indexOf(att);
+        let icon = '📎';
+        if (att.type === 'image') icon = '🖼️';
+        if (att.type === 'pdf') icon = '📄';
+        const openAction = `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${card.card_id}', ${index})"`;
+        return `
+          <div class="attachment-item-edit" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+              <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                <span>${icon}</span>
+                <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+              </div>
+              ${editable ? `
+                <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+              ` : ''}
             </div>
-            ${editable ? `
-              <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+            ${att.card_status ? `
+              <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+                <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                  <span class="kanban-indicator ${KanbanView.getStageColorClass(att.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                  ${att.card_status}
+                </span>
+              </div>
             ` : ''}
           </div>
-          ${att.card_status ? `
-            <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
-              <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600;">📍 Diunggah saat: ${att.card_status}</span>
+        `;
+      }).join('');
+    } else {
+      filesHtml = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`;
+    }
+
+    // Render links HTML
+    let linksHtmlList = '';
+    if (links.length > 0) {
+      linksHtmlList = links.map(att => {
+        const index = allAttachments.indexOf(att);
+        const icon = '🔗';
+        const openAction = `href="${att.url}" target="_blank" onclick="event.stopPropagation();"`;
+        return `
+          <div class="attachment-item-edit" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+              <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                <span>${icon}</span>
+                <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+              </div>
+              ${editable ? `
+                <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+              ` : ''}
             </div>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
+            ${att.card_status ? `
+              <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+                <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                  <span class="kanban-indicator ${KanbanView.getStageColorClass(att.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                  ${att.card_status}
+                </span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    } else {
+      linksHtmlList = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada tautan link</div>`;
+    }
 
     // Comments log and Unread Comments count
     const cardComments = comments.filter(comm => comm.card_id === card.card_id);
@@ -792,17 +952,19 @@ const KanbanView = {
 
     cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); // Oldest first
 
-    const commentsLogHtml = cardComments.map(comm => {
-      const isKamad = comm.author_role === 'Kamad';
-      const bubbleClass = isKamad ? 'kamad' : 'pengawas';
-      const roleBadge = isKamad ? 'role-kamad' : 'role-pengawas';
+    // Filter out system comments by default for the initial log html
+    const visibleInitialComments = cardComments.filter(comm => comm.author_role !== 'System');
+
+    const commentsLogHtml = visibleInitialComments.map(comm => {
+      let bubbleClass = comm.author_role === 'Kamad' ? 'kamad' : 'pengawas';
+      let roleBadge = comm.author_role === 'Kamad' ? 'role-kamad' : 'role-pengawas';
 
       return `
         <div class="comment-item ${bubbleClass}">
           <div class="comment-meta">
             <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
-            <span>${comm.author_name}</span>
-            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
+            ${comm.author_name ? `<span>${comm.author_name}</span>` : ''}
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><span class="kanban-indicator ${KanbanView.getStageColorClass(comm.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>${comm.card_status}</span>` : ''}
           </div>
           <div style="word-break:break-word;">${comm.comment_text}</div>
           <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
@@ -847,6 +1009,27 @@ const KanbanView = {
           </div>
 
           <div>
+            <label class="kanban-modal-label">Perkiraan Penyelesaian</label>
+            ${editable ? `
+              <input type="date" id="modal-card-due-date" class="kanban-modal-title-input" value="${card.tgl_selesai ? card.tgl_selesai.substring(0, 10) : ''}" style="width:100%; max-width:220px; padding:8px 12px; font-size:0.82rem; border:1px solid var(--color-border); border-radius:var(--radius-md); background:transparent; color:var(--color-text); outline:none;">
+            ` : `
+              <div style="font-size:0.82rem; color:var(--color-text); font-weight:600; padding:10px 12px; border:1px solid var(--color-border-light); border-radius:var(--radius-md); background:rgba(0,0,0,0.01);">
+                ${card.tgl_selesai ? (() => {
+                  const parts = card.tgl_selesai.split('-');
+                  if (parts.length === 3) {
+                    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                    const day = parseInt(parts[2], 10);
+                    const month = months[parseInt(parts[1], 10) - 1] || '';
+                    const year = parts[0];
+                    return `${day} ${month} ${year}`;
+                  }
+                  return card.tgl_selesai;
+                })() : 'Belum diatur'}
+              </div>
+            `}
+          </div>
+
+          <div>
             <label class="kanban-modal-label">Tahapan Status</label>
             <div class="status-select-pill">
               ${statusPillsHtml}
@@ -856,8 +1039,17 @@ const KanbanView = {
           <div>
             <label class="kanban-modal-label">Kategori / Tagging (Bisa pilih lebih dari satu)</label>
             ${editable ? `
-              <div style="display:flex; flex-direction:column; border:1px solid var(--color-border); border-radius:var(--radius-md); padding:12px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.01);">
-                ${tagsSelectionHtml || '<div style="font-size:0.75rem;color:var(--color-text-light);">Belum ada kategori diatur di sheet.</div>'}
+              <div class="multiselect-container" id="tag-multiselect" style="position:relative; width:100%;">
+                <div class="multiselect-trigger" onclick="KanbanManager.toggleTagDropdown(event)" style="min-height:38px; border:1px solid var(--color-border); border-radius:var(--radius-md); padding:6px 12px; padding-right:30px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; cursor:pointer; background:transparent; position:relative; box-sizing:border-box; user-select:none;">
+                  <div id="multiselect-selected-badges" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; width:100%;">
+                    ${selectedBadgesHtml || '<span style="color:var(--color-text-light); font-size:0.8rem;">Pilih Kategori / Tagging...</span>'}
+                  </div>
+                  <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:0.7rem; color:var(--color-text-light); pointer-events:none;">▼</span>
+                </div>
+                
+                <div class="multiselect-dropdown" id="tag-multiselect-dropdown" style="display:none; position:absolute; top:102%; left:0; width:100%; max-height:220px; overflow-y:auto; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated, #fff); box-shadow:var(--shadow-md); z-index:9999; padding:8px; box-sizing:border-box; margin-top:2px;">
+                  ${tagsSelectionHtml || '<div style="font-size:0.75rem;color:var(--color-text-light);">Belum ada kategori diatur di sheet.</div>'}
+                </div>
               </div>
             ` : `
               <div style="display:flex; flex-wrap:wrap; gap:6px; padding: 2px 0;">
@@ -878,14 +1070,14 @@ const KanbanView = {
           <!-- Accordion Catatan Rincian -->
           <div id="accordion-notes" class="kanban-accordion ${notesOpen}">
             <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('notes')">
-              <h4 class="kanban-accordion-title">📝 Catatan Rincian per Tahapan (<span id="accordion-notes-count">${workNotes.length}</span>)</h4>
+              <h4 class="kanban-accordion-title">📝 Catatan per Tahap (<span id="accordion-notes-count">${workNotes.length}</span>)</h4>
               <span class="kanban-accordion-icon">▼</span>
             </div>
             <div id="accordion-notes-content" class="kanban-accordion-content" style="${notesStyle}">
               ${editable ? `
                 <div style="display:flex; flex-direction:column; gap:6px; border-bottom:1px dashed #eee; padding-bottom:10px; margin-bottom:12px;">
                   <textarea id="modal-new-work-note-text" style="width:100%; height:60px; border:1px solid var(--color-border); border-radius:4px; padding:6px; font-size:0.78rem; outline:none; background:transparent; resize:vertical; color:var(--color-text);" placeholder="Tambah catatan detail baru untuk tahap saat ini..."></textarea>
-                  <button class="btn" onclick="KanbanManager.addDetailedNoteFromModal()" style="width:auto; align-self:flex-end; padding:4px 12px; font-size:0.72rem; margin:0; border:none; border-radius:4px; cursor:pointer;">Tambah Catatan</button>
+                  <button class="btn" onclick="KanbanManager.addDetailedNoteFromModal()" style="width:auto; align-self:flex-start; padding:6px 14px; font-size:0.75rem; margin:0; border:none; border-radius:4px; cursor:pointer;">Tambah Catatan</button>
                 </div>
               ` : ''}
               <div id="modal-work-notes-list" style="max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
@@ -897,7 +1089,7 @@ const KanbanView = {
           <!-- Accordion Lampiran Dokumen -->
           <div id="accordion-attachments" class="kanban-accordion ${attachmentsOpen}">
             <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('attachments')">
-              <h4 class="kanban-accordion-title">📎 Lampiran Dokumen (<span id="accordion-attachments-count">${(card.attachments || []).length}</span>)</h4>
+              <h4 class="kanban-accordion-title">📎 Dokumen / Foto (<span id="accordion-attachments-count">${files.length}</span>)</h4>
               <span class="kanban-accordion-icon">▼</span>
             </div>
             <div id="accordion-attachments-content" class="kanban-accordion-content" style="${attachmentsStyle}">
@@ -905,16 +1097,39 @@ const KanbanView = {
                 <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:12px;background:rgba(0,0,0,0.01);margin-bottom:12px;">
                   <span style="font-size:0.72rem;font-weight:700;color:var(--color-text-secondary);">UNGGAH FOTO ATAU PDF:</span>
                   <input type="file" id="kanban-file-uploader" style="font-size:0.75rem;" accept="image/*,application/pdf" onchange="KanbanManager.handleFileUpload(event)">
-                  
-                  <div style="display:flex;align-items:center;gap:6px;margin-top:6px;border-top:1px solid var(--color-border-light);padding-top:10px;">
-                    <input type="text" id="kanban-link-name" placeholder="Nama Link" style="width:40%;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;" />
-                    <input type="text" id="kanban-link-url" placeholder="https://example.com" style="flex:1;font-size:0.72rem;padding:4px 8px;border:1px solid var(--color-border);border-radius:4px;outline:none;" />
-                    <input type="button" value="Tambah" onclick="KanbanManager.addLinkAttachment()" class="btn" style="width:auto; padding:4px 12px; font-size:0.72rem; margin:0; cursor:pointer;" />
-                  </div>
                 </div>
               ` : ''}
               <div class="attachment-list-edit" id="modal-attachments-list">
-                ${attachmentsHtml || `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`}
+                ${filesHtml}
+              </div>
+            </div>
+          </div>
+
+          <!-- Accordion Tautan Link -->
+          <div id="accordion-links" class="kanban-accordion ${linksOpen}">
+            <div class="kanban-accordion-header" onclick="KanbanManager.toggleAccordion('links')">
+              <h4 class="kanban-accordion-title">🔗 Tautan Link (<span id="accordion-links-count">${links.length}</span>)</h4>
+              <span class="kanban-accordion-icon">▼</span>
+            </div>
+            <div id="accordion-links-content" class="kanban-accordion-content" style="${linksStyle}">
+              ${editable ? `
+                <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--color-border-light);border-radius:var(--radius-md);padding:12px;background:rgba(0,0,0,0.01);margin-bottom:12px;">
+                  <label style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:6px;">TAMBAH TAUTAN LINK</label>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--color-text-secondary); display:block; margin-bottom:2px;">Deskripsi:</label>
+                      <input type="text" id="kanban-link-name" style="width:100%; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent; color:var(--color-text);" />
+                    </div>
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--color-text-secondary); display:block; margin-bottom:2px;">Alamat URL:</label>
+                      <input type="text" id="kanban-link-url" style="width:100%; font-size:0.72rem; padding:6px; border:1px solid #ccc; border-radius:4px; outline:none; background:transparent; color:var(--color-text);" />
+                    </div>
+                    <button class="btn" onclick="KanbanManager.addLinkAttachment()" style="width:auto; align-self:flex-start; padding:6px 14px; font-size:0.75rem; margin-top:4px; border:none; border-radius:4px; cursor:pointer;">Tambah Tautan</button>
+                  </div>
+                </div>
+              ` : ''}
+              <div class="attachment-list-edit" id="modal-links-list">
+                ${linksHtmlList}
               </div>
             </div>
           </div>
@@ -940,6 +1155,13 @@ const KanbanView = {
       <!-- Tab Content 2: Discussion (Ruang Diskusi & Umpan Balik) -->
       <div id="tab-content-discussion" class="kanban-tab-content" style="display: none; flex-direction: column; gap: 12px;">
         <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:-4px; padding:0 4px;">
+            <span style="font-size:0.75rem; font-weight:700; color:var(--color-text-secondary);">Log Diskusi</span>
+            <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.72rem; color:var(--color-text-secondary); cursor:pointer; user-select:none;">
+              <input type="checkbox" id="filter-include-system" onchange="KanbanManager.updateCommentsLogView()" style="cursor:pointer;" />
+              Include System
+            </label>
+          </div>
           <div class="comments-wrapper" style="height: 340px;">
             <div class="comments-log" id="modal-comments-log">
               ${commentsLogHtml || `
@@ -1127,7 +1349,8 @@ const KanbanManager = {
       status: 'Belum Mulai',
       attachments: [],
       tag: '',
-      work_details: ''
+      work_details: '',
+      tgl_selesai: ''
     };
 
     const modal = document.getElementById('kanban-modal');
@@ -1275,7 +1498,7 @@ const KanbanManager = {
   toggleAccordion(type, modalType = 'main') {
     if (modalType === 'quickAdd') {
       if (!this.state.quickAddAccordions) {
-        this.state.quickAddAccordions = { notes: true, attachments: true };
+        this.state.quickAddAccordions = { notes: true, attachments: true, links: true };
       }
       this.state.quickAddAccordions[type] = !this.state.quickAddAccordions[type];
       const el = document.getElementById(`qa-accordion-${type}`);
@@ -1291,7 +1514,7 @@ const KanbanManager = {
       }
     } else {
       if (!this.state.accordions) {
-        this.state.accordions = { notes: false, attachments: false };
+        this.state.accordions = { notes: false, attachments: false, links: false };
       }
       this.state.accordions[type] = !this.state.accordions[type];
       const el = document.getElementById(`accordion-${type}`);
@@ -1306,6 +1529,77 @@ const KanbanManager = {
         }
       }
     }
+  },
+
+  toggleTagDropdown(e) {
+    e.stopPropagation();
+    const dropdown = document.getElementById('tag-multiselect-dropdown');
+    const trigger = e.currentTarget;
+    if (dropdown) {
+      const isVisible = dropdown.style.display === 'block';
+      dropdown.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) {
+        trigger.classList.add('active');
+      } else {
+        trigger.classList.remove('active');
+      }
+    }
+  },
+
+  onTagSelectionChange() {
+    const checkboxes = document.querySelectorAll('.modal-card-tag-checkbox');
+    const selectedTags = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedTags.push(cb.value);
+      }
+    });
+
+    if (this.state.currentCard) {
+      this.state.currentCard.tag = selectedTags.join(',');
+    }
+
+    const badgeContainer = document.getElementById('multiselect-selected-badges');
+    if (badgeContainer) {
+      if (selectedTags.length === 0) {
+        badgeContainer.innerHTML = '<span style="color:var(--color-text-light); font-size:0.8rem;">Pilih Kategori / Tagging...</span>';
+      } else {
+        const tagIconMap = {};
+        (this.state.tags || []).forEach(t => {
+          const parts = t.split('|');
+          const category = parts[0] || '';
+          const subcategory = parts[1] || '';
+          const icon = parts[2] || '';
+          if (category && subcategory) {
+            tagIconMap[`${category}|${subcategory}`.toLowerCase()] = icon;
+          }
+        });
+
+        badgeContainer.innerHTML = selectedTags.map(t => {
+          const parts = t.split('|');
+          const cat = parts[0] || '';
+          const sub = parts[1] || t;
+          const key = `${cat}|${sub}`.toLowerCase();
+          const icon = tagIconMap[key] || '🏷️';
+          const display = `${cat}: ${sub}`;
+          return `
+            <span class="multiselect-badge" style="background:rgba(13, 110, 253, 0.08); color:#0d6efd; border:1px solid rgba(13, 110, 253, 0.15); padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; user-select:none;" onclick="event.stopPropagation(); KanbanManager.deselectTag('${t}')">
+              ${icon} ${display} <span style="cursor:pointer; font-weight:bold; font-size:0.8rem; margin-left:2px; color:rgba(13, 110, 253, 0.6);" onmouseover="this.style.color='#0d6efd'" onmouseout="this.style.color='rgba(13, 110, 253, 0.6)'">&times;</span>
+            </span>
+          `;
+        }).join('');
+      }
+    }
+  },
+
+  deselectTag(tagValue) {
+    const checkboxes = document.querySelectorAll('.modal-card-tag-checkbox');
+    checkboxes.forEach(cb => {
+      if (cb.value === tagValue) {
+        cb.checked = false;
+      }
+    });
+    this.onTagSelectionChange();
   },
 
   /**
@@ -1380,11 +1674,13 @@ const KanbanManager = {
             this.state.currentCard.attachments.push({
               type: attType,
               name: file.name,
-              url: res.data.url
+              url: res.data.url,
+              card_status: this.state.currentCard.status || 'Belum Mulai'
             });
             
             // Re-render attachments list area
             this.updateAttachmentsView();
+            this.systemComment(`Mengunggah berkas: ${file.name}`);
           } else {
             App.alert('Gagal mengunggah berkas: ' + res.error, 'Gagal');
           }
@@ -1424,13 +1720,15 @@ const KanbanManager = {
     this.state.currentCard.attachments.push({
       type: 'link',
       name: name,
-      url: url
+      url: url,
+      card_status: this.state.currentCard.status || 'Belum Mulai'
     });
 
     nameEl.value = '';
     urlEl.value = '';
     
     this.updateAttachmentsView();
+    this.systemComment(`Menambahkan tautan: ${name}`);
   },
 
   /**
@@ -1438,8 +1736,11 @@ const KanbanManager = {
    */
   removeAttachment(index) {
     if (!this.state.currentCard) return;
+    const att = this.state.currentCard.attachments[index];
+    const attName = att ? (att.name || att.url || 'lampiran') : 'lampiran';
     this.state.currentCard.attachments.splice(index, 1);
     this.updateAttachmentsView();
+    this.systemComment(`Menghapus lampiran: ${attName}`);
   },
 
   /**
@@ -1447,6 +1748,7 @@ const KanbanManager = {
    */
   updateAttachmentsView() {
     const list = document.getElementById('modal-attachments-list');
+    const linksList = document.getElementById('modal-links-list');
     if (!list) return;
 
     const editable = !App.state.isSupervisorViewAs;
@@ -1454,45 +1756,89 @@ const KanbanManager = {
       this.state.currentCard.attachments = [];
     }
 
-    const countSpan = document.getElementById('accordion-attachments-count');
-    if (countSpan) {
-      countSpan.textContent = this.state.currentCard.attachments.length;
+    const allAttachments = this.state.currentCard.attachments;
+    const files = allAttachments.filter(att => att.type !== 'link');
+    const links = allAttachments.filter(att => att.type === 'link');
+
+    // Update count spans
+    const attachmentsCountSpan = document.getElementById('accordion-attachments-count');
+    if (attachmentsCountSpan) {
+      attachmentsCountSpan.textContent = files.length;
+    }
+    const linksCountSpan = document.getElementById('accordion-links-count');
+    if (linksCountSpan) {
+      linksCountSpan.textContent = links.length;
     }
     
-    if (this.state.currentCard.attachments.length === 0) {
+    // Render files list
+    if (files.length === 0) {
       list.innerHTML = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada berkas lampiran</div>`;
-      return;
-    }
+    } else {
+      list.innerHTML = files.map(att => {
+        const index = allAttachments.indexOf(att);
+        let icon = '📎';
+        if (att.type === 'image') icon = '🖼️';
+        if (att.type === 'pdf') icon = '📄';
 
-    list.innerHTML = this.state.currentCard.attachments.map((att, index) => {
-      let icon = '📎';
-      if (att.type === 'image') icon = '🖼️';
-      if (att.type === 'pdf') icon = '📄';
-      if (att.type === 'link') icon = '🔗';
-
-      const cardId = this.state.currentCard.card_id;
-      const openAction = att.type === 'link' 
-        ? `href="${att.url}" target="_blank" onclick="event.stopPropagation();"` 
-        : `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${cardId}', ${index})"`;
-      return `
-        <div class="attachment-item-edit" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
-          <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-              <span>${icon}</span>
-              <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+        const cardId = this.state.currentCard.card_id;
+        const openAction = `href="${att.url}" target="_blank" onclick="event.preventDefault(); KanbanManager.previewAttachmentByIndex('${cardId}', ${index})"`;
+        return `
+          <div class="attachment-item-edit" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+              <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                <span>${icon}</span>
+                <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+              </div>
+              ${editable ? `
+                <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+              ` : ''}
             </div>
-            ${editable ? `
-              <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+            ${att.card_status ? `
+              <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+                <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                  <span class="kanban-indicator ${KanbanView.getStageColorClass(att.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                  ${att.card_status}
+                </span>
+              </div>
             ` : ''}
           </div>
-          ${att.card_status ? `
-            <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
-              <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600;">📍 Diunggah saat: ${att.card_status}</span>
+        `;
+      }).join('');
+    }
+
+    // Render links list
+    if (linksList) {
+      if (links.length === 0) {
+        linksList.innerHTML = `<div style="text-align:center;padding:12px;font-size:0.75rem;color:var(--color-text-light);border:1px dashed var(--color-border);border-radius:var(--radius-sm);">Belum ada tautan link</div>`;
+      } else {
+        linksList.innerHTML = links.map(att => {
+          const index = allAttachments.indexOf(att);
+          const icon = '🔗';
+          const openAction = `href="${att.url}" target="_blank" onclick="event.stopPropagation();"`;
+          return `
+            <div class="attachment-item-edit" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; border-bottom:1px solid var(--color-border-light, #eee);">
+              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                  <span>${icon}</span>
+                  <a ${openAction} style="color:var(--color-primary); text-decoration:none; font-size:0.8rem; font-weight:600; cursor:pointer;">${att.name}</a>
+                </div>
+                ${editable ? `
+                  <button onclick="KanbanManager.removeAttachment(${index})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus">🗑️</button>
+                ` : ''}
+              </div>
+              ${att.card_status ? `
+                <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; padding-left:22px;">
+                  <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                    <span class="kanban-indicator ${KanbanView.getStageColorClass(att.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                    ${att.card_status}
+                  </span>
+                </div>
+              ` : ''}
             </div>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
+          `;
+        }).join('');
+      }
+    }
   },
 
   /**
@@ -1505,6 +1851,8 @@ const KanbanManager = {
     const title = titleEl ? titleEl.value.trim() : this.state.currentCard.title;
     const descEl = document.getElementById('modal-card-desc');
     const description = descEl ? descEl.value.trim() : this.state.currentCard.description;
+    const dueDateEl = document.getElementById('modal-card-due-date');
+    const tgl_selesai = dueDateEl ? dueDateEl.value.trim() : (this.state.currentCard.tgl_selesai || '');
     const work_details = this.state.currentCard.work_details || '';
 
     if (!title) {
@@ -1515,6 +1863,7 @@ const KanbanManager = {
     this.state.currentCard.title = title;
     this.state.currentCard.description = description;
     this.state.currentCard.work_details = work_details;
+    this.state.currentCard.tgl_selesai = tgl_selesai;
 
     const checkboxes = document.querySelectorAll('.modal-card-tag-checkbox');
     const checkedTags = [];
@@ -1573,7 +1922,7 @@ const KanbanManager = {
     if (!card) return;
 
     if (card.status === 'Belum Mulai') {
-      App.alert('Apakah Anda yakin ingin menghapus kartu tugas ini beserta seluruh lampiran dan komentar diskusinya? Tindakan ini tidak dapat dibatalkan.', 'Peringatan', () => {
+      App.confirm('Apakah Anda yakin ingin menghapus kartu tugas ini beserta seluruh lampiran dan komentar diskusinya? Tindakan ini tidak dapat dibatalkan.', 'Peringatan', () => {
         const nsm = App.state.kamad?.nsm;
         if (!nsm) return;
 
@@ -1595,7 +1944,7 @@ const KanbanManager = {
           .kanbanDeleteCard(nsm, cardId);
       });
     } else {
-      App.alert('Kartu dalam tahapan ini memerlukan persetujuan Pengawas Binaan untuk dihapus. Apakah Anda ingin mengajukan permohonan penghapusan kartu ini?', 'Pengajuan Hapus', () => {
+      App.confirm('Kartu dalam tahapan ini memerlukan persetujuan Pengawas Binaan untuk dihapus. Apakah Anda ingin mengajukan permohonan penghapusan kartu ini?', 'Pengajuan Hapus', () => {
         const nsm = App.state.kamad?.nsm;
         if (!nsm) return;
 
@@ -1736,6 +2085,28 @@ const KanbanManager = {
     });
   },
 
+  systemComment(text, explicitCardId = null) {
+    const cardId = explicitCardId || (this.state.currentCard ? this.state.currentCard.card_id : null);
+    if (!cardId) return;
+
+    const sysNsm = App.state.kamad?.nsm;
+    if (!sysNsm) return;
+
+    const authorName = '';
+    const authorRole = 'System';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          this.state.comments.push(res.data);
+          if (this.state.currentCard && this.state.currentCard.card_id === cardId) {
+            this.updateCommentsLogView();
+          }
+        }
+      })
+      .kanbanAddComment(sysNsm, cardId, text, authorName, authorRole);
+  },
+
   /**
    * Submit comment to Card
    */
@@ -1778,8 +2149,15 @@ const KanbanManager = {
     const log = document.getElementById('modal-comments-log');
     if (!log || !this.state.currentCard) return;
 
-    const cardComments = this.state.comments.filter(comm => comm.card_id === this.state.currentCard.card_id);
+    let cardComments = this.state.comments.filter(comm => comm.card_id === this.state.currentCard.card_id);
     cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    const includeSystemCheck = document.getElementById('filter-include-system');
+    const includeSystem = includeSystemCheck ? includeSystemCheck.checked : false;
+
+    if (!includeSystem) {
+      cardComments = cardComments.filter(comm => comm.author_role !== 'System');
+    }
 
     if (cardComments.length === 0) {
       log.innerHTML = `
@@ -1790,16 +2168,23 @@ const KanbanManager = {
     }
 
     log.innerHTML = cardComments.map(comm => {
-      const isKamad = comm.author_role === 'Kamad';
-      const bubbleClass = isKamad ? 'kamad' : 'pengawas';
-      const roleBadge = isKamad ? 'role-kamad' : 'role-pengawas';
+      let bubbleClass = 'pengawas';
+      let roleBadge = 'role-pengawas';
+      
+      if (comm.author_role === 'System') {
+        bubbleClass = 'sistem';
+        roleBadge = 'role-sistem';
+      } else if (comm.author_role === 'Kamad') {
+        bubbleClass = 'kamad';
+        roleBadge = 'role-kamad';
+      }
 
       return `
         <div class="comment-item ${bubbleClass}">
           <div class="comment-meta">
             <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
-            <span>${comm.author_name}</span>
-            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
+            ${comm.author_name ? `<span>${comm.author_name}</span>` : ''}
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.65rem; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><span class="kanban-indicator ${KanbanView.getStageColorClass(comm.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>${comm.card_status}</span>` : ''}
           </div>
           <div style="word-break:break-word;">${comm.comment_text}</div>
           <span class="comment-time">${Utils.formatTimeAgo(comm.created_at)}</span>
@@ -2018,12 +2403,16 @@ const KanbanManager = {
 
     if (input) input.value = '';
     this.updateWorkNotesView();
+    this.systemComment(`Menambahkan catatan detail: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`);
   },
 
   removeDetailedNote(index) {
     if (!this.state.currentCard || !this.state.currentCard.work_notes) return;
+    const note = this.state.currentCard.work_notes[index];
+    const notePreview = note ? note.text.substring(0, 30) : '';
     this.state.currentCard.work_notes.splice(index, 1);
     this.updateWorkNotesView();
+    this.systemComment(`Menghapus catatan detail: "${notePreview}${notePreview.length >= 30 ? '...' : ''}"`);
   },
 
   updateWorkNotesView() {
@@ -2046,16 +2435,25 @@ const KanbanManager = {
 
     list.innerHTML = workNotes.map((note, idx) => {
       return `
-        <div style="display:flex; flex-direction:column; gap:4px; padding:10px; border-bottom:1px solid var(--color-border-light, #eee); background:#fffdf6; border-radius:6px; border-left:3px solid #ffc107; margin-bottom:8px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:0.65rem; color:#666; font-weight:600;">
-              Catatan #${idx+1} ${note.card_status ? '| Tahap: ' + note.card_status : ''}
-            </span>
+        <div class="note-item-edit">
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+              <span>📝</span>
+              <span style="color:var(--color-primary); font-size:0.8rem; font-weight:600;">Catatan #${idx+1}</span>
+            </div>
             ${editable ? `
               <button onclick="KanbanManager.removeDetailedNote(${idx})" style="border:none; background:transparent; color:var(--color-danger); cursor:pointer; font-size:0.8rem;" title="Hapus Catatan">🗑️</button>
             ` : ''}
           </div>
-          <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap;">${note.text}</div>
+          ${note.card_status ? `
+            <div style="font-size:0.65rem; color:#666; display:flex; align-items:center; gap:4px; margin-top:-2px; margin-bottom:4px; padding-left:22px;">
+              <span style="background:rgba(0,0,0,0.05); padding:1px 6px; border-radius:8px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                <span class="kanban-indicator ${KanbanView.getStageColorClass(note.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>
+                ${note.card_status}
+              </span>
+            </div>
+          ` : ''}
+          <div style="font-size:0.8rem; line-height:1.4; color:var(--color-text); white-space:pre-wrap; padding-left:22px;">${note.text}</div>
           <span style="font-size:0.62rem; color:#888; text-align:right;">${Utils.formatTimeAgo(note.created_at)}</span>
         </div>
       `;
@@ -2099,8 +2497,14 @@ const KanbanManager = {
     if (!log || !this.state.quickNotesCardId) return;
 
     const cardId = this.state.quickNotesCardId;
-    const cardComments = this.state.comments.filter(comm => comm.card_id === cardId);
+    let cardComments = this.state.comments.filter(comm => comm.card_id === cardId);
     cardComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    // Filter out system comments by default for consistency
+    cardComments = cardComments.filter(comm => {
+      const isSystem = comm.author_role === 'System' || (comm.author_name && comm.author_name.startsWith('Sistem ('));
+      return !isSystem;
+    });
 
     if (cardComments.length === 0) {
       log.innerHTML = `
@@ -2120,7 +2524,7 @@ const KanbanManager = {
           <div class="comment-meta">
             <span class="author-role-badge ${roleBadge}">${comm.author_role}</span>
             <span>${comm.author_name}</span>
-            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.62rem; padding:1px 5px; border-radius:10px; font-weight:600; margin-left:6px;">📍 ${comm.card_status}</span>` : ''}
+            ${comm.card_status ? `<span style="background:rgba(0,0,0,0.05); color:#666; font-size:0.62rem; padding:1px 5px; border-radius:10px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><span class="kanban-indicator ${KanbanView.getStageColorClass(comm.card_status)}" style="width:6px; height:6px; display:inline-block; flex-shrink:0;"></span>${comm.card_status}</span>` : ''}
           </div>
           <div style="word-break:break-word; font-size:0.8rem; margin-top:4px;">${comm.comment_text}</div>
           <span class="comment-time" style="font-size:0.62rem; margin-top:2px;">${Utils.formatTimeAgo(comm.created_at)}</span>
@@ -2245,6 +2649,7 @@ const KanbanManager = {
         if (saveRes.success) {
           if (textEl) textEl.value = '';
           App.alert('Catatan detail berhasil ditambahkan!', 'Sukses');
+          this.systemComment('Menambahkan catatan detail per tahapan.', cardId);
           this.closeQuickAddModal();
         } else {
           App.alert('Gagal menyimpan catatan detail: ' + saveRes.error, 'Gagal');
@@ -2302,6 +2707,7 @@ const KanbanManager = {
                 App.loading(false);
                 if (saveRes.success) {
                   App.alert('Berkas berhasil diunggah dan disimpan ke kartu!', 'Sukses');
+                  this.systemComment(`Menambahkan berkas lampiran: ${file.name}`, cardId);
                   this.closeQuickAddModal();
                 } else {
                   App.alert('Gagal memperbarui data kartu: ' + saveRes.error, 'Gagal');
@@ -2371,6 +2777,7 @@ const KanbanManager = {
           if (nameEl) nameEl.value = '';
           if (urlEl) urlEl.value = '';
           App.alert('Tautan berhasil disimpan ke kartu!', 'Sukses');
+          this.systemComment(`Menambahkan tautan: ${name}`, cardId);
           this.closeQuickAddModal();
         } else {
           App.alert('Gagal memperbarui data kartu: ' + saveRes.error, 'Gagal');
@@ -2429,4 +2836,17 @@ if (typeof Utils === 'undefined') {
     return 'baru saja';
   };
 }
+
+// Close multiselect dropdown if clicked outside
+document.addEventListener('click', (e) => {
+  const dropdown = document.getElementById('tag-multiselect-dropdown');
+  const multiselect = document.getElementById('tag-multiselect');
+  if (dropdown && multiselect) {
+    if (!multiselect.contains(e.target)) {
+      dropdown.style.display = 'none';
+      const trigger = multiselect.querySelector('.multiselect-trigger');
+      if (trigger) trigger.classList.remove('active');
+    }
+  }
+});
 </script>

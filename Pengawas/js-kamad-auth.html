@@ -68,6 +68,9 @@ const KamadAuth = {
             <button type="submit" class="btn kamad-submit-btn" id="kamad-login-btn">
               Masuk
             </button>
+            <div style="text-align: center; margin-top: 12px; margin-bottom: 4px;">
+              <a href="javascript:void(0)" onclick="App.router('kamad-forgot-password')" class="kamad-text-btn" style="font-size:0.85rem; color:var(--color-primary); font-weight:600; text-decoration:none;">Lupa Password?</a>
+            </div>
           </form>
 
           <div class="kamad-footer-link">
@@ -92,6 +95,18 @@ const KamadAuth = {
           </p>
           
           <form id="kamad-setup-form" onsubmit="KamadAuth.doSetupPassword(event, '${nsm}', '${token}')">
+            <div class="form-group" style="margin-bottom: 15px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Nama Lengkap Kepala Madrasah</label>
+              <input type="text" id="kamad-setup-nama" class="form-control" required placeholder="Nama Lengkap beserta gelar">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Email (untuk pemulihan password)</label>
+              <input type="email" id="kamad-setup-email" class="form-control" required placeholder="email@contoh.com">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">No. Handphone (WhatsApp)</label>
+              <input type="text" id="kamad-setup-no-hp" class="form-control" required placeholder="Contoh: 08123456789">
+            </div>
             <div class="form-group" style="margin-bottom: 15px;">
               <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Password Baru</label>
               <input type="password" id="kamad-new-pwd" class="form-control" required placeholder="Minimal 6 karakter" minlength="6">
@@ -124,6 +139,39 @@ const KamadAuth = {
           <div class="kamad-footer-link">
             <button class="kamad-text-btn" onclick="App.router('login')">
               ← Kembali ke Login Pengawas
+            </button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    forgotPassword: () => `
+      <div class="kamad-auth-wrap">
+        <div class="kamad-auth-card" style="max-width: 400px; margin: 40px auto; padding: 30px; border-radius: var(--radius-xl); box-shadow: var(--shadow-md);">
+          <h2 style="text-align: center; color: var(--color-primary); margin-bottom: 10px;">Lupa Password Kamad</h2>
+          <p style="text-align: center; margin-bottom: 24px; font-size: 0.88rem; color: var(--color-text-secondary);">
+            Masukkan NSM dan Email terdaftar Anda untuk mendapatkan tautan reset password.
+          </p>
+          
+          <form id="kamad-forgot-form" onsubmit="KamadAuth.doRequestReset(event)">
+            <div class="form-group" style="margin-bottom: 15px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">NSM</label>
+              <input type="text" id="kamad-forgot-nsm" class="form-control" required placeholder="Masukkan 12 digit NSM">
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+              <label style="display:block; margin-bottom: 6px; font-size: 0.88rem; font-weight:600; color: var(--color-text-secondary);">Email</label>
+              <input type="email" id="kamad-forgot-email" class="form-control" required placeholder="email@contoh.com">
+            </div>
+            
+            <div id="kamad-forgot-error" class="kamad-error-msg" style="display:none; margin-bottom: 15px;"></div>
+            <div id="kamad-forgot-success" style="display:none; margin-bottom: 15px; color: var(--color-success); font-size: 0.82rem; background: rgba(46, 204, 113, 0.1); padding: 10px; border-radius: 6px; border-left: 4px solid var(--color-success);"></div>
+            
+            <button type="submit" class="btn" style="width: 100%; padding: 12px; background: var(--color-primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;" id="kamad-forgot-btn">Kirim Link Reset</button>
+          </form>
+          
+          <div class="kamad-footer-link" style="margin-top: 20px; text-align: center;">
+            <button class="kamad-text-btn" onclick="App.router('kamad-login')">
+              ← Kembali ke Login
             </button>
           </div>
         </div>
@@ -185,8 +233,16 @@ const KamadAuth = {
     e.preventDefault();
     const newPwd = document.getElementById('kamad-new-pwd').value;
     const confirmPwd = document.getElementById('kamad-confirm-pwd').value;
+    const nama = document.getElementById('kamad-setup-nama').value.trim();
+    const email = document.getElementById('kamad-setup-email').value.trim();
+    const noHp = document.getElementById('kamad-setup-no-hp').value.trim();
     const errEl = document.getElementById('kamad-setup-error');
     const btn = document.getElementById('kamad-setup-btn');
+
+    if (!nama || !email || !noHp) {
+      this._showError(errEl, 'Semua data profil wajib diisi.');
+      return;
+    }
 
     if (newPwd.length < 6) {
       this._showError(errEl, 'Password minimal 6 karakter.');
@@ -201,7 +257,7 @@ const KamadAuth = {
     btn.textContent = 'Menyimpan...';
     errEl.style.display = 'none';
 
-    App.loading(true, 'Menyimpan password...');
+    App.loading(true, 'Menyimpan password & profil...');
     google.script.run
       .withSuccessHandler(res => {
         App.loading(false);
@@ -221,7 +277,53 @@ const KamadAuth = {
         btn.textContent = 'Simpan & Masuk';
         this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
       })
-      .kamadSetPassword(nsm, newPwd, token);
+      .kamadSetPassword(nsm, newPwd, token, { email: email, nama: nama, no_hp: noHp });
+  },
+
+  /**
+   * Proses kirim link reset password
+   */
+  doRequestReset(e) {
+    e.preventDefault();
+    const nsm = document.getElementById('kamad-forgot-nsm').value.trim();
+    const email = document.getElementById('kamad-forgot-email').value.trim();
+    const errEl = document.getElementById('kamad-forgot-error');
+    const successEl = document.getElementById('kamad-forgot-success');
+    const btn = document.getElementById('kamad-forgot-btn');
+
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!nsm || !email) {
+      this._showError(errEl, 'NSM dan Email wajib diisi.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Mengirim...';
+
+    App.loading(true, 'Mengirim link reset password...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Kirim Link Reset';
+
+        if (res.success) {
+          successEl.textContent = res.message || 'Link reset password berhasil dikirim ke email Anda.';
+          successEl.style.display = 'block';
+          document.getElementById('kamad-forgot-form').reset();
+        } else {
+          this._showError(errEl, res.error || 'Gagal mengirim link reset password.');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Kirim Link Reset';
+        this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
+      })
+      .kamadRequestPasswordReset(nsm, email);
   },
 
   /**

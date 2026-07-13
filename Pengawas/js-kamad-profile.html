@@ -1,0 +1,212 @@
+<script>
+// ============================================================
+// KAMAD PROFILE MODULE
+// Mengelola tampilan profil Kamad, edit profil, dan ganti password
+// ============================================================
+
+const KamadProfileViews = {
+  Main: () => {
+    const kamad = App.state.kamad || {};
+    const nsm = kamad.nsm || '';
+    const name = kamad.nama || '';
+    const email = kamad.email || '';
+    const noHp = kamad.no_hp || '';
+
+    return `
+      <div class="header">
+        <div class="header-title-wrap">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="header-page-icon">👤</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <h1 style="margin:0;font-size:0.95rem;line-height:1.2;font-weight:700;">Profil Madrasah</h1>
+              </div>
+              <div style="font-size:0.7rem;color:var(--color-text-secondary);opacity:0.85;margin-top:2px;">${kamad.madrasah_name || 'Madrasah Anda'}</div>
+            </div>
+          </div>
+        </div>
+        <button class="back-btn" onclick="App.router('kamad-dashboard')"><span style="font-size:0.9em;">‹</span> Kembali</button>
+      </div>
+      
+      <div class="content" style="padding-top:16px; display:flex; flex-direction:column; gap:20px;">
+        <!-- Card 1: Edit Data Profil -->
+        <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
+          <h3 style="margin:0 0 16px 0; font-size:0.95rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px;">
+            📝 Edit Profil
+          </h3>
+          <form id="kamad-profile-form" onsubmit="KamadProfileManager.saveProfile(event)">
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">NSM (Read-only)</label>
+              <input type="text" class="form-control" value="${nsm}" readonly style="background:rgba(0,0,0,0.03); color:var(--color-text-light);">
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">Nama Kepala Madrasah</label>
+              <input type="text" id="kamad-prof-nama" class="form-control" value="${name}" required placeholder="Nama Lengkap beserta gelar">
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">Email</label>
+              <input type="email" id="kamad-prof-email" class="form-control" value="${email}" required placeholder="email@contoh.com">
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">No. Handphone (WhatsApp)</label>
+              <input type="text" id="kamad-prof-no-hp" class="form-control" value="${noHp}" required placeholder="Contoh: 08123456789">
+            </div>
+            <div id="kamad-prof-error" class="kamad-error-msg" style="display:none; margin-bottom:14px;"></div>
+            <div id="kamad-prof-success" style="display:none; margin-bottom:14px; color:var(--color-success); font-size:0.8rem; background:rgba(46,204,113,0.1); padding:8px 12px; border-radius:6px; border-left:4px solid var(--color-success);"></div>
+            <button type="submit" class="btn" style="width:auto; padding:8px 16px; font-size:0.85rem;" id="kamad-prof-btn">Simpan Perubahan</button>
+          </form>
+        </div>
+
+        <!-- Card 2: Ganti Password -->
+        <div class="card" style="padding:20px; border-radius:12px; background:var(--color-bg-elevated); border:1px solid var(--color-border-light); box-shadow:var(--shadow-sm);">
+          <h3 style="margin:0 0 16px 0; font-size:0.95rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px;">
+            🔑 Ganti Password
+          </h3>
+          <form id="kamad-password-form" onsubmit="KamadProfileManager.changePassword(event)">
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">Password Saat Ini</label>
+              <input type="password" id="kamad-pwd-old" class="form-control" required placeholder="Masukkan password sekarang">
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">Password Baru</label>
+              <input type="password" id="kamad-pwd-new" class="form-control" required placeholder="Minimal 6 karakter" minlength="6">
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+              <label style="display:block; margin-bottom:6px; font-size:0.78rem; font-weight:700; color:var(--color-text-secondary);">Konfirmasi Password Baru</label>
+              <input type="password" id="kamad-pwd-confirm" class="form-control" required placeholder="Ulangi password baru" minlength="6">
+            </div>
+            <div id="kamad-pwd-error" class="kamad-error-msg" style="display:none; margin-bottom:14px;"></div>
+            <div id="kamad-pwd-success" style="display:none; margin-bottom:14px; color:var(--color-success); font-size:0.8rem; background:rgba(46,204,113,0.1); padding:8px 12px; border-radius:6px; border-left:4px solid var(--color-success);"></div>
+            <button type="submit" class="btn" style="width:auto; padding:8px 16px; font-size:0.85rem;" id="kamad-pwd-btn">Ganti Password</button>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+};
+
+const KamadProfileManager = {
+  init() {
+    // Initial load code if needed
+  },
+
+  saveProfile(e) {
+    e.preventDefault();
+    const nama = document.getElementById('kamad-prof-nama').value.trim();
+    const email = document.getElementById('kamad-prof-email').value.trim();
+    const noHp = document.getElementById('kamad-prof-no-hp').value.trim();
+    const errEl = document.getElementById('kamad-prof-error');
+    const successEl = document.getElementById('kamad-prof-success');
+    const btn = document.getElementById('kamad-prof-btn');
+
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!nama || !email || !noHp) {
+      this._showError(errEl, 'Semua data profil wajib diisi.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      this._showError(errEl, 'Format email tidak valid.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
+
+    App.loading(true, 'Menyimpan profil...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Simpan Perubahan';
+
+        if (res.success) {
+          // Update global state
+          App.state.kamad.nama = res.data.nama;
+          App.state.kamad.email = res.data.email;
+          App.state.kamad.no_hp = res.data.no_hp;
+          
+          // Update local session cache
+          localStorage.setItem('kamad_session', JSON.stringify(App.state.kamad));
+
+          successEl.textContent = res.message || 'Profil berhasil diperbarui.';
+          successEl.style.display = 'block';
+        } else {
+          this._showError(errEl, res.error || 'Gagal menyimpan profil.');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Simpan Perubahan';
+        this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
+      })
+      .kamadSaveProfile(App.state.kamad.nsm, email, nama, noHp);
+  },
+
+  changePassword(e) {
+    e.preventDefault();
+    const oldPwd = document.getElementById('kamad-pwd-old').value;
+    const newPwd = document.getElementById('kamad-pwd-new').value;
+    const confirmPwd = document.getElementById('kamad-pwd-confirm').value;
+    const errEl = document.getElementById('kamad-pwd-error');
+    const successEl = document.getElementById('kamad-pwd-success');
+    const btn = document.getElementById('kamad-pwd-btn');
+
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!oldPwd || !newPwd || !confirmPwd) {
+      this._showError(errEl, 'Semua field password wajib diisi.');
+      return;
+    }
+
+    if (newPwd.length < 6) {
+      this._showError(errEl, 'Password baru minimal 6 karakter.');
+      return;
+    }
+
+    if (newPwd !== confirmPwd) {
+      this._showError(errEl, 'Konfirmasi password baru tidak cocok.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
+
+    App.loading(true, 'Mengubah password...');
+    google.script.run
+      .withSuccessHandler(res => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Ganti Password';
+
+        if (res.success) {
+          successEl.textContent = res.message || 'Password berhasil diperbarui.';
+          successEl.style.display = 'block';
+          document.getElementById('kamad-password-form').reset();
+        } else {
+          this._showError(errEl, res.error || 'Gagal mengubah password.');
+        }
+      })
+      .withFailureHandler(err => {
+        App.loading(false);
+        btn.disabled = false;
+        btn.textContent = 'Ganti Password';
+        this._showError(errEl, 'Koneksi terputus: ' + (err.message || err));
+      })
+      .kamadChangePassword(App.state.kamad.nsm, oldPwd, newPwd);
+  },
+
+  _showError(el, msg) {
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.classList.remove('kamad-shake');
+    void el.offsetWidth;
+    el.classList.add('kamad-shake');
+  }
+};
+</script>

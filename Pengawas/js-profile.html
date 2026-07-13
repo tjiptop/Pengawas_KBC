@@ -281,11 +281,25 @@ window.ProfileViews = {
                     </div>
                     <div>
                         <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Peran</label>
-                        <select id="prof-add-pel-peran" class="form-control" required>
+                        <select id="prof-add-pel-peran" class="form-control" required onchange="document.getElementById('prof-add-pel-pelatih-fields').style.display = this.value === 'Pelatih' ? 'flex' : 'none';">
                             <option value="">-- Pilih Peran --</option>
                             <option value="Pelatih">Pelatih</option>
                             <option value="Peserta">Peserta</option>
                         </select>
+                    </div>
+                    <div id="prof-add-pel-pelatih-fields" style="display:none; flex-direction:column; gap:12px;">
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Materi Pelatihan</label>
+                            <input type="text" id="prof-add-pel-materi" class="form-control" placeholder="Masukkan materi pelatihan...">
+                        </div>
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Jumlah Peserta yang dilatih</label>
+                            <input type="number" id="prof-add-pel-jumlah-peserta" class="form-control" placeholder="Masukkan jumlah peserta...">
+                        </div>
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Catatan</label>
+                            <textarea id="prof-add-pel-catatan" class="form-control" placeholder="Catatan tambahan..." style="height:60px; resize:vertical;"></textarea>
+                        </div>
                     </div>
                     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
                         <button type="button" class="btn btn-secondary" onclick="ProfileManager.closeModals()" style="width:auto !important; padding:8px 16px;">Batal</button>
@@ -587,6 +601,10 @@ window.ProfileManager = {
         document.getElementById('prof-add-pel-mulai').value = '';
         document.getElementById('prof-add-pel-selesai').value = '';
         document.getElementById('prof-add-pel-peran').value = '';
+        document.getElementById('prof-add-pel-pelatih-fields').style.display = 'none';
+        document.getElementById('prof-add-pel-materi').value = '';
+        document.getElementById('prof-add-pel-jumlah-peserta').value = '';
+        document.getElementById('prof-add-pel-catatan').value = '';
     },
     
     showAddPenghargaanModal() {
@@ -631,6 +649,19 @@ window.ProfileManager = {
                     const badgeColor = isSistem ? 'background:#e8f4ff; color:#1890ff;' : 'background:#f6ffed; color:#52c41a;';
                     const deleteBtn = !isSistem ? `<button class="btn" style="background:var(--color-danger); color:white; padding:4px 8px; font-size:0.75rem; border-radius:4px; width:auto !important;" onclick="ProfileManager.deletePelatihan('${p.id}')">Hapus</button>` : '';
                     
+                    let extraInfo = '';
+                    if (p.peran === 'Pelatih') {
+                        if (p.materi) {
+                            extraInfo += `<div style="font-size:0.78rem; color:var(--color-text-light); margin-top:4px;">📚 <b>Materi:</b> ${p.materi}</div>`;
+                        }
+                        if (p.jumlah_peserta) {
+                            extraInfo += `<div style="font-size:0.78rem; color:var(--color-text-light); margin-top:2px;">👥 <b>Peserta:</b> ${p.jumlah_peserta} orang</div>`;
+                        }
+                        if (p.catatan) {
+                            extraInfo += `<div style="font-size:0.78rem; color:var(--color-text-light); margin-top:2px; font-style:italic;">💬 <b>Catatan:</b> ${p.catatan}</div>`;
+                        }
+                    }
+
                     html += `
                         <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-bg); padding:12px; border-radius:8px; border:1px solid var(--color-border-light);">
                             <div>
@@ -639,6 +670,7 @@ window.ProfileManager = {
                                 <div style="font-size:0.75rem; color:var(--color-text-light);">
                                     📅 ${p.tanggal_mulai} s/d ${p.tanggal_selesai} · <b>Peran: ${p.peran}</b>
                                 </div>
+                                ${extraInfo}
                             </div>
                             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
                                 <span style="font-size:0.68rem; font-weight:800; border-radius:4px; padding:2px 6px; text-transform:uppercase; ${badgeColor}">${p.sumber}</span>
@@ -657,13 +689,17 @@ window.ProfileManager = {
     },
     
     addPelatihanSubmit() {
+        const peran = document.getElementById('prof-add-pel-peran').value;
         const payload = {
             nip: App.state.user['NIP'],
             judul_pelatihan: document.getElementById('prof-add-pel-judul').value,
             penyelenggara: document.getElementById('prof-add-pel-penyelenggara').value,
             tanggal_mulai: document.getElementById('prof-add-pel-mulai').value,
             tanggal_selesai: document.getElementById('prof-add-pel-selesai').value,
-            peran: document.getElementById('prof-add-pel-peran').value
+            peran: peran,
+            materi: peran === 'Pelatih' ? document.getElementById('prof-add-pel-materi').value.trim() : '',
+            jumlah_peserta: peran === 'Pelatih' ? parseInt(document.getElementById('prof-add-pel-jumlah-peserta').value, 10) || 0 : 0,
+            catatan: peran === 'Pelatih' ? document.getElementById('prof-add-pel-catatan').value.trim() : ''
         };
         
         App.loading(true, 'Menyimpan pelatihan...');
